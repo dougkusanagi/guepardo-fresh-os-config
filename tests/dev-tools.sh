@@ -54,6 +54,11 @@ for distro in ubuntu fedora; do
   assert_contains "$desktop_script" "install_google_chrome"
   assert_contains "$desktop_script" "install_opencode_desktop"
   assert_contains "$desktop_script" "install_antigravity_desktop"
+  assert_contains "$desktop_script" "install_steam"
+  assert_contains "$desktop_script" "install_lutris"
+  assert_contains "$desktop_script" "install_qbittorrent"
+  assert_contains "$desktop_script" "install_discord"
+  assert_contains "$desktop_script" "install_obsidian"
   assert_contains "$desktop_script" 'flatpak_install_app "com.github.dynobo.normcap"'
   assert_not_contains "$desktop_script" 'flatpak_install_app "com.visualstudio.code"'
   assert_not_contains "$desktop_script" 'flatpak_install_app "com.google.Chrome"'
@@ -63,10 +68,10 @@ for distro in ubuntu fedora; do
   assert_not_contains "$desktop_script" 'flatpak_install_app "ai.lmstudio.LMStudio"'
   assert_contains "$desktop_script" 'flatpak_install_app "io.github.zen_browser.zen"'
   assert_contains "$desktop_script" 'flatpak_install_app "io.missioncenter.MissionCenter"'
-  assert_contains "$desktop_script" 'flatpak_install_app "com.discordapp.Discord"'
   assert_contains "$desktop_script" 'flatpak_install_app "com.ktechpit.whatsie"'
-  assert_contains "$desktop_script" 'flatpak_install_app "com.valvesoftware.Steam"'
-  assert_contains "$desktop_script" 'flatpak_install_app "net.lutris.Lutris"'
+  assert_not_contains "$desktop_script" 'flatpak_install_app "com.valvesoftware.Steam"'
+  assert_not_contains "$desktop_script" 'flatpak_install_app "net.lutris.Lutris"'
+  assert_not_contains "$desktop_script" 'flatpak_install_app "com.discordapp.Discord"'
   assert_contains "$desktop_script" 'flatpak_install_app "com.vysp3r.ProtonPlus"'
   assert_contains "$desktop_script" 'flatpak_install_app "com.heroicgameslauncher.hgl"'
   assert_contains "$desktop_script" 'flatpak_install_app "com.usebottles.bottles"'
@@ -80,6 +85,11 @@ for distro in ubuntu fedora; do
   assert_contains "$lib_script" "install_lazygit()"
   assert_not_contains "$lib_script" "install_atuin()"
   assert_contains "$lib_script" "install_yazi()"
+  assert_contains "$lib_script" "install_steam()"
+  assert_contains "$lib_script" "install_lutris()"
+  assert_contains "$lib_script" "install_qbittorrent()"
+  assert_contains "$lib_script" "install_discord()"
+  assert_contains "$lib_script" "install_obsidian()"
   assert_contains "$lib_script" "install_lm_studio()"
   assert_contains "$lib_script" "https://lmstudio.ai/download/latest/linux/x64?format=AppImage"
   assert_contains "$lib_script" "flatpak run it.mijorus.gearlever --integrate --replace --yes"

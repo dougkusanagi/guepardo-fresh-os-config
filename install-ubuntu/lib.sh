@@ -417,6 +417,31 @@ comment_line_if_present() {
 
 flatpak_install_app() {
   local app_id="$1"
+  shift
+
+  local check
+  for check in "$@"; do
+    case "$check" in
+      apt:*)
+        if apt_package_installed "${check#apt:}"; then
+          log "$app_id is already installed via APT (${check#apt:})."
+          return
+        fi
+        ;;
+      desktop:*)
+        if [[ -f "/usr/share/applications/${check#desktop:}" || -f "$TARGET_HOME/.local/share/applications/${check#desktop:}" ]]; then
+          log "$app_id desktop entry found (${check#desktop:})."
+          return
+        fi
+        ;;
+      *)
+        if command_exists "$check"; then
+          log "$app_id is already available ($check in PATH)."
+          return
+        fi
+        ;;
+    esac
+  done
 
   if [[ "$DRY_RUN" == "true" ]]; then
     if flatpak info "$app_id" >/dev/null 2>&1; then
@@ -765,6 +790,83 @@ EOF
 
   rm -rf "$archive" "$desktop_tmp" "$extract_dir"
   success "Antigravity installed"
+}
+
+install_steam() {
+  if command_exists steam; then
+    log "Steam is already installed."
+    return
+  fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would install Steam via apt (multiverse)"
+    return
+  fi
+  run_quiet sudo add-apt-repository -y multiverse
+  apt_update
+  apt_install steam
+  success "Steam installed"
+}
+
+install_lutris() {
+  if command_exists lutris; then
+    log "Lutris is already installed."
+    return
+  fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would install Lutris via PPA"
+    return
+  fi
+  run_quiet sudo add-apt-repository -y ppa:lutris-team/lutris
+  apt_update
+  apt_install lutris
+  success "Lutris installed"
+}
+
+install_qbittorrent() {
+  if command_exists qbittorrent; then
+    log "qBittorrent is already installed."
+    return
+  fi
+  apt_install qbittorrent
+  success "qBittorrent installed"
+}
+
+install_discord() {
+  if command_exists discord; then
+    log "Discord is already installed."
+    return
+  fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would install Discord from official .deb"
+    return
+  fi
+  local package_file="/tmp/discord.deb"
+  download_file "https://discord.com/api/download?platform=linux&format=deb" "$package_file"
+  run_quiet sudo apt-get install -y "$package_file"
+  rm -f "$package_file"
+  success "Discord installed"
+}
+
+install_obsidian() {
+  if command_exists obsidian; then
+    log "Obsidian is already installed."
+    return
+  fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would install Obsidian from official .deb"
+    return
+  fi
+  local url package_file
+  url="$(github_latest_asset_url "obsidianmd/obsidian-releases" "obsidian_.*_amd64\\.deb$")"
+  if [[ -z "$url" ]]; then
+    error "Could not find Obsidian .deb URL."
+    return 1
+  fi
+  package_file="/tmp/obsidian.deb"
+  download_file "$url" "$package_file"
+  run_quiet sudo apt-get install -y "$package_file"
+  rm -f "$package_file"
+  success "Obsidian installed"
 }
 
 detect_desktop() {
