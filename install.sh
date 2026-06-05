@@ -233,12 +233,10 @@ main() {
   esac
 
   if [[ -t 0 && "$MODE_EXPLICITLY_SET" == "false" ]]; then
-    local selected
-    interactive_select selected "Installation mode (use arrows, enter to confirm):" \
-      "Full (dev + desktop + jogos)" \
-      "Basic (dev tools only)"
-    case "$selected" in
-      *"Basic"*) INSTALL_MODE="basic" ;;
+    local answer
+    read -r -p "Installation mode? [F]ull or [B]asic (default: Full): " answer
+    case "${answer,,}" in
+      b|basic) INSTALL_MODE="basic" ;;
     esac
   fi
 
