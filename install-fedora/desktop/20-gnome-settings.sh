@@ -12,8 +12,17 @@ set_gsettings_key_if_exists() {
   local key="$2"
   local value="$3"
 
-  if gsettings list-keys "$schema" | grep -Fxq "$key"; then
+  if gsettings list-keys "$schema" 2>/dev/null | grep -Fxq "$key" 2>/dev/null; then
     gsettings set "$schema" "$key" "$value"
+  fi
+}
+
+enable_gnome_extension() {
+  local uuid="$1"
+  if command_exists gnome-extensions; then
+    if gnome-extensions info "$uuid" &>/dev/null; then
+      gnome-extensions enable "$uuid" 2>/dev/null || true
+    fi
   fi
 }
 
@@ -71,6 +80,10 @@ set_screenshot_portal_permission flameshot
 
 success "Flameshot configured as the primary Print Screen tool"
 
+log "Enabling Dash to Dock..."
+enable_gnome_extension dash-to-dock@micxgx.gmail.com
+enable_gnome_extension ubuntu-dock@ubuntu.com
+
 log "Configuring Dash to Dock..."
 set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock show-apps-at-top true
 set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 30
@@ -85,4 +98,5 @@ set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock extend-height
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock dock-fixed true
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock intellihide false
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock autohide false
+
 success "Dash to Dock configured"
