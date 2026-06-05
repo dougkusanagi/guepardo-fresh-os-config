@@ -54,6 +54,7 @@ for distro in ubuntu fedora; do
   assert_contains "$desktop_script" "install_google_chrome"
   assert_contains "$desktop_script" "install_opencode_desktop"
   assert_contains "$desktop_script" "gnome-shell-extension-dash-to-dock"
+  assert_contains "$desktop_script" '"$INSTALL_MODE" == "games"'
   assert_contains "$desktop_script" "install_antigravity_desktop"
   assert_contains "$desktop_script" "install_steam"
   assert_contains "$desktop_script" "install_lutris"

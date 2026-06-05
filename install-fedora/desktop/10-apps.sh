@@ -17,8 +17,8 @@ install_antigravity_desktop
 
 dnf_install_optional gnome-shell-extension-dash-to-dock
 
-# Gaming extras (only in full mode)
-if [[ "$INSTALL_MODE" == "full" ]]; then
+# Gaming extras
+if [[ "$INSTALL_MODE" == "full" || "$INSTALL_MODE" == "games" ]]; then
   dnf_install_optional steam-devices joystick-support gamemode mangohud gamescope goverlay xone xpadneo
   install_steam
   install_lutris

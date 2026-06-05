@@ -225,23 +225,24 @@ main() {
   show_install_intro
 
   case "$INSTALL_MODE" in
-    full|basic) ;;
+    full|basic|games) ;;
     *)
-      error "Invalid mode: $INSTALL_MODE. Use full or basic."
+      error "Invalid mode: $INSTALL_MODE. Use full, basic, or games."
       exit 1
       ;;
   esac
 
   if [[ -t 0 && "$MODE_EXPLICITLY_SET" == "false" ]]; then
     local answer
-    read -r -p "Installation mode? [F]ull or [B]asic (default: Full): " answer
+    read -r -p "Installation mode? [F]ull, [B]asic, or [G]ames (default: Full): " answer
     case "${answer,,}" in
       b|basic) INSTALL_MODE="basic" ;;
+      g|games) INSTALL_MODE="games" ;;
     esac
   fi
 
   echo "This is a very opinionated basic dev environment with PHP, Composer, Node and many desktop apps"
-  log "Selected installer family: $INSTALL_MODE"
+  log "Selected installer mode: $INSTALL_MODE"
   echo
   echo "Begin installation (or abort with ctrl+c)..."
 
