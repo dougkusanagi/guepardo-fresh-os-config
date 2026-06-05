@@ -103,6 +103,7 @@ sudo glib-compile-schemas /usr/share/glib-2.0/schemas/ 2>/dev/null || true
 enable_gnome_extension dash-to-dock@micxgx.gmail.com
 enable_gnome_extension dash-to-dock@dashdock.org
 enable_gnome_extension ubuntu-dock@ubuntu.com
+sleep 1
 
 log "Configuring Dash to Dock..."
 set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock show-apps-at-top true
