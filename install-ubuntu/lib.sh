@@ -755,9 +755,15 @@ install_antigravity_desktop() {
   fi
 
   local release_json version execution_id url
-  release_json="$(curl -fsSL https://antigravity-auto-updater-974169037036.us-central1.run.app/releases)"
-  version="$(jq -r '.[0].version' <<<"$release_json")"
-  execution_id="$(jq -r '.[0].execution_id' <<<"$release_json")"
+  release_json="$(curl -fsSL https://antigravity-auto-updater-974169037036.us-central1.run.app/releases 2>/dev/null || true)"
+  version="$(jq -r '.[0].version' <<<"$release_json" 2>/dev/null || true)"
+  execution_id="$(jq -r '.[0].execution_id' <<<"$release_json" 2>/dev/null || true)"
+
+  if [[ -z "$version" || -z "$execution_id" ]]; then
+    warn "Antigravity release info not available, skipping."
+    return
+  fi
+
   url="https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/${version}-${execution_id}/${platform}/Antigravity.tar.gz"
 
   local archive app_dir bin_path desktop_file desktop_tmp extract_dir icon_path
@@ -769,7 +775,11 @@ install_antigravity_desktop() {
   extract_dir="$(mktemp -d)"
   icon_path="$app_dir/resources/app/resources/linux/code.png"
 
-  download_file "$url" "$archive"
+  download_file "$url" "$archive" || {
+    warn "Antigravity download failed (404?), skipping."
+    rm -rf "$archive" "$desktop_tmp" "$extract_dir"
+    return
+  }
   run_quiet tar -xzf "$archive" -C "$extract_dir"
   run_quiet sudo install -d /opt /usr/local/share/applications
   sudo rm -rf "$app_dir"
