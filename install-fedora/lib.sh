@@ -693,12 +693,15 @@ install_antigravity_desktop() {
   run_quiet sudo mv "$extract_dir/Antigravity-x64" "$app_dir"
   run_quiet sudo ln -sf "$app_dir/antigravity" "$bin_path"
 
+  local icon_path="$TARGET_HOME/Downloads/antigravity.webp"
+
   cat > "$desktop_tmp" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Antigravity
 Comment=Google Antigravity IDE
 Exec=$bin_path %F
+Icon=$icon_path
 Terminal=false
 Categories=Development;IDE;
 EOF
