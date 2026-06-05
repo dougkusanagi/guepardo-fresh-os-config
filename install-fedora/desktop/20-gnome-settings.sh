@@ -70,3 +70,19 @@ set_screenshot_portal_permission org.flameshot.Flameshot
 set_screenshot_portal_permission flameshot
 
 success "Flameshot configured as the primary Print Screen tool"
+
+log "Configuring Dash to Dock..."
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock show-apps-at-top true
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 30
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock extend-height true
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock dock-fixed true
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock intellihide false
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock autohide false
+
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock show-apps-at-top true
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock dash-max-icon-size 30
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock extend-height true
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock dock-fixed true
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock intellihide false
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock autohide false
+success "Dash to Dock configured"

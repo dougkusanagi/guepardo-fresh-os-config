@@ -15,9 +15,11 @@ install_lm_studio
 install_opencode_desktop
 install_antigravity_desktop
 
+dnf_install_optional gnome-shell-extension-dash-to-dock
+
 # Gaming extras (only in full mode)
 if [[ "$INSTALL_MODE" == "full" ]]; then
-  dnf_install_optional steam-devices joystick-support gamemode mangohud gamescope goverlay xone xpadneo gnome-shell-extension-dash-to-dock
+  dnf_install_optional steam-devices joystick-support gamemode mangohud gamescope goverlay xone xpadneo
   install_steam
   install_lutris
   install_qbittorrent

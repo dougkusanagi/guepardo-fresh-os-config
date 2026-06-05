@@ -2,9 +2,11 @@
 
 section "Desktop Apps"
 
+apt_install_optional gnome-shell-extension-dash-to-dock gnome-shell-extension-ubuntu-dock
+
 # Gaming extras (only in full mode)
 if [[ "$INSTALL_MODE" == "full" ]]; then
-  apt_install_optional steam-devices joystick jstest-gtk gamemode mangohud goverlay gnome-shell-extension-ubuntu-dock
+  apt_install_optional steam-devices joystick jstest-gtk gamemode mangohud goverlay
   install_steam
   install_lutris
   install_qbittorrent
