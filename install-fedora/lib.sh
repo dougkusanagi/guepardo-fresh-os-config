@@ -861,30 +861,31 @@ apply_selected_theme() {
 }
 
 interactive_select() {
-  local prompt="$1"
-  shift
+  local varname="$1"
+  local prompt="$2"
+  shift 2
   local options=("$@")
   local selected=0
   local key
 
-  printf "\n%s\n" "$prompt"
+  printf "\n%s\n" "$prompt" >&2
   for i in "${!options[@]}"; do
-    printf "   %s\n" "${options[$i]}"
+    printf "   %s\n" "${options[$i]}" >&2
   done
 
-  printf '\033[?25l'
+  printf '\033[?25l' >&2
   local saved_stty
   saved_stty=$(stty -g 2>/dev/null || echo "")
   stty raw -echo 2>/dev/null || true
 
   redraw() {
     local sel=$1
-    printf '\033[%dA' "${#options[@]}"
+    printf '\033[%dA' "${#options[@]}" >&2
     for i in "${!options[@]}"; do
       if [[ $i -eq $sel ]]; then
-        printf "\r\033[7m > %s \033[27m\n" "${options[$i]}"
+        printf "\r\033[7m > %s \033[27m\n" "${options[$i]}" >&2
       else
-        printf "\r   %s\n" "${options[$i]}"
+        printf "\r   %s\n" "${options[$i]}" >&2
       fi
     done
   }
@@ -909,17 +910,16 @@ interactive_select() {
     elif [[ -z $key || $key == $'\n' || $key == $'\r' ]]; then
       break
     elif [[ $key == $'\x03' ]]; then
-      printf '\033[?25h'
+      printf '\033[?25h' >&2
       [[ -n "$saved_stty" ]] && stty "$saved_stty" 2>/dev/null || true
       exit 1
     fi
   done
 
-  printf '\033[?25h'
+  printf '\033[?25h' >&2
   [[ -n "$saved_stty" ]] && stty "$saved_stty" 2>/dev/null || true
-  printf '\033[%dB' "$(( ${#options[@]} - selected - 1 ))"
-  echo "${options[$selected]}"
-  return $selected
+  printf '\033[%dB' "$(( ${#options[@]} - selected - 1 ))" >&2
+  printf -v "$varname" "%s" "${options[$selected]}"
 }
 
 finish_installation() {

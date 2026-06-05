@@ -234,9 +234,9 @@ main() {
 
   if [[ -t 0 && "$MODE_EXPLICITLY_SET" == "false" ]]; then
     local selected
-    selected="$(interactive_select "Installation mode (use arrows, enter to confirm):" \
+    interactive_select selected "Installation mode (use arrows, enter to confirm):" \
       "Full (dev + desktop + jogos)" \
-      "Basic (dev tools only)")"
+      "Basic (dev tools only)"
     case "$selected" in
       *"Basic"*) INSTALL_MODE="basic" ;;
     esac
