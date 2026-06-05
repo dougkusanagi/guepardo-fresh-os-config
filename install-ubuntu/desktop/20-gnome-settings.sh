@@ -113,3 +113,13 @@ set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock intellihide f
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock autohide false
 
 success "Dash to Dock configured"
+
+log "Restarting GNOME Shell to apply changes..."
+if busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval s 'Meta.restart("Restarting…")' &>/dev/null || \
+   busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval s 'global.reexec_self()' &>/dev/null; then
+  sleep 2
+  success "GNOME Shell restarted"
+else
+  warn "Could not restart GNOME Shell automatically."
+  warn "Logout and login again, or reboot, for Dash to Dock to appear."
+fi
