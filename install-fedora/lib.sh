@@ -662,15 +662,25 @@ install_antigravity_desktop() {
     return
   fi
 
-  local release_json version execution_id url
-  release_json="$(curl -fsSL https://antigravity-auto-updater-974169037036.us-central1.run.app/releases 2>/dev/null || true)"
-  version="$(jq -r '.[0].version' <<<"$release_json" 2>/dev/null || true)"
-  execution_id="$(jq -r '.[0].execution_id' <<<"$release_json" 2>/dev/null || true)"
+  local latest_prefix version execution_id url
+  latest_prefix=""
+  latest_prefix="$(
+    curl -fsSL "https://storage.googleapis.com/storage/v1/b/antigravity-public/o?prefix=antigravity-hub/&delimiter=/" \
+    | jq -r '.prefixes[]' \
+    | sort -V \
+    | tail -n 1
+  )" || true
 
-  if [[ -z "$version" || -z "$execution_id" ]]; then
+  if [[ -z "$latest_prefix" ]]; then
     warn "Antigravity release info not available, skipping."
     return
   fi
+
+  local version_spec
+  version_spec="${latest_prefix#antigravity-hub/}"
+  version_spec="${version_spec%/}"
+  version="${version_spec%-*}"
+  execution_id="${version_spec#*-}"
 
   url="https://storage.googleapis.com/antigravity-public/antigravity-hub/${version}-${execution_id}/${platform}/Antigravity.tar.gz"
 
@@ -693,7 +703,9 @@ install_antigravity_desktop() {
   run_quiet sudo mv "$extract_dir/Antigravity-x64" "$app_dir"
   run_quiet sudo ln -sf "$app_dir/antigravity" "$bin_path"
 
-  local icon_path="$TARGET_HOME/Downloads/antigravity.webp"
+  local icon_file="/usr/local/share/pixmaps/antigravity.webp"
+  run_quiet sudo install -d /usr/local/share/pixmaps
+  run_quiet sudo install -m 0644 "$ROOT_DIR/antigravity.webp" "$icon_file"
 
   cat > "$desktop_tmp" <<EOF
 [Desktop Entry]
@@ -701,7 +713,7 @@ Type=Application
 Name=Antigravity
 Comment=Google Antigravity IDE
 Exec=$bin_path %F
-Icon=$icon_path
+Icon=$icon_file
 Terminal=false
 Categories=Development;IDE;
 EOF

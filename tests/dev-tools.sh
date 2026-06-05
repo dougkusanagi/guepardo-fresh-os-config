@@ -106,7 +106,7 @@ for distro in ubuntu fedora; do
   assert_contains "$lib_script" "google-chrome-stable"
   assert_contains "$lib_script" "install_opencode_desktop()"
   assert_contains "$lib_script" "install_antigravity_desktop()"
-  assert_contains "$lib_script" "https://antigravity-auto-updater-974169037036.us-central1.run.app/releases"
+  assert_contains "$lib_script" "storage.googleapis.com/storage/v1/b/antigravity-public/o"
   assert_contains "$lib_script" "Antigravity.tar.gz"
   assert_contains "$lib_script" "configure_static_ipv4_network()"
   assert_contains "$lib_script" 'STATIC_NETWORK_ADDRESS="${STATIC_NETWORK_ADDRESS:-192.168.1.77/24}"'
