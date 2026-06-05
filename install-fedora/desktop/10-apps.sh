@@ -6,7 +6,7 @@ install_vscode_desktop
 install_google_chrome
 flatpak_install_app "io.podman_desktop.PodmanDesktop"
 flatpak_install_app "it.mijorus.gearlever"
-install_obsidian
+flatpak_install_app "md.obsidian.Obsidian"
 flatpak_install_app "io.github.zen_browser.zen"
 flatpak_install_app "io.missioncenter.MissionCenter"
 flatpak_install_app "com.ktechpit.whatsie"

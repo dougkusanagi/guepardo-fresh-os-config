@@ -58,7 +58,10 @@ for distro in ubuntu fedora; do
   assert_contains "$desktop_script" "install_lutris"
   assert_contains "$desktop_script" "install_qbittorrent"
   assert_contains "$desktop_script" "install_discord"
-  assert_contains "$desktop_script" "install_obsidian"
+  case "$distro" in
+    ubuntu) assert_contains "$desktop_script" "install_obsidian" ;;
+    fedora) assert_contains "$desktop_script" "md.obsidian.Obsidian" ;;
+  esac
   assert_contains "$desktop_script" 'flatpak_install_app "com.github.dynobo.normcap"'
   assert_not_contains "$desktop_script" 'flatpak_install_app "com.visualstudio.code"'
   assert_not_contains "$desktop_script" 'flatpak_install_app "com.google.Chrome"'
