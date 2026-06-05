@@ -860,6 +860,68 @@ apply_selected_theme() {
   success "Theme applied: $theme"
 }
 
+interactive_select() {
+  local prompt="$1"
+  shift
+  local options=("$@")
+  local selected=0
+  local key
+
+  printf "\n%s\n" "$prompt"
+  for i in "${!options[@]}"; do
+    printf "   %s\n" "${options[$i]}"
+  done
+
+  printf '\033[?25l'
+  local saved_stty
+  saved_stty=$(stty -g 2>/dev/null || echo "")
+  stty raw -echo 2>/dev/null || true
+
+  redraw() {
+    local sel=$1
+    printf '\033[%dA' "${#options[@]}"
+    for i in "${!options[@]}"; do
+      if [[ $i -eq $sel ]]; then
+        printf "\r\033[7m > %s \033[27m\n" "${options[$i]}"
+      else
+        printf "\r   %s\n" "${options[$i]}"
+      fi
+    done
+  }
+
+  while true; do
+    IFS= read -r -n1 key 2>/dev/null || true
+    if [[ $key == $'\033' ]]; then
+      IFS= read -r -t 0.001 -n1 next 2>/dev/null || true
+      if [[ $next == '[' ]]; then
+        IFS= read -r -t 0.001 -n1 dir 2>/dev/null || true
+        case "$dir" in
+          A)
+            ((selected > 0)) && ((selected--))
+            redraw $selected
+            ;;
+          B)
+            ((selected < ${#options[@]} - 1)) && ((selected++))
+            redraw $selected
+            ;;
+        esac
+      fi
+    elif [[ -z $key || $key == $'\n' || $key == $'\r' ]]; then
+      break
+    elif [[ $key == $'\x03' ]]; then
+      printf '\033[?25h'
+      [[ -n "$saved_stty" ]] && stty "$saved_stty" 2>/dev/null || true
+      exit 1
+    fi
+  done
+
+  printf '\033[?25h'
+  [[ -n "$saved_stty" ]] && stty "$saved_stty" 2>/dev/null || true
+  printf '\033[%dB' "$(( ${#options[@]} - selected - 1 ))"
+  echo "${options[$selected]}"
+  return $selected
+}
+
 finish_installation() {
   log "Installation complete."
   warn "Open a new terminal to load the updated PATH and aliases."

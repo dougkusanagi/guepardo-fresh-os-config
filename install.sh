@@ -5,6 +5,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REQUESTED_DISTRO="auto"
 DRY_RUN="false"
+INSTALL_MODE="full"
+MODE_EXPLICITLY_SET=false
 INSTALL_FAMILY=""
 INSTALL_ROOT=""
 LOG_DIR="$ROOT_DIR/logs"
@@ -30,11 +32,14 @@ fi
 usage() {
   cat <<'EOF'
 Usage:
-  ./install.sh [--distro=auto|ubuntu|fedora|nobara] [--theme=NAME] [--list-themes] [--help]
+  ./install.sh [--distro=auto|ubuntu|fedora|nobara] [--mode=full|basic] [--theme=NAME] [--list-themes] [--help]
 
 Options:
   --distro=NAME
       Select installer family. Default: auto.
+
+  --mode=MODE
+      Installation scope: full (dev + desktop + games) or basic (dev only). Default: full.
 
   --dry-run
       Show what would be installed without making any changes.
@@ -62,6 +67,10 @@ preparse_args() {
         ;;
       --dry-run)
         DRY_RUN="true"
+        ;;
+      --mode=*)
+        INSTALL_MODE="${arg#*=}"
+        MODE_EXPLICITLY_SET=true
         ;;
       --help)
         usage
@@ -135,6 +144,8 @@ parse_args() {
         ;;
       --dry-run)
         ;;
+      --mode=*)
+        ;;
       --theme=*)
         SELECTED_THEME="$(normalize_theme_name "${arg#*=}")"
         ;;
@@ -168,6 +179,7 @@ EOF
   printf "%s\n" "$COLOR_RESET"
   printf "%sFresh Config Installer%s\n" "${COLOR_BOLD}${COLOR_GREEN}" "$COLOR_RESET"
   printf "%sDistro target:%s %s\n" "$COLOR_YELLOW" "$COLOR_RESET" "$INSTALL_FAMILY"
+  printf "%sMode:%s %s\n" "$COLOR_YELLOW" "$COLOR_RESET" "$INSTALL_MODE"
   printf "%sScope:%s terminal tools, dev stack, desktop apps and GNOME polish\n" "$COLOR_YELLOW" "$COLOR_RESET"
   printf "%sLog:%s %s\n\n" "$COLOR_DIM" "$COLOR_RESET" "$INSTALL_LOG"
 }
@@ -186,6 +198,7 @@ log_to_file() {
 }
 
 export DRY_RUN
+export INSTALL_MODE
 
 # shellcheck source=/dev/null
 source "$INSTALL_ROOT/lib.sh"
@@ -210,8 +223,27 @@ main() {
   log_to_file "INFO" "Installation started - $INSTALL_FAMILY"
 
   show_install_intro
+
+  case "$INSTALL_MODE" in
+    full|basic) ;;
+    *)
+      error "Invalid mode: $INSTALL_MODE. Use full or basic."
+      exit 1
+      ;;
+  esac
+
+  if [[ -t 0 && "$MODE_EXPLICITLY_SET" == "false" ]]; then
+    local selected
+    selected="$(interactive_select "Installation mode (use arrows, enter to confirm):" \
+      "Full (dev + desktop + jogos)" \
+      "Basic (dev tools only)")"
+    case "$selected" in
+      *"Basic"*) INSTALL_MODE="basic" ;;
+    esac
+  fi
+
   echo "This is a very opinionated basic dev environment with PHP, Composer, Node and many desktop apps"
-  log "Selected installer family: $INSTALL_FAMILY"
+  log "Selected installer family: $INSTALL_MODE"
   echo
   echo "Begin installation (or abort with ctrl+c)..."
 
