@@ -20,6 +20,13 @@ set_gsettings_key_if_exists() {
 enable_gnome_extension() {
   local uuid="$1"
 
+  # Try to install and enable dynamically via GNOME Shell D-Bus if available
+  if command_exists busctl && [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+    if busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Extensions InstallRemoteExtension s "$uuid" &>/dev/null; then
+      return 0
+    fi
+  fi
+
   if command_exists busctl; then
     busctl --user call org.gnome.Shell.Extensions /org/gnome/Shell/Extensions org.gnome.Shell.Extensions.EnableExtension s "$uuid" &>/dev/null || true
   elif command_exists dbus-send; then
@@ -41,6 +48,44 @@ enable_gnome_extension() {
       new_ext="${new_ext}, '$uuid']"
     fi
     gsettings set org.gnome.shell enabled-extensions "$new_ext" 2>/dev/null || true
+  fi
+}
+
+disable_gnome_extension() {
+  local uuid="$1"
+
+  if command_exists busctl; then
+    busctl --user call org.gnome.Shell.Extensions /org/gnome/Shell/Extensions org.gnome.Shell.Extensions.DisableExtension s "$uuid" &>/dev/null || true
+  elif command_exists dbus-send; then
+    dbus-send --session --dest=org.gnome.Shell.Extensions /org/gnome/Shell/Extensions org.gnome.Shell.Extensions.DisableExtension string:"$uuid" &>/dev/null || true
+  fi
+
+  if command_exists gnome-extensions; then
+    gnome-extensions disable "$uuid" 2>/dev/null || true
+  fi
+
+  local current new_ext
+  current="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null)" || current="@as []"
+  if [[ "$current" == *"$uuid"* ]]; then
+    new_ext=$(python3 -c '
+import sys, ast
+current = sys.argv[1]
+uuid = sys.argv[2]
+if current.startswith("@as"):
+    current = current[3:].strip()
+try:
+    val = ast.literal_eval(current)
+    if isinstance(val, list):
+        val = [x for x in val if x != uuid]
+        print(repr(val))
+    else:
+        print("[]")
+except Exception:
+    print("[]")
+' "$current" "$uuid" 2>/dev/null) || new_ext=""
+    if [[ -n "$new_ext" ]]; then
+      gsettings set org.gnome.shell enabled-extensions "$new_ext" 2>/dev/null || true
+    fi
   fi
 }
 
@@ -102,23 +147,29 @@ log "Enabling Dash to Dock..."
 sudo glib-compile-schemas /usr/share/glib-2.0/schemas/ 2>/dev/null || true
 enable_gnome_extension dash-to-dock@micxgx.gmail.com
 enable_gnome_extension dash-to-dock@dashdock.org
-enable_gnome_extension ubuntu-dock@ubuntu.com
+disable_gnome_extension ubuntu-dock@ubuntu.com
 sleep 1
 
 log "Configuring Dash to Dock..."
 set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock show-apps-at-top true
-set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 30
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 28
 set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock extend-height true
 set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock dock-fixed true
 set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock intellihide false
 set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock autohide false
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock show-mounts false
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock show-trash false
+set_gsettings_key_if_exists org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true
 
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock show-apps-at-top true
-set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock dash-max-icon-size 30
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock dash-max-icon-size 28
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock extend-height true
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock dock-fixed true
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock intellihide false
 set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock autohide false
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock show-mounts false
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock show-trash false
+set_gsettings_key_if_exists org.gnome.shell.extensions.ubuntu-dock custom-theme-shrink true
 
 success "Dash to Dock configured"
 
