@@ -764,16 +764,15 @@ install_antigravity_desktop() {
     return
   fi
 
-  url="https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/${version}-${execution_id}/${platform}/Antigravity.tar.gz"
+  url="https://storage.googleapis.com/antigravity-public/antigravity-hub/${version}-${execution_id}/${platform}/Antigravity.tar.gz"
 
-  local archive app_dir bin_path desktop_file desktop_tmp extract_dir icon_path
+  local archive app_dir bin_path desktop_file desktop_tmp extract_dir
   archive="/tmp/Antigravity.tar.gz"
   app_dir="/opt/antigravity"
   bin_path="/usr/local/bin/antigravity"
   desktop_file="/usr/local/share/applications/antigravity.desktop"
   desktop_tmp="$(mktemp)"
   extract_dir="$(mktemp -d)"
-  icon_path="$app_dir/resources/app/resources/linux/code.png"
 
   download_file "$url" "$archive" || {
     warn "Antigravity download failed (404?), skipping."
@@ -783,7 +782,7 @@ install_antigravity_desktop() {
   run_quiet tar -xzf "$archive" -C "$extract_dir"
   run_quiet sudo install -d /opt /usr/local/share/applications
   sudo rm -rf "$app_dir"
-  run_quiet sudo mv "$extract_dir/Antigravity" "$app_dir"
+  run_quiet sudo mv "$extract_dir/Antigravity-x64" "$app_dir"
   run_quiet sudo ln -sf "$app_dir/antigravity" "$bin_path"
 
   cat > "$desktop_tmp" <<EOF
@@ -792,7 +791,6 @@ Type=Application
 Name=Antigravity
 Comment=Google Antigravity IDE
 Exec=$bin_path %F
-Icon=$icon_path
 Terminal=false
 Categories=Development;IDE;
 EOF
