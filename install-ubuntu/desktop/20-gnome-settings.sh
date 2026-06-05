@@ -20,9 +20,20 @@ set_gsettings_key_if_exists() {
 enable_gnome_extension() {
   local uuid="$1"
   if command_exists gnome-extensions; then
-    if gnome-extensions info "$uuid" &>/dev/null; then
-      gnome-extensions enable "$uuid" 2>/dev/null || true
+    gnome-extensions enable "$uuid" 2>/dev/null || true
+  fi
+
+  local current new_ext
+  current="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null)" || current="@as []"
+  if [[ "$current" != *"$uuid"* ]]; then
+    if [[ "$current" == "@as []" || "$current" == "[]" ]]; then
+      new_ext="['$uuid']"
+    else
+      new_ext="${current%]}"
+      new_ext="${new_ext%, }"
+      new_ext="${new_ext}, '$uuid']"
     fi
+    gsettings set org.gnome.shell enabled-extensions "$new_ext" 2>/dev/null || true
   fi
 }
 
@@ -81,7 +92,9 @@ set_screenshot_portal_permission flameshot
 success "Flameshot configured as the primary Print Screen tool"
 
 log "Enabling Dash to Dock..."
+sudo glib-compile-schemas /usr/share/glib-2.0/schemas/ 2>/dev/null || true
 enable_gnome_extension dash-to-dock@micxgx.gmail.com
+enable_gnome_extension dash-to-dock@dashdock.org
 enable_gnome_extension ubuntu-dock@ubuntu.com
 
 log "Configuring Dash to Dock..."
