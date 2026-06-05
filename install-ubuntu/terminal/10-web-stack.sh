@@ -81,7 +81,7 @@ add_line_if_missing "export PATH=\"\$HOME/.bun/bin:\$PATH\"" "$TARGET_HOME/.bash
 export PATH="$HOME/.config/composer/vendor/bin:$HOME/.bun/bin:$PATH"
 success "Shell PATH updated for Composer and Bun"
 
-apt_install network-manager libnss3-tools jq xsel
+apt_install libnss3-tools
 
 add_line_if_missing 'alias copy="xsel -b"' "$TARGET_HOME/.bashrc"
 add_line_if_missing 'alias paste="xsel -b -o"' "$TARGET_HOME/.bashrc"

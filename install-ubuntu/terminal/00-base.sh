@@ -27,32 +27,40 @@ apt_install \
 
 configure_static_ipv4_network
 
-log "Configuring GitHub CLI repository..."
-if [[ "$DRY_RUN" == "true" ]]; then
-  log "[DRY-RUN] Would configure GitHub CLI repository"
+if ! command_exists gh; then
+  log "Configuring GitHub CLI repository..."
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would configure GitHub CLI repository"
+  else
+    install_apt_keyring_file \
+      https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+    apt_update
+  fi
+  apt_install gh
 else
-  install_apt_keyring_file \
-    https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-    /etc/apt/keyrings/githubcli-archive-keyring.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-    | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-  apt_update
+  log "gh is already installed."
 fi
-apt_install gh
 
-log "Configuring eza repository..."
-if [[ "$DRY_RUN" == "true" ]]; then
-  log "[DRY-RUN] Would configure eza repository"
+if ! command_exists eza; then
+  log "Configuring eza repository..."
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would configure eza repository"
+  else
+    install_apt_dearmored_keyring \
+      https://raw.githubusercontent.com/eza-community/eza/main/deb.asc \
+      /etc/apt/keyrings/gierens.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" \
+      | sudo tee /etc/apt/sources.list.d/gierens.list > /dev/null
+    sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
+    apt_update
+  fi
+  apt_install eza
 else
-  install_apt_dearmored_keyring \
-    https://raw.githubusercontent.com/eza-community/eza/main/deb.asc \
-    /etc/apt/keyrings/gierens.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" \
-    | sudo tee /etc/apt/sources.list.d/gierens.list > /dev/null
-  sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-  apt_update
+  log "eza is already installed."
 fi
-apt_install eza
 comment_line_if_present 'alias ls="eza"' "$TARGET_HOME/.bashrc"
 comment_line_if_present "alias l='ls -CF'" "$TARGET_HOME/.bashrc"
 comment_line_if_present 'alias l="ls -CF"' "$TARGET_HOME/.bashrc"
@@ -99,18 +107,22 @@ else
 fi
 
 section "Warp Terminal"
-if ! grep -q "warpdotdev" /etc/apt/sources.list.d/*.list 2>/dev/null; then
-  log "Adding Warp repository..."
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would configure Warp repository"
-  else
-    install_apt_dearmored_keyring \
-      https://releases.warp.dev/linux/keys/warp.asc \
-      /etc/apt/keyrings/warpdotdev.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/warpdotdev.gpg] https://releases.warp.dev/linux/deb stable main" \
-      | sudo tee /etc/apt/sources.list.d/warpdotdev.list > /dev/null
-    sudo chmod 644 /etc/apt/keyrings/warpdotdev.gpg /etc/apt/sources.list.d/warpdotdev.list
-    apt_update
+if command_exists warp-terminal; then
+  log "Warp Terminal is already installed."
+else
+  if ! grep -q "warpdotdev" /etc/apt/sources.list.d/*.list 2>/dev/null; then
+    log "Adding Warp repository..."
+    if [[ "$DRY_RUN" == "true" ]]; then
+      log "[DRY-RUN] Would configure Warp repository"
+    else
+      install_apt_dearmored_keyring \
+        https://releases.warp.dev/linux/keys/warp.asc \
+        /etc/apt/keyrings/warpdotdev.gpg
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/warpdotdev.gpg] https://releases.warp.dev/linux/deb stable main" \
+        | sudo tee /etc/apt/sources.list.d/warpdotdev.list > /dev/null
+      sudo chmod 644 /etc/apt/keyrings/warpdotdev.gpg /etc/apt/sources.list.d/warpdotdev.list
+      apt_update
+    fi
   fi
+  apt_install warp-terminal
 fi
-apt_install warp-terminal
