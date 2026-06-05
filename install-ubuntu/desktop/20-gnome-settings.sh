@@ -19,6 +19,13 @@ set_gsettings_key_if_exists() {
 
 enable_gnome_extension() {
   local uuid="$1"
+
+  if command_exists busctl; then
+    busctl --user call org.gnome.Shell.Extensions /org/gnome/Shell/Extensions org.gnome.Shell.Extensions.EnableExtension s "$uuid" &>/dev/null || true
+  elif command_exists dbus-send; then
+    dbus-send --session --dest=org.gnome.Shell.Extensions /org/gnome/Shell/Extensions org.gnome.Shell.Extensions.EnableExtension string:"$uuid" &>/dev/null || true
+  fi
+
   if command_exists gnome-extensions; then
     gnome-extensions enable "$uuid" 2>/dev/null || true
   fi
