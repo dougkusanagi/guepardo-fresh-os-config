@@ -134,7 +134,7 @@ assert_not_contains "$ROOT_DIR/install-ubuntu/terminal/00-base.sh" "sudo gpg --d
 assert_contains "$ROOT_DIR/install-ubuntu/desktop/00-core.sh" "add-apt-repository -y multiverse"
 assert_contains "$ROOT_DIR/install-ubuntu/desktop/10-apps.sh" "apt_install_optional steam-devices joystick jstest-gtk gamemode mangohud goverlay"
 assert_not_contains "$ROOT_DIR/install-ubuntu/desktop/10-apps.sh" "gamescope"
-assert_contains "$ROOT_DIR/install-fedora/desktop/10-apps.sh" "dnf_install_optional steam-devices joystick-support gamemode mangohud gamescope goverlay xone xpadneo"
+assert_contains "$ROOT_DIR/install-fedora/desktop/10-apps.sh" "dnf_install_optional steam-devices joystick-support gamemode mangohud gamescope goverlay"
 assert_contains "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh" "set_gsettings_if_different org.gnome.settings-daemon.plugins.media-keys screenshot"
 assert_contains "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh" "Flameshot configured as the primary Print Screen tool"
 assert_contains "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh" "dash-to-dock show-apps-at-top true"

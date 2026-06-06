@@ -19,7 +19,7 @@ dnf_install_optional gnome-shell-extension-dash-to-dock
 
 # Gaming extras
 if [[ "$INSTALL_MODE" == "full" || "$INSTALL_MODE" == "games" ]]; then
-  dnf_install_optional steam-devices joystick-support gamemode mangohud gamescope goverlay xone xpadneo
+  dnf_install_optional steam-devices joystick-support gamemode mangohud gamescope goverlay
   install_steam
   install_lutris
   install_qbittorrent
