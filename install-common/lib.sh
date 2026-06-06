@@ -278,22 +278,18 @@ flatpak_install_app() {
     esac
   done
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    if flatpak info "$app_id" >/dev/null 2>&1; then
-      log "[DRY-RUN] Would update flatpak: $app_id"
-    else
-      log "[DRY-RUN] Would install flatpak: $app_id"
-    fi
+  if flatpak info "$app_id" >/dev/null 2>&1; then
+    log "$app_id is already installed."
     return
   fi
 
-  if flatpak info "$app_id" >/dev/null 2>&1; then
-    run_quiet flatpak update -y "$app_id"
-    success "Flatpak updated: $app_id"
-  else
-    run_quiet flatpak install -y --system flathub "$app_id"
-    success "Flatpak installed: $app_id"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would install flatpak: $app_id"
+    return
   fi
+
+  run_quiet flatpak install -y --system flathub "$app_id"
+  success "Flatpak installed: $app_id"
 }
 
 download_file() {

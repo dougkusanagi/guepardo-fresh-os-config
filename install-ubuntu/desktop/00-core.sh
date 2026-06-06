@@ -39,4 +39,7 @@ else
   warn "systemctl is not available. Restart smbd manually if needed."
 fi
 
+# Ensure proper RAR support in file-roller
+apt_install unrar
+
 mark_reboot_required

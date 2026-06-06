@@ -66,6 +66,28 @@ EOF
 fi
 success "Podman short-name registries configured"
 
+dnf_install_optional podman-compose podman-docker
+add_line_if_missing "alias docker-compose='podman-compose'" "$TARGET_HOME/.bashrc"
+success "Docker compatibility via podman-docker: /usr/bin/docker, alias docker-compose"
+
+if [[ ! -f /etc/sudoers.d/99-pwfeedback ]]; then
+  log "Enabling sudo password feedback (asterisks)..."
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would create /etc/sudoers.d/99-pwfeedback"
+  else
+    local tmpfile
+    tmpfile="$(mktemp)"
+    echo 'Defaults pwfeedback' > "$tmpfile"
+    if sudo visudo -c -f "$tmpfile" 2>/dev/null; then
+      sudo install -m 0440 "$tmpfile" /etc/sudoers.d/99-pwfeedback
+      success "Sudo password feedback enabled"
+    else
+      warn "pwfeedback not supported by this sudo version, skipping"
+    fi
+    rm -f "$tmpfile"
+  fi
+fi
+
 if command -v bun >/dev/null 2>&1; then
   log "Bun is already available."
 else

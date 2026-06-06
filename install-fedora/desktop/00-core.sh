@@ -39,4 +39,16 @@ else
   warn "systemctl is not available. Restart smb manually if needed."
 fi
 
+# Ensure proper RAR support in file-roller (unrar-free is limited)
+if rpm -q unrar-free >/dev/null 2>&1; then
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would swap unrar-free with unrar"
+  else
+    run_quiet sudo dnf swap unrar-free unrar -y
+    success "unrar installed (replaced unrar-free)"
+  fi
+else
+  dnf_install unrar
+fi
+
 mark_reboot_required

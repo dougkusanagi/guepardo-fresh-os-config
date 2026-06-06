@@ -318,7 +318,8 @@ syntax_files() {
     "$INSTALL_DIR/terminal.sh" \
     "$INSTALL_DIR/desktop.sh" \
     "$INSTALL_DIR"/terminal/*.sh \
-    "$INSTALL_DIR"/desktop/*.sh
+    "$INSTALL_DIR"/desktop/*.sh \
+    "install-common/lib.sh"
 }
 
 syntax_files_inline() {

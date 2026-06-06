@@ -189,16 +189,11 @@ trap 'echo "A instalacao falhou. Voce pode tentar novamente com: ./install.sh"' 
 preparse_args "$@"
 detect_install_family "$REQUESTED_DISTRO"
 
-log_to_file() {
-  local level="$1"
-  local message="$2"
-  if [[ -n "${INSTALL_LOG:-}" ]]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message" >> "$INSTALL_LOG"
-  fi
-}
-
 export DRY_RUN
 export INSTALL_MODE
+
+# shellcheck source=/dev/null
+source "$ROOT_DIR/install-common/lib.sh"
 
 # shellcheck source=/dev/null
 source "$INSTALL_ROOT/lib.sh"
