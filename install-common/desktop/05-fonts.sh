@@ -26,7 +26,8 @@ else
 fi
 
 if command -v fc-cache >/dev/null 2>&1; then
-  run_quiet fc-cache -f "$FONT_DEST_DIR"
+  mkdir -p "$TARGET_HOME/.cache/fontconfig"
+  run_quiet fc-cache -f
   success "Font cache refreshed"
 else
   warn "fc-cache is not available. Refresh the font cache manually if needed."

@@ -280,13 +280,22 @@ install_lutris() {
     return
   fi
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would install Lutris via PPA"
+    log "[DRY-RUN] Would install Lutris via PPA or Flatpak fallback"
     return
   fi
-  run_quiet sudo add-apt-repository -y ppa:lutris-team/lutris
-  apt_update
-  apt_install lutris
-  success "Lutris installed"
+
+  local ubuntu_codename
+  ubuntu_codename="$(lsb_release -sc 2>/dev/null || true)"
+
+  if [[ -n "$ubuntu_codename" ]] && curl -fsSL -o /dev/null "https://ppa.launchpadcontent.net/lutris-team/lutris/ubuntu/dists/$ubuntu_codename/Release" 2>/dev/null; then
+    run_quiet sudo add-apt-repository -y ppa:lutris-team/lutris
+    apt_update
+    apt_install lutris
+    success "Lutris installed"
+  else
+    warn "Lutris PPA does not support Ubuntu ${ubuntu_codename:-unknown}. Installing via Flatpak instead."
+    flatpak_install_app "net.lutris.Lutris"
+  fi
 }
 
 install_qbittorrent() {

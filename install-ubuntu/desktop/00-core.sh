@@ -11,6 +11,7 @@ apt_update
 apt_install libfuse2t64 || warn "libfuse2t64 is not available on this distribution."
 
 apt_install flatpak gnome-software-plugin-flatpak
+ensure_dbus_session
 run_quiet flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 success "Flathub configured"
 

@@ -244,6 +244,16 @@ comment_line_if_present() {
   fi
 }
 
+ensure_dbus_session() {
+  if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+    return 0
+  fi
+  if command -v dbus-launch &>/dev/null; then
+    eval "$(dbus-launch --auto-syntax 2>/dev/null)" && return 0
+  fi
+  return 1
+}
+
 flatpak_install_app() {
   local app_id="$1"
   shift
@@ -288,6 +298,7 @@ flatpak_install_app() {
     return
   fi
 
+  ensure_dbus_session
   run_quiet flatpak install -y --system flathub "$app_id"
   success "Flatpak installed: $app_id"
 }

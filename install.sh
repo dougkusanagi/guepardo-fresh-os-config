@@ -3,6 +3,16 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# When running via bash <(curl ...), BASH_SOURCE[0] is /dev/fd/XX and
+# the supporting directories are not accessible. Download the repo.
+if [[ ! -d "$ROOT_DIR/install-common" ]]; then
+  echo "Repository not found locally. Downloading..."
+  TMP_REPO="$(mktemp -d)"
+  curl -fsSL "https://github.com/dougkusanagi/new-linux-fresh-config/archive/refs/heads/master.tar.gz" | tar xz -C "$TMP_REPO"
+  ROOT_DIR="$TMP_REPO/new-linux-fresh-config-master"
+fi
+
 REQUESTED_DISTRO="auto"
 DRY_RUN="false"
 INSTALL_MODE="full"

@@ -181,9 +181,12 @@ fi
 
 log "Enabling Dash to Dock..."
 sudo glib-compile-schemas /usr/share/glib-2.0/schemas/ 2>/dev/null || true
-enable_gnome_extension dash-to-dock@micxgx.gmail.com
-enable_gnome_extension dash-to-dock@dashdock.org
+
+# Disable Ubuntu Dock first to avoid singleton conflict
 disable_gnome_extension ubuntu-dock@ubuntu.com
+
+# Install/enable Dash to Dock
+enable_gnome_extension dash-to-dock@micxgx.gmail.com
 
 log "Configuring Dash to Dock..."
 set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock show-apps-at-top true
@@ -196,6 +199,7 @@ set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock show-mounts f
 set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock show-trash false
 set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true
 
+# Keep ubuntu-dock settings as fallback in case dash-to-dock fails to load
 set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock show-apps-at-top true
 set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock dash-max-icon-size 28
 set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock extend-height true

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
 section "Base Tools"
+
+# Remove stale PPA sources from previous failed runs
+sudo rm -f /etc/apt/sources.list.d/lutris-team-ubuntu-lutris-*.list /etc/apt/sources.list.d/lutris-team-ubuntu-lutris-*.sources 2>/dev/null || true
+
 apt_update
 
 apt_install \
