@@ -11,7 +11,7 @@ O `./install.sh` detecta a distro por `/etc/os-release` e escolhe o conjunto cor
 
 ## Teste Automatizado
 
-O script [`test.sh`](/home/silver/dev/new-linux-fresh-config/test.sh) aceita `--distro=ubuntu|fedora|nobara`.
+O script [`test.sh`](/home/silver/dev/guepardo-fresh-os-config/test.sh) aceita `--distro=ubuntu|fedora|nobara`.
 
 Por padrao, `./test.sh` detecta a distro do host, usa container e nao executa a instalacao completa:
 
@@ -137,7 +137,7 @@ chmod +x install.sh
 - `flatpak` funcionando
 - apps desktop instalados
 - `flameshot` associado a tecla `Print`
-- fontes copiadas para `~/.local/share/fonts/new-linux-fresh-config`
+- fontes copiadas para `~/.local/share/fonts/guepardo-fresh-os-config`
 - `fc-cache` executado sem erro
 - `samba`, `smbclient` e `nautilus-share` instalados
 - usuario no grupo `sambashare`
@@ -181,7 +181,7 @@ chmod +x install.sh install-fedora.sh
 - `flatpak` funcionando com Flathub em modo system
 - apps desktop instalados
 - `flameshot` associado a tecla `Print`
-- fontes copiadas para `~/.local/share/fonts/new-linux-fresh-config`
+- fontes copiadas para `~/.local/share/fonts/guepardo-fresh-os-config`
 - `fc-cache` executado sem erro
 - `samba` e `samba-client` instalados
 - servico `smb` reinicia sem erro

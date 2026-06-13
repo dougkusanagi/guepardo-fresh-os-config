@@ -167,6 +167,8 @@ $desktopPackages = @(
     @{ Id = "ZenBrowser.ZenBrowser"; Name = "Zen Browser" }
     @{ Id = "dynobo.NormCap"; Name = "NormCap" }
     @{ Id = "RedHat.PodmanDesktop"; Name = "Podman Desktop" }
+    @{ Id = "VideoLAN.VLC"; Name = "VLC Media Player" }
+    @{ Id = "CodecGuide.K-LiteCodecPack.Standard"; Name = "K-Lite Codec Pack Standard" }
 )
 
 $gamingPackages = @(

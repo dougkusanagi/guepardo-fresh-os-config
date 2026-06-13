@@ -9,8 +9,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ ! -d "$ROOT_DIR/install-common" ]]; then
   echo "Repository not found locally. Downloading..."
   TMP_REPO="$(mktemp -d)"
-  curl -fsSL "https://github.com/dougkusanagi/new-linux-fresh-config/archive/refs/heads/master.tar.gz" | tar xz -C "$TMP_REPO"
-  ROOT_DIR="$TMP_REPO/new-linux-fresh-config-master"
+  curl -fsSL "https://github.com/dougkusanagi/guepardo-fresh-os-config/archive/refs/heads/master.tar.gz" | tar xz -C "$TMP_REPO"
+  ROOT_DIR="$TMP_REPO/guepardo-fresh-os-config-master"
 fi
 
 REQUESTED_DISTRO="auto"

@@ -3,7 +3,7 @@
 section "Fonts"
 
 FONT_SOURCE_DIR="$ROOT_DIR/fonts"
-FONT_DEST_DIR="$TARGET_HOME/.local/share/fonts/new-linux-fresh-config"
+FONT_DEST_DIR="$TARGET_HOME/.local/share/fonts/guepardo-fresh-os-config"
 
 if [[ ! -d "$FONT_SOURCE_DIR" ]]; then
   warn "Font directory not found: $FONT_SOURCE_DIR"

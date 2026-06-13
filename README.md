@@ -1,9 +1,18 @@
-# new-linux-fresh-config
+# guepardo-fresh-os-config
 
-Configuração automatizada de ambiente de desenvolvimento para Ubuntu e Fedora/Nobara — terminal, dev stack, desktop apps e ajustes GNOME.
+Configuração automatizada de ambiente de desenvolvimento para Ubuntu, Fedora/Nobara e Windows — terminal, dev stack, desktop apps e ajustes do sistema/GNOME.
 
+## Instalação
+
+### Linux (Ubuntu / Fedora / Nobara)
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/new-linux-fresh-config/stable/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/stable/install.sh)
+```
+
+### Windows (PowerShell)
+Abra o PowerShell como Administrador e execute:
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; iex (irm 'https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/stable/install.ps1')
 ```
 
 > O branch `stable` é usado no one-liner. A `master` pode conter mudanças em teste.
@@ -23,12 +32,18 @@ Options:
   --help             Show this help.
 ```
 
-Quando executado sem `--mode` em um terminal interativo, o script pergunta se você quer **Full** ou **Basic** — use as setas ↑↓ e Enter para escolher.
+Quando executado sem `--mode` em um terminal interativo, o script pergunta se você quer **Full** ou **Basic** (ou **Games**).
 
 ## Segurança
 
-O script faz alterações no sistema com `sudo`. Recomendo inspecioná-lo antes:
+Os scripts fazem alterações no sistema. Recomendo inspecioná-los antes de executar:
 
+### Linux
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dougkusanagi/new-linux-fresh-config/stable/install.sh | less
+curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/stable/install.sh | less
+```
+
+### Windows (PowerShell)
+```powershell
+(irm 'https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/stable/install.ps1')
 ```
