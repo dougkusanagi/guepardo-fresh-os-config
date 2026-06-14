@@ -298,6 +298,10 @@ if (Get-Alias ls -ErrorAction SilentlyContinue) {
 function ls { eza @args }
 function l { eza -l @args }
 function a { php artisan @args }
+
+# Podman to Docker compatibility aliases
+function docker { podman @args }
+function docker-compose { podman compose @args }
 # endregion
 '@
 
