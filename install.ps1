@@ -146,6 +146,7 @@ $basicPackages = @(
     @{ Id = "bootandy.dust"; Name = "dust" }
     @{ Id = "JesseDuffield.lazygit"; Name = "lazygit" }
     @{ Id = "sxyazi.yazi"; Name = "yazi" }
+    @{ Id = "Skillbrains.Lightshot"; Name = "Lightshot" }
 
     # Web Stack
     @{ Id = "PHP.PHP.8.4"; Name = "PHP" }

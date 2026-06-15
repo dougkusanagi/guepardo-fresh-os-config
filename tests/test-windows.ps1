@@ -41,6 +41,7 @@ Write-Host "Running install.ps1 in Dry-Run mode (basic)..." -ForegroundColor Gra
 $dryRunOutput = & $installScript -Mode basic -DryRun -ErrorAction SilentlyContinue *>&1 | Out-String
 Assert-True ($dryRunOutput -like "*Fresh Config Installer (Windows)*") "Banner is displayed in dry-run mode"
 Assert-True ($dryRunOutput -like "*Warp Terminal*") "Warp Terminal is listed in dry-run mode for basic mode"
+Assert-True ($dryRunOutput -like "*Lightshot*") "Lightshot is listed in dry-run mode for basic mode"
 Assert-True ($dryRunOutput -like "*Dry-run completed successfully.*") "Dry-run finishes with success message"
 
 # Test 3b: Verify Google Chrome in full mode dry-run
@@ -56,6 +57,7 @@ Assert-True ($dryRunFullOutput -like "*lazygit (JesseDuffield.lazygit)*") "lazyg
 Assert-True ($dryRunFullOutput -like "*PHP (PHP.PHP.8.4)*") "PHP is listed with PHP.PHP.8.4"
 Assert-True ($dryRunFullOutput -like "*Zen Browser (Zen-Team.Zen-Browser)*") "Zen Browser is listed with Zen-Team.Zen-Browser"
 Assert-True ($dryRunFullOutput -like "*Podman Desktop (RedHat.Podman-Desktop)*") "Podman Desktop is listed with RedHat.Podman-Desktop"
+Assert-True ($dryRunFullOutput -like "*Lightshot (Skillbrains.Lightshot)*") "Lightshot is listed with Skillbrains.Lightshot"
 
 
 # Test 4: Logs generation
