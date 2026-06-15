@@ -54,6 +54,8 @@ assert_contains "$ROOT_DIR/install.sh" 'LOG_DIR="$ROOT_DIR/logs"'
 assert_contains "$ROOT_DIR/install.sh" "show_install_intro()"
 assert_contains "$ROOT_DIR/install.sh" "Fresh Config Installer"
 assert_contains "$ROOT_DIR/install.sh" "COLOR_CYAN"
+assert_contains "$ROOT_DIR/install.sh" "wsl"
+assert_contains "$ROOT_DIR/install-common/lib.sh" "desktop_install_enabled()"
 
 if find "$ROOT_DIR" -maxdepth 1 -type f -name 'install-*.log' | grep -q .; then
   fail "Runtime install logs must live under logs/, not the repository root."

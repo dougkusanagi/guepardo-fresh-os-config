@@ -92,6 +92,10 @@ join_by() {
   done
 }
 
+desktop_install_enabled() {
+  [[ "${INSTALL_MODE:-}" != "wsl" ]]
+}
+
 run_quiet() {
   if [[ "$DRY_RUN" == "true" ]]; then
     log "[DRY-RUN] Would run: $*"

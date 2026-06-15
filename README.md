@@ -21,18 +21,18 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; iex (irm 'https://raw.githubus
 
 ```
 Usage:
-  ./install.sh [--distro=auto|ubuntu|fedora|nobara] [--mode=full|basic] [--theme=NAME] [--list-themes] [--help]
+  ./install.sh [--distro=auto|ubuntu|fedora|nobara] [--mode=full|basic|games|wsl] [--theme=NAME] [--list-themes] [--help]
 
 Options:
   --distro=NAME      Select installer family. Default: auto.
-  --mode=MODE        Installation scope: full (dev + desktop + jogos) or basic (dev only). Default: full.
+  --mode=MODE        Installation scope: full (dev + desktop + jogos), basic (dev only), games (gaming apps only) or wsl (non-desktop apps only). Default: full.
   --dry-run          Show what would be installed without making any changes.
   --theme=NAME       Apply one of the Omakub-inspired themes after desktop installation.
   --list-themes      List supported themes and exit.
   --help             Show this help.
 ```
 
-Quando executado sem `--mode` em um terminal interativo, o script pergunta se você quer **Full** ou **Basic** (ou **Games**).
+Quando executado sem `--mode` em um terminal interativo, o script pergunta se você quer **Full**, **Basic**, **Games** ou **WSL**.
 
 ## Segurança
 

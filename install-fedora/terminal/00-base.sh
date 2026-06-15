@@ -3,7 +3,7 @@
 section "Base Tools"
 dnf_update
 
-dnf_install \
+base_packages=(
   bat \
   bottom \
   fd-find \
@@ -20,10 +20,18 @@ dnf_install \
   npm \
   xsel \
   unzip \
-  dnf-plugins-core \
-  NetworkManager
+  dnf-plugins-core
+)
 
-configure_static_ipv4_network
+if desktop_install_enabled; then
+  base_packages+=(NetworkManager)
+fi
+
+dnf_install "${base_packages[@]}"
+
+if desktop_install_enabled; then
+  configure_static_ipv4_network
+fi
 
 if ! command_exists gh; then
   log "Configuring GitHub CLI repository..."
@@ -102,16 +110,17 @@ else
   success "uv installed"
 fi
 
-section "Warp Terminal"
-if command_exists warp-terminal; then
-  log "Warp Terminal is already installed."
-else
-  if [[ ! -f /etc/yum.repos.d/warpdotdev.repo ]]; then
-    log "Adding Warp repository..."
-    if [[ "$DRY_RUN" == "true" ]]; then
-      log "[DRY-RUN] Would configure Warp repository"
-    else
-      sudo tee /etc/yum.repos.d/warpdotdev.repo > /dev/null <<'EOF'
+if desktop_install_enabled; then
+  section "Warp Terminal"
+  if command_exists warp-terminal; then
+    log "Warp Terminal is already installed."
+  else
+    if [[ ! -f /etc/yum.repos.d/warpdotdev.repo ]]; then
+      log "Adding Warp repository..."
+      if [[ "$DRY_RUN" == "true" ]]; then
+        log "[DRY-RUN] Would configure Warp repository"
+      else
+        sudo tee /etc/yum.repos.d/warpdotdev.repo > /dev/null <<'EOF'
 [warpdotdev]
 name=Warp Repository
 baseurl=https://releases.warp.dev/linux/rpm/stable
@@ -119,8 +128,9 @@ enabled=1
 gpgcheck=1
 gpgkey=https://releases.warp.dev/linux/keys/warp.asc
 EOF
-      sudo dnf makecache
+        sudo dnf makecache
+      fi
     fi
+    dnf_install warp-terminal
   fi
-  dnf_install warp-terminal
 fi

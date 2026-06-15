@@ -42,14 +42,15 @@ fi
 usage() {
   cat <<'EOF'
 Usage:
-  ./install.sh [--distro=auto|ubuntu|fedora|nobara] [--mode=full|basic] [--theme=NAME] [--list-themes] [--help]
+  ./install.sh [--distro=auto|ubuntu|fedora|nobara] [--mode=full|basic|games|wsl] [--theme=NAME] [--list-themes] [--help]
 
 Options:
   --distro=NAME
       Select installer family. Default: auto.
 
   --mode=MODE
-      Installation scope: full (dev + desktop + games) or basic (dev only). Default: full.
+      Installation scope: full (dev + desktop + games), basic (dev only),
+      games (gaming apps only), or wsl (non-desktop apps only). Default: full.
 
   --dry-run
       Show what would be installed without making any changes.
@@ -191,7 +192,11 @@ EOF
   printf "%sFresh Config Installer%s\n" "${COLOR_BOLD}${COLOR_GREEN}" "$COLOR_RESET"
   printf "%sDistro target:%s %s\n" "$COLOR_YELLOW" "$COLOR_RESET" "$INSTALL_FAMILY"
   printf "%sMode:%s %s\n" "$COLOR_YELLOW" "$COLOR_RESET" "$INSTALL_MODE"
-  printf "%sScope:%s terminal tools, dev stack, desktop apps and GNOME polish\n" "$COLOR_YELLOW" "$COLOR_RESET"
+  if [[ "$INSTALL_MODE" == "wsl" ]]; then
+    printf "%sScope:%s terminal tools, dev stack and non-desktop apps only\n" "$COLOR_YELLOW" "$COLOR_RESET"
+  else
+    printf "%sScope:%s terminal tools, dev stack, desktop apps and GNOME polish\n" "$COLOR_YELLOW" "$COLOR_RESET"
+  fi
   printf "%sLog:%s %s\n\n" "$COLOR_DIM" "$COLOR_RESET" "$INSTALL_LOG"
 }
 
@@ -231,23 +236,28 @@ main() {
   show_install_intro
 
   case "$INSTALL_MODE" in
-    full|basic|games) ;;
+    full|basic|games|wsl) ;;
     *)
-      error "Invalid mode: $INSTALL_MODE. Use full, basic, or games."
+      error "Invalid mode: $INSTALL_MODE. Use full, basic, games, or wsl."
       exit 1
       ;;
   esac
 
   if [[ -t 0 && "$MODE_EXPLICITLY_SET" == "false" ]]; then
     local answer
-    read -r -p "Installation mode? [F]ull, [B]asic, or [G]ames (default: Full): " answer
+    read -r -p "Installation mode? [F]ull, [B]asic, [G]ames, or [W]SL (default: Full): " answer
     case "${answer,,}" in
       b|basic) INSTALL_MODE="basic" ;;
       g|games) INSTALL_MODE="games" ;;
+      w|wsl) INSTALL_MODE="wsl" ;;
     esac
   fi
 
-  echo "This is a very opinionated basic dev environment with PHP, Composer, Node and many desktop apps"
+  if [[ "$INSTALL_MODE" == "wsl" ]]; then
+    echo "This is a very opinionated basic dev environment with PHP, Composer, Node and non-desktop apps"
+  else
+    echo "This is a very opinionated basic dev environment with PHP, Composer, Node and many desktop apps"
+  fi
   log "Selected installer mode: $INSTALL_MODE"
   echo
   echo "Begin installation (or abort with ctrl+c)..."
@@ -255,19 +265,23 @@ main() {
   require_sudo
   detect_desktop
 
-  if [[ "$RUNNING_GNOME" == "true" ]]; then
+  if desktop_install_enabled && [[ "$RUNNING_GNOME" == "true" ]]; then
     configure_gnome_for_install
     log "Installing terminal and desktop tools..."
-  else
+  elif desktop_install_enabled; then
     log "Only installing terminal tools..."
+  else
+    log "WSL mode selected; installing terminal tools only."
   fi
 
   # shellcheck source=/dev/null
   source "$INSTALL_ROOT/terminal.sh"
 
-  if [[ "$RUNNING_GNOME" == "true" ]]; then
+  if desktop_install_enabled && [[ "$RUNNING_GNOME" == "true" ]]; then
     # shellcheck source=/dev/null
     source "$INSTALL_ROOT/desktop.sh"
+  elif ! desktop_install_enabled; then
+    log "Skipping desktop apps because WSL mode was selected."
   fi
 
   finish_installation
