@@ -12,6 +12,11 @@ STATIC_NETWORK_ADDRESS="${STATIC_NETWORK_ADDRESS:-192.168.1.77/24}"
 STATIC_NETWORK_GATEWAY="${STATIC_NETWORK_GATEWAY:-192.168.1.1}"
 STATIC_NETWORK_DNS="${STATIC_NETWORK_DNS:-1.1.1.1}"
 export TARGET_USER TARGET_HOME
+
+# Qt applications that need to enumerate every monitor under a Wayland session
+# have to go through XWayland. Flameshot is the one we ship, and without this
+# variable its grab window is confined to the monitor that spawned it.
+FLAMESHOT_ENV="QT_QPA_PLATFORM=xcb"
 OMAKUB_THEME_REPO="https://raw.githubusercontent.com/basecamp/omakub/master"
 SUPPORTED_THEMES=(
   "tokyo-night"
@@ -76,6 +81,79 @@ log_to_file() {
   fi
 }
 
+# The log directory can be left behind by a privileged run (for example the
+# wrapper script calling `sudo chown`/`mkdir`), which makes every later
+# `log_to_file` call fail with "Permission denied" and aborts the installer.
+# Repair ownership when possible, otherwise fall back to a private log path.
+ensure_log_dir_writable() {
+  local log_dir="$1"
+
+  if mkdir -p "$log_dir" 2>/dev/null && [[ -w "$log_dir" ]]; then
+    return 0
+  fi
+
+  if sudo -n true 2>/dev/null || [[ -n "${SUDO_ASKPASS:-}" ]]; then
+    if sudo -n chown "$(id -u):$(id -g)" "$log_dir" 2>/dev/null && [[ -w "$log_dir" ]]; then
+      return 0
+    fi
+  fi
+
+  local fallback="${XDG_STATE_HOME:-$HOME/.local/state}/guepardo-fresh-os-config/logs"
+  if mkdir -p "$fallback" 2>/dev/null && [[ -w "$fallback" ]]; then
+    warn "Log directory $log_dir is not writable; using $fallback instead."
+    LOG_DIR="$fallback"
+    return 0
+  fi
+
+  warn "Could not create a writable log directory; file logging is disabled."
+  LOG_DIR=""
+  return 1
+}
+
+session_is_wayland() {
+  [[ "${XDG_SESSION_TYPE:-}" == "wayland" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]]
+}
+
+# Registers a per-user autostart entry so an app always starts with the
+# environment it needs, regardless of how the session was launched.
+install_user_autostart_entry() {
+  local entry_name="$1"
+  local exec_line="$2"
+  local icon_name="${3:-}"
+  local comment="${4:-}"
+
+  local autostart_dir="$TARGET_HOME/.config/autostart"
+  local entry_file="$autostart_dir/${entry_name}.desktop"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would write autostart entry $entry_file with Exec=$exec_line"
+    return 0
+  fi
+
+  if ! mkdir -p "$autostart_dir" 2>/dev/null; then
+    warn "Could not create $autostart_dir; skipping autostart entry for $entry_name."
+    return 1
+  fi
+
+  {
+    printf '[Desktop Entry]\n'
+    printf 'Type=Application\n'
+    printf 'Name=%s\n' "$entry_name"
+    [[ -n "$comment" ]] && printf 'Comment=%s\n' "$comment"
+    printf 'Exec=%s\n' "$exec_line"
+    [[ -n "$icon_name" ]] && printf 'Icon=%s\n' "$icon_name"
+    printf 'Terminal=false\n'
+    printf 'Hidden=false\n'
+    printf 'NoDisplay=false\n'
+    printf 'X-GNOME-Autostart-enabled=true\n'
+  } > "$entry_file" 2>/dev/null || {
+    warn "Could not write $entry_file; skipping autostart entry for $entry_name."
+    return 1
+  }
+
+  return 0
+}
+
 join_by() {
   local delimiter="$1"
   shift
@@ -118,17 +196,39 @@ run_quiet() {
   return "$exit_code"
 }
 
+sudo_supports_passwordless() {
+  if sudo -n true 2>/dev/null; then
+    return 0
+  fi
+
+  # Non-interactive sessions can still authenticate through an askpass helper.
+  if [[ -n "${SUDO_ASKPASS:-}" ]] && command -v sudo-askpass >/dev/null 2>&1; then
+    if sudo -A -n true 2>/dev/null; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
 require_sudo() {
   if [[ "$DRY_RUN" == "true" ]]; then
     return
   fi
 
-  if sudo -n true 2>/dev/null; then
+  if sudo_supports_passwordless; then
     return
+  fi
+
+  if [[ -n "${SUDO_ASKPASS:-}" ]] && command -v sudo-askpass >/dev/null 2>&1; then
+    if sudo -A -v; then
+      return
+    fi
   fi
 
   if [[ ! -t 0 ]]; then
     error "sudo needs a password, but no interactive TTY is available."
+    error "Re-run from a terminal, or export SUDO_ASKPASS=/path/to/helper to authenticate non-interactively."
     exit 1
   fi
 
@@ -320,13 +420,51 @@ download_file() {
   curl -fsSL "$url" -o "$destination"
 }
 
+github_api_get() {
+  local endpoint="$1"
+  local response
+
+  # An authenticated gh session raises the rate limit from 60 to 5000 req/h and
+  # works for private or renamed repositories, so prefer it when available.
+  if command_exists gh && gh auth status >/dev/null 2>&1; then
+    if response="$(gh api "$endpoint" 2>/dev/null)" && [[ -n "$response" ]]; then
+      printf '%s\n' "$response"
+      return 0
+    fi
+  fi
+
+  local -a curl_args=(-fsSL -H "Accept: application/vnd.github+json")
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl_args+=(-H "Authorization: Bearer $GITHUB_TOKEN")
+  fi
+
+  response="$(curl "${curl_args[@]}" "https://api.github.com/$endpoint" 2>/dev/null)" || return 1
+  [[ -n "$response" ]] || return 1
+  printf '%s\n' "$response"
+}
+
 github_latest_asset_url() {
   local repo="$1"
   local pattern="$2"
 
-  curl -fsSL "https://api.github.com/repos/$repo/releases/latest" \
-    | jq -r --arg pattern "$pattern" '.assets[] | select(.name | test($pattern)) | .browser_download_url' \
-    | head -n 1
+  local response
+  if ! response="$(github_api_get "repos/$repo/releases/latest")"; then
+    return 1
+  fi
+
+  # The API answers 200 with an error object when the token is invalid or the
+  # rate limit is exhausted, so reject those payloads before parsing.
+  if printf '%s' "$response" | jq -e 'has("message")' >/dev/null 2>&1; then
+    return 1
+  fi
+
+  local url
+  url="$(printf '%s' "$response" \
+    | jq -r --arg pattern "$pattern" '.assets[]? | select(.name | test($pattern)) | .browser_download_url' \
+    2>/dev/null | head -n 1)"
+
+  [[ -n "$url" && "$url" != "null" ]] || return 1
+  printf '%s\n' "$url"
 }
 
 install_npm_global_package() {
@@ -493,13 +631,15 @@ install_antigravity_desktop() {
     return
   fi
 
-  local platform
+  local platform extract_dir_name
   case "$(uname -m)" in
     x86_64|amd64)
       platform="linux-x64"
+      extract_dir_name="Antigravity-x64"
       ;;
     aarch64|arm64)
       platform="linux-arm"
+      extract_dir_name="Antigravity-arm"
       ;;
     *)
       error "Unsupported Antigravity architecture: $(uname -m)"
@@ -515,14 +655,14 @@ install_antigravity_desktop() {
   local latest_prefix version execution_id url
   latest_prefix=""
   latest_prefix="$(
-    curl -fsSL "https://storage.googleapis.com/storage/v1/b/antigravity-public/o?prefix=antigravity-hub/&delimiter=/" \
-    | jq -r '.prefixes[]' \
+    curl -fsSL "https://storage.googleapis.com/storage/v1/b/antigravity-public/o?prefix=antigravity-hub/&delimiter=/" 2>/dev/null \
+    | jq -r '.prefixes[]?' \
     | sort -V \
     | tail -n 1
   )" || true
 
   if [[ -z "$latest_prefix" ]]; then
-    warn "Antigravity release info not available, skipping."
+    warn "Antigravity release info not available (upstream listing is no longer public), skipping."
     return
   fi
 
@@ -550,7 +690,7 @@ install_antigravity_desktop() {
   run_quiet tar -xzf "$archive" -C "$extract_dir"
   run_quiet sudo install -d /opt /usr/local/share/applications
   sudo rm -rf "$app_dir"
-  run_quiet sudo mv "$extract_dir/Antigravity-x64" "$app_dir"
+  run_quiet sudo mv "$extract_dir/$extract_dir_name" "$app_dir"
   run_quiet sudo ln -sf "$app_dir/antigravity" "$bin_path"
 
   local icon_file="/usr/local/share/pixmaps/antigravity.webp"

@@ -145,6 +145,11 @@ set_gsettings_if_different org.gnome.settings-daemon.plugins.media-keys area-scr
 set_gsettings_if_different org.gnome.settings-daemon.plugins.media-keys area-screenshot-clip "[]"
 set_gsettings_if_different org.gnome.settings-daemon.plugins.media-keys window-screenshot "[]"
 set_gsettings_if_different org.gnome.settings-daemon.plugins.media-keys window-screenshot-clip "[]"
+# GNOME 45+ handles Print itself through the shell, which would otherwise win
+# over the custom binding below and re-enable the single-monitor screenshot.
+set_gsettings_if_different org.gnome.shell.keybindings show-screenshot-ui "[]"
+set_gsettings_if_different org.gnome.shell.keybindings screenshot "[]"
+set_gsettings_if_different org.gnome.shell.keybindings screenshot-window "[]"
 
 existing_bindings="$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings)"
 target_path="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-flameshot/"
@@ -165,12 +170,22 @@ fi
 set_gsettings_if_different \
   "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$target_path" \
   name "'PrintScrn'"
+# The daemon also has to run under XWayland, otherwise the grab window is
+# rendered on a single monitor. See the autostart entry written below.
 set_gsettings_if_different \
   "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$target_path" \
-  command "'flameshot gui'"
+  command "'env $FLAMESHOT_ENV flameshot gui'"
 set_gsettings_if_different \
   "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$target_path" \
   binding "'Print'"
+
+if install_user_autostart_entry \
+  "flameshot" \
+  "env $FLAMESHOT_ENV flameshot" \
+  "flameshot" \
+  "Flameshot screenshot tool"; then
+  GNOME_SETTINGS_MODIFIED=true
+fi
 
 set_screenshot_portal_permission org.flameshot.Flameshot
 set_screenshot_portal_permission flameshot
@@ -211,14 +226,21 @@ set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock show-trash fal
 set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock custom-theme-shrink true
 
 if [[ "$GNOME_SETTINGS_MODIFIED" == "true" ]]; then
-  log "Restarting GNOME Shell to apply changes..."
-  if busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval s 'Meta.restart("Restarting…")' &>/dev/null || \
-     busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval s 'global.reexec_self()' &>/dev/null; then
-    sleep 2
-    success "GNOME Shell restarted"
+  if session_is_wayland; then
+    # Meta.restart() and global.reexec_self() are both no-ops on Wayland, so
+    # asking for them only produces a misleading warning.
+    warn "GNOME Shell cannot be restarted in place on Wayland."
+    warn "Log out and back in, or reboot, for Dash to Dock and the Print Screen binding to take effect."
   else
-    warn "Could not restart GNOME Shell automatically."
-    warn "Logout and login again, or reboot, for Dash to Dock to appear."
+    log "Restarting GNOME Shell to apply changes..."
+    if busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval s 'Meta.restart("Restarting…")' &>/dev/null || \
+       busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval s 'global.reexec_self()' &>/dev/null; then
+      sleep 2
+      success "GNOME Shell restarted"
+    else
+      warn "Could not restart GNOME Shell automatically."
+      warn "Logout and login again, or reboot, for Dash to Dock to appear."
+    fi
   fi
 else
   log "No GNOME settings were changed, skipping restart."

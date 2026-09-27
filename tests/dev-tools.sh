@@ -156,4 +156,51 @@ assert_contains "$ROOT_DIR/install-fedora/lib.sh" "https://dl.google.com/linux/c
 assert_contains "$ROOT_DIR/install-ubuntu/lib.sh" "https://opencode.ai/download/stable/linux-x64-deb"
 assert_contains "$ROOT_DIR/install-fedora/lib.sh" "https://opencode.ai/download/stable/linux-x64-rpm"
 
+# --- Regression guards for the Ubuntu 25.04 (resolute) installation run ---
+
+# The `steam` package was replaced by `steam-installer`, and steam-libs-i386
+# needs the i386 foreign architecture enabled first.
+assert_contains "$ROOT_DIR/install-ubuntu/lib.sh" "apt_install_first_available steam steam-installer"
+# `apt_install steam` on its own line is the call that broke the 25.04 run.
+assert_not_contains "$ROOT_DIR/install-ubuntu/lib.sh" "$(printf '  apt_install steam\n')"
+assert_contains "$ROOT_DIR/install-ubuntu/lib.sh" "dpkg --add-architecture i386"
+assert_contains "$ROOT_DIR/install-ubuntu/lib.sh" "steam_command_exists()"
+assert_contains "$ROOT_DIR/install-ubuntu/lib.sh" "/usr/games/steam"
+
+# Obsidian must degrade to Flatpak instead of aborting the whole run.
+assert_contains "$ROOT_DIR/install-ubuntu/lib.sh" "flatpak_install_app \"md.obsidian.Obsidian\""
+
+# require_sudo has to accept a non-interactive SUDO_ASKPASS session.
+assert_contains "$COMMON_LIB" "sudo_supports_passwordless()"
+assert_contains "$COMMON_LIB" "sudo -A -v"
+assert_contains "$COMMON_LIB" "SUDO_ASKPASS"
+
+# The GitHub helper must be authenticated and must reject error payloads.
+assert_contains "$COMMON_LIB" "github_api_get()"
+assert_contains "$COMMON_LIB" "gh api"
+assert_contains "$COMMON_LIB" 'has("message")'
+assert_contains "$COMMON_LIB" "GITHUB_TOKEN"
+
+# A root-owned log directory must not abort the installer.
+assert_contains "$COMMON_LIB" "ensure_log_dir_writable()"
+assert_contains "$ROOT_DIR/install.sh" "ensure_log_dir_writable"
+
+# Flameshot only spans every monitor through XWayland.
+assert_contains "$COMMON_LIB" 'FLAMESHOT_ENV="QT_QPA_PLATFORM=xcb"'
+assert_contains "$COMMON_LIB" "install_user_autostart_entry()"
+assert_contains "$COMMON_LIB" "session_is_wayland()"
+assert_contains "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh" "env \$FLAMESHOT_ENV flameshot gui"
+assert_contains "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh" "install_user_autostart_entry"
+# GNOME 45+ owns Print itself, so the shell binding has to be cleared.
+assert_contains "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh" "org.gnome.shell.keybindings show-screenshot-ui"
+# Meta.restart is a no-op on Wayland, so the restart must be skipped there.
+assert_contains "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh" "GNOME Shell cannot be restarted in place on Wayland"
+
+# Antigravity: the bucket listing is no longer public and the extract dir is
+# named after the architecture.
+assert_contains "$COMMON_LIB" 'extract_dir_name="Antigravity-x64"'
+assert_contains "$COMMON_LIB" 'extract_dir_name="Antigravity-arm"'
+assert_not_contains "$COMMON_LIB" 'mv "$extract_dir/Antigravity-x64"'
+assert_contains "$COMMON_LIB" "no longer public"
+
 printf "Developer tool checks passed\n"
