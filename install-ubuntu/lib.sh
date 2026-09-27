@@ -259,8 +259,13 @@ install_google_chrome() {
   success "Google Chrome installed from the official deb package"
 }
 
+steam_command_exists() {
+  # steam-installer ships /usr/games/steam, which is not in the default PATH.
+  command_exists steam || [[ -x /usr/games/steam ]]
+}
+
 install_steam() {
-  if command_exists steam; then
+  if steam_command_exists; then
     log "Steam is already installed."
     return
   fi
@@ -268,9 +273,21 @@ install_steam() {
     log "[DRY-RUN] Would install Steam via apt (multiverse)"
     return
   fi
+
   run_quiet sudo add-apt-repository -y multiverse
+
+  # steam-libs-i386 lives in the i386 architecture, so the foreign arch has to
+  # exist before apt can resolve the dependency chain.
+  if ! dpkg --print-foreign-architectures | grep -Fxq i386; then
+    log "Enabling the i386 architecture required by Steam..."
+    run_quiet sudo dpkg --add-architecture i386
+    apt_update
+  fi
+
   apt_update
-  apt_install steam
+  # Ubuntu 25.04 (and newer) dropped the transitional "steam" package in favour
+  # of "steam-installer", so accept whichever name this release provides.
+  apt_install_first_available steam steam-installer
   success "Steam installed"
 }
 
@@ -329,18 +346,28 @@ install_obsidian() {
     return
   fi
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would install Obsidian from official .deb"
+    log "[DRY-RUN] Would install Obsidian from official .deb, with a Flatpak fallback"
     return
   fi
   local url package_file
-  url="$(github_latest_asset_url "obsidianmd/obsidian-releases" "obsidian_.*_amd64\\.deb$")"
-  if [[ -z "$url" ]]; then
-    error "Could not find Obsidian .deb URL."
-    return 1
+  if ! url="$(github_latest_asset_url "obsidianmd/obsidian-releases" "obsidian_.*_amd64\\.deb$")"; then
+    warn "Could not resolve the Obsidian .deb URL from GitHub; falling back to Flatpak."
+    flatpak_install_app "md.obsidian.Obsidian"
+    return
   fi
   package_file="/tmp/obsidian.deb"
-  download_file "$url" "$package_file"
-  run_quiet sudo apt-get install -y "$package_file"
+  if ! download_file "$url" "$package_file"; then
+    warn "Could not download the Obsidian .deb; falling back to Flatpak."
+    rm -f "$package_file"
+    flatpak_install_app "md.obsidian.Obsidian"
+    return
+  fi
+  if ! run_quiet sudo apt-get install -y "$package_file"; then
+    warn "Could not install the Obsidian .deb; falling back to Flatpak."
+    rm -f "$package_file"
+    flatpak_install_app "md.obsidian.Obsidian"
+    return
+  fi
   rm -f "$package_file"
   success "Obsidian installed"
 }

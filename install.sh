@@ -197,7 +197,11 @@ EOF
   else
     printf "%sScope:%s terminal tools, dev stack, desktop apps and GNOME polish\n" "$COLOR_YELLOW" "$COLOR_RESET"
   fi
-  printf "%sLog:%s %s\n\n" "$COLOR_DIM" "$COLOR_RESET" "$INSTALL_LOG"
+  if [[ -n "${INSTALL_LOG:-}" ]]; then
+    printf "%sLog:%s %s\n\n" "$COLOR_DIM" "$COLOR_RESET" "$INSTALL_LOG"
+  else
+    printf "%sLog:%s disabled (no writable log directory)\n\n" "$COLOR_DIM" "$COLOR_RESET"
+  fi
 }
 
 trap 'echo "A instalacao falhou. Voce pode tentar novamente com: ./install.sh"' ERR
@@ -229,8 +233,10 @@ main() {
     echo
   fi
 
-  mkdir -p "$LOG_DIR"
-  export INSTALL_LOG="$LOG_DIR/install-$(date +%Y%m%d-%H%M%S)-$$.log"
+  ensure_log_dir_writable "$LOG_DIR" || true
+  if [[ -n "$LOG_DIR" ]]; then
+    export INSTALL_LOG="$LOG_DIR/install-$(date +%Y%m%d-%H%M%S)-$$.log"
+  fi
   log_to_file "INFO" "Installation started - $INSTALL_FAMILY"
 
   show_install_intro

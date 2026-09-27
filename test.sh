@@ -526,6 +526,10 @@ run_local_static_checks() {
   run_quiet bash tests/dev-tools.sh
   success "Developer tool coverage validated"
 
+  log "Validating installation fix behaviour..."
+  run_quiet bash tests/install-fixes.sh
+  success "Installation fix behaviour validated"
+
   log "Validating theme list..."
   run_quiet "./$SCRIPT_NAME" "${INSTALLER_ARGS[@]}" --list-themes
   success "Theme list validated"
