@@ -12,33 +12,47 @@
 #>
 [CmdletBinding()]
 param (
-    [ValidateSet('full', 'basic', 'games')]
+    [ValidateSet('full', 'basic', 'games', 'server', 'desktop', 'wsl')]
     [string]$Mode = 'full',
+
+    [string]$Profiles,
+
+    [switch]$Plan,
+
+    [switch]$ListProfiles,
 
     [switch]$DryRun,
 
     [switch]$Help
 )
 
+if ($ListProfiles) {
+    Write-Host "cli, dev, web, desktop, games"
+    exit 0
+}
+
 if ($Help) {
     Write-Host @"
 Usage:
-  .\install.ps1 [-Mode <full|basic|games>] [-DryRun] [-Help]
+  .\install.ps1 [-Profiles cli,dev,web,desktop,games] [-Plan] [-DryRun]
+  .\install.ps1 [-Mode <full|basic|games|server|desktop|wsl>]
 
 Options:
-  -Mode      Installation scope: full (dev + desktop + games), basic (dev only), or games (gaming apps only). Default: full.
+  -Profiles Select independent profiles separated by commas.
+  -Mode      Legacy shortcut; full, basic, games, server, desktop, or wsl.
+  -Plan      Show the package plan without changes.
+  -ListProfiles List available profiles.
   -DryRun    Show what would be installed without making any changes.
   -Help      Show this help.
 "@
     exit 0
 }
 
-# Determine paths
-$rootPath = $PSScriptRoot
-if ([string]::IsNullOrEmpty($rootPath)) {
-    $rootPath = Get-Location
-}
-$logDir = Join-Path $rootPath "logs"
+# Keep logs in the user's data directory so running from a read-only archive
+# or a temporary download does not break the installer.
+$statePath = [Environment]::GetFolderPath('LocalApplicationData')
+if ([string]::IsNullOrEmpty($statePath)) { $statePath = [IO.Path]::GetTempPath() }
+$logDir = Join-Path $statePath "Guepardo/Logs"
 if (-not (Test-Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
@@ -88,52 +102,40 @@ function Show-Intro {
                /_/                             
 '@ -ForegroundColor Cyan
 
-    Write-Host "Fresh Config Installer (Windows)" -ForegroundColor Green -BackgroundColor Black
+    Write-Host "Fresh Config Installer (Windows)" -ForegroundColor Green
     Write-Host "Target: Windows (via winget)" -ForegroundColor Yellow
-    Write-Host "Mode: $Mode" -ForegroundColor Yellow
+    Write-Host "Profiles: $(if ($Profiles) { $Profiles } else { $Mode })" -ForegroundColor Yellow
     Write-Host "Log: $logFile`n" -ForegroundColor DarkGray
 }
 
 # Prompt if not explicitly set
-$modeExplicitlySet = $PSBoundParameters.ContainsKey('Mode')
-if (-not $modeExplicitlySet -and [Environment]::UserInteractive) {
+$modeExplicitlySet = $PSBoundParameters.ContainsKey('Mode') -or $PSBoundParameters.ContainsKey('Profiles')
+if (-not $modeExplicitlySet -and -not $Plan -and -not $DryRun -and [Environment]::UserInteractive) {
     $title = "Select Installation Mode"
     $message = "Choose the scope of the installation:"
     $full = New-Object System.Management.Automation.Host.ChoiceDescription "&Full", "Dev tools + Desktop apps + Games"
     $basic = New-Object System.Management.Automation.Host.ChoiceDescription "&Basic", "Dev tools only"
     $games = New-Object System.Management.Automation.Host.ChoiceDescription "&Games", "Gaming apps only"
-    $choices = [System.Management.Automation.Host.ChoiceDescription[]]($full, $basic, $games)
+    $server = New-Object System.Management.Automation.Host.ChoiceDescription '&Server', 'CLI tools only'
+    $desktopOnly = New-Object System.Management.Automation.Host.ChoiceDescription '&Desktop', 'Desktop apps only'
+    $choices = [System.Management.Automation.Host.ChoiceDescription[]]($full, $basic, $games, $server, $desktopOnly)
     $decision = $Host.UI.PromptForChoice($title, $message, $choices, 0)
     
     switch ($decision) {
         0 { $Mode = 'full' }
         1 { $Mode = 'basic' }
         2 { $Mode = 'games' }
+        3 { $Mode = 'server' }
+        4 { $Mode = 'desktop' }
     }
 }
 
 Show-Intro
 
-# Check for winget
-if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Log -Level "ERROR" -Message "winget is not installed. Please install App Installer from the Microsoft Store."
-    exit 1
-}
-
-# Packages definition
-$basicPackages = @(
-    # Core Dev Stack
-    @{ Id = "Warp.Warp"; Name = "Warp Terminal" }
+# Package groups are independent; selecting games does not pull in PHP or desktop apps.
+$cliPackages = @(
     @{ Id = "GitHub.cli"; Name = "GitHub CLI" }
     @{ Id = "Git.Git"; Name = "Git" }
-    @{ Id = "Microsoft.VisualStudioCode"; Name = "Visual Studio Code" }
-    @{ Id = "ZedIndustries.Zed"; Name = "Zed Editor" }
-    @{ Id = "Oven-sh.Bun"; Name = "Bun" }
-    @{ Id = "astral-sh.uv"; Name = "uv" }
-    @{ Id = "CoreyButler.NVMforWindows"; Name = "NVM for Windows" }
-    @{ Id = "Google.AntigravityCLI"; Name = "Antigravity CLI"; Force = $true }
-
-    # CLI base tools
     @{ Id = "sharkdp.bat"; Name = "bat" }
     @{ Id = "Clement.bottom"; Name = "bottom" }
     @{ Id = "sharkdp.fd"; Name = "fd" }
@@ -146,15 +148,23 @@ $basicPackages = @(
     @{ Id = "bootandy.dust"; Name = "dust" }
     @{ Id = "JesseDuffield.lazygit"; Name = "lazygit" }
     @{ Id = "sxyazi.yazi"; Name = "yazi" }
-    @{ Id = "Skillbrains.Lightshot"; Name = "Lightshot" }
-
-    # Web Stack
+)
+$devPackages = @(
+    @{ Id = "Oven-sh.Bun"; Name = "Bun" }
+    @{ Id = "astral-sh.uv"; Name = "uv" }
+    @{ Id = "CoreyButler.NVMforWindows"; Name = "NVM for Windows" }
+    @{ Id = "Google.AntigravityCLI"; Name = "Antigravity CLI"; Force = $true }
+)
+$webPackages = @(
     @{ Id = "PHP.PHP.8.4"; Name = "PHP" }
     @{ Id = "Composer.Composer"; Name = "Composer" }
     @{ Id = "Oracle.MySQL"; Name = "MySQL Server" }
 )
-
 $desktopPackages = @(
+    @{ Id = "Warp.Warp"; Name = "Warp Terminal" }
+    @{ Id = "Microsoft.VisualStudioCode"; Name = "Visual Studio Code" }
+    @{ Id = "ZedIndustries.Zed"; Name = "Zed Editor" }
+    @{ Id = "Skillbrains.Lightshot"; Name = "Lightshot" }
     @{ Id = "Brave.Brave"; Name = "Brave Browser" }
     @{ Id = "Google.Chrome"; Name = "Google Chrome" }
     @{ Id = "Obsidian.Obsidian"; Name = "Obsidian" }
@@ -162,41 +172,71 @@ $desktopPackages = @(
     @{ Id = "ElementLabs.LMStudio"; Name = "LM Studio" }
     @{ Id = "RARLab.WinRAR"; Name = "WinRAR"; Force = $true }
     @{ Id = "Jellyfin.Server"; Name = "Jellyfin Server" }
-    @{ Id = "Discord.Discord"; Name = "Discord" }
-    @{ Id = "qBittorrent.qBittorrent"; Name = "qBittorrent" }
-    @{ Id = "Stremio.Stremio"; Name = "Stremio" }
-    @{ Id = "HeroicGamesLauncher.HeroicGamesLauncher"; Name = "Heroic Games Launcher" }
     @{ Id = "Zen-Team.Zen-Browser"; Name = "Zen Browser" }
     @{ Id = "dynobo.NormCap"; Name = "NormCap" }
     @{ Id = "RedHat.Podman-Desktop"; Name = "Podman Desktop" }
     @{ Id = "VideoLAN.VLC"; Name = "VLC Media Player" }
     @{ Id = "CodecGuide.K-LiteCodecPack.Standard"; Name = "K-Lite Codec Pack Standard" }
 )
-
 $gamingPackages = @(
     @{ Id = "Valve.Steam"; Name = "Steam" }
     @{ Id = "EpicGames.EpicGamesLauncher"; Name = "Epic Games Launcher" }
     @{ Id = "GOG.Galaxy"; Name = "GOG Galaxy" }
+    @{ Id = "Discord.Discord"; Name = "Discord" }
+    @{ Id = "qBittorrent.qBittorrent"; Name = "qBittorrent" }
+    @{ Id = "Stremio.Stremio"; Name = "Stremio" }
+    @{ Id = "HeroicGamesLauncher.HeroicGamesLauncher"; Name = "Heroic Games Launcher" }
 )
 
-$toInstall = @()
-if ($Mode -eq 'full') {
-    $toInstall += $basicPackages
-    $toInstall += $desktopPackages
-    $toInstall += $gamingPackages
-} elseif ($Mode -eq 'basic') {
-    $toInstall += $basicPackages
-} elseif ($Mode -eq 'games') {
-    $toInstall += $gamingPackages
+if ($Profiles -and $PSBoundParameters.ContainsKey('Mode')) {
+    throw "Use -Profiles or -Mode, not both."
 }
+if (-not $Profiles) {
+    $Profiles = switch ($Mode) {
+        'full'    { 'cli,dev,web,desktop,games' }
+        'basic'   { 'cli,dev,web' }
+        'server'  { 'cli' }
+        'wsl'     { 'cli,dev,web' }
+        'desktop' { 'desktop' }
+        'games'   { 'games' }
+    }
+}
+$selectedProfiles = @($Profiles.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
+$validProfiles = @('cli', 'dev', 'web', 'desktop', 'games')
+foreach ($profileName in $selectedProfiles) {
+    if ($profileName -notin $validProfiles) { throw "Unknown profile: $profileName" }
+}
+if ($selectedProfiles.Count -eq 0) { throw 'Select at least one profile.' }
 
-if ($DryRun) {
-    Write-Log "Running in DRY-RUN mode. The following apps would be installed:" -Level "INFO"
+$groups = @{
+    cli = $cliPackages
+    dev = $devPackages
+    web = $webPackages
+    desktop = $desktopPackages
+    games = $gamingPackages
+}
+$toInstall = @()
+foreach ($profileName in $validProfiles) {
+    if ($profileName -in $selectedProfiles) { $toInstall += $groups[$profileName] }
+}
+$seenPackages = @{}
+$toInstall = @($toInstall | Where-Object {
+    if ($seenPackages.ContainsKey($_.Id)) { $false }
+    else { $seenPackages[$_.Id] = $true; $true }
+})
+
+if ($Plan -or $DryRun) {
+    Write-Log "Installation plan for profiles: $($selectedProfiles -join ', ')" -Level "INFO"
     foreach ($pkg in $toInstall) {
         Write-Log -Message "  $($pkg.Name) ($($pkg.Id))" -Level "INFO"
     }
     Write-Log -Message "Dry-run completed successfully." -Level "OK"
     exit 0
+}
+
+if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Log -Level "ERROR" -Message "winget is not installed. Please install App Installer from the Microsoft Store."
+    exit 1
 }
 
 function Update-ProcessEnvironment {
@@ -219,9 +259,12 @@ function Update-ProcessEnvironment {
 Write-Section "Installing Applications via winget"
 $failed = @()
 $successCodes = @(0, -1978335189, 2316697643, -1978335204, 2316697628, -1978335203, 2316697629, -1978335186, 2316697646)
+$startedAt = Get-Date
+$packageIndex = 0
 
 foreach ($pkg in $toInstall) {
-    Write-Log -Message "Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
+    $packageIndex++
+    Write-Log -Message "[$packageIndex/$($toInstall.Count)] Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
     
     if ($pkg.Id -eq "Composer.Composer") {
         # Refresh environment variables first to make sure PHP is in PATH
@@ -270,6 +313,7 @@ foreach ($pkg in $toInstall) {
     }
 }
 
+if ('cli' -in $selectedProfiles -or 'dev' -in $selectedProfiles -or 'web' -in $selectedProfiles) {
 Write-Section "Configuring PowerShell Profile"
 $profileDir = Split-Path -Path $PROFILE
 if (-not (Test-Path $profileDir)) {
@@ -279,6 +323,7 @@ if (-not (Test-Path $PROFILE)) {
     New-Item -ItemType File -Path $PROFILE -Force | Out-Null
 }
 
+if ('cli' -in $selectedProfiles) {
 $profileContent = @'
 
 # region Guepardo Fresh OS Config Shortcuts
@@ -298,11 +343,6 @@ if (Get-Alias ls -ErrorAction SilentlyContinue) {
 }
 function ls { eza @args }
 function l { eza -l @args }
-function a { php artisan @args }
-
-# Podman to Docker compatibility aliases
-function docker { podman @args }
-function docker-compose { podman compose @args }
 # endregion
 '@
 
@@ -314,8 +354,20 @@ if ([string]::IsNullOrEmpty($existingContent) -or $existingContent -notlike "*# 
 } else {
     Write-Log -Message "Shortcuts already exist in PowerShell profile." -Level "OK"
 }
+}
+
+if ('dev' -in $selectedProfiles -and (Get-Content -Path $PROFILE -Raw) -notlike '*# region Guepardo Dev Shortcuts*') {
+    Add-Content -Path $PROFILE -Value "`n# region Guepardo Dev Shortcuts`nfunction docker { podman @args }`nfunction docker-compose { podman compose @args }`n# endregion`n"
+}
+if ('web' -in $selectedProfiles -and (Get-Content -Path $PROFILE -Raw) -notlike '*# region Guepardo Web Shortcuts*') {
+    Add-Content -Path $PROFILE -Value "`n# region Guepardo Web Shortcuts`nfunction a { php artisan @args }`n# endregion`n"
+}
+
+}
 
 Write-Section "Installation Summary"
+$elapsed = (Get-Date) - $startedAt
+Write-Log -Message "Completed $($toInstall.Count) packages in $([math]::Round($elapsed.TotalMinutes, 1)) min. Log: $logFile" -Level "INFO"
 if ($failed.Count -eq 0) {
     Write-Log -Message "All requested applications installed successfully!" -Level "OK"
 } else {

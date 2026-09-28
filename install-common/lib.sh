@@ -2,6 +2,8 @@
 
 RUNNING_GNOME="false"
 GNOME_SETTINGS_CHANGED="false"
+GNOME_LOCK_PREVIOUS=""
+GNOME_IDLE_PREVIOUS=""
 REQUIRES_REBOOT="false"
 DRY_RUN="${DRY_RUN:-false}"
 TARGET_USER="${USER}"
@@ -194,6 +196,33 @@ run_quiet() {
   sed -n '1,120p' "$log_file" >&2 || true
   rm -f "$log_file"
   return "$exit_code"
+}
+
+# Run independent direct-download installers with bounded concurrency. Package
+# manager operations are intentionally excluded because apt/dnf hold a lock.
+run_independent() {
+  local limit="${GUEPARDO_JOBS:-1}"
+  local -a pids=()
+  local task pid result=0
+  if ! [[ "$limit" =~ ^[1-8]$ ]]; then
+    limit=1
+  fi
+  for task in "$@"; do
+    if (( limit == 1 )); then
+      "$task" || return 1
+      continue
+    fi
+    "$task" &
+    pids+=("$!")
+    if (( ${#pids[@]} >= limit )); then
+      wait "${pids[0]}" || result=1
+      pids=("${pids[@]:1}")
+    fi
+  done
+  for pid in "${pids[@]}"; do
+    wait "$pid" || result=1
+  done
+  return "$result"
 }
 
 sudo_supports_passwordless() {
@@ -403,7 +432,7 @@ flatpak_install_app() {
   fi
 
   ensure_dbus_session
-  run_quiet flatpak install -y --system flathub "$app_id"
+  run_quiet sudo flatpak install -y --system flathub "$app_id"
   success "Flatpak installed: $app_id"
 }
 
@@ -726,16 +755,22 @@ configure_gnome_for_install() {
     return
   fi
   log "Disabling GNOME auto-lock and suspend while installation runs..."
+  GNOME_LOCK_PREVIOUS="$(gsettings get org.gnome.desktop.screensaver lock-enabled 2>/dev/null || true)"
+  GNOME_IDLE_PREVIOUS="$(gsettings get org.gnome.desktop.session idle-delay 2>/dev/null || true)"
+  GNOME_SETTINGS_CHANGED="true"
   gsettings set org.gnome.desktop.screensaver lock-enabled false
   gsettings set org.gnome.desktop.session idle-delay 0
-  GNOME_SETTINGS_CHANGED="true"
 }
 
 cleanup() {
   if [[ "$RUNNING_GNOME" == "true" && "$GNOME_SETTINGS_CHANGED" == "true" ]]; then
     log "Restoring GNOME lock and idle settings..."
-    gsettings set org.gnome.desktop.screensaver lock-enabled true || true
-    gsettings set org.gnome.desktop.session idle-delay 300 || true
+    if [[ -n "$GNOME_LOCK_PREVIOUS" ]]; then
+      gsettings set org.gnome.desktop.screensaver lock-enabled "$GNOME_LOCK_PREVIOUS" || true
+    fi
+    if [[ -n "$GNOME_IDLE_PREVIOUS" ]]; then
+      gsettings set org.gnome.desktop.session idle-delay "$GNOME_IDLE_PREVIOUS" || true
+    fi
   fi
 }
 

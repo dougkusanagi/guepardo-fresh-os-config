@@ -2,6 +2,7 @@
 /*.log
 /logs/*
 !/logs/.gitkeep
+/dist/
 
 # Local editor and OS noise
 .DS_Store

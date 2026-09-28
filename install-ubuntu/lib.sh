@@ -25,11 +25,19 @@ apt_package_available() {
 }
 
 apt_update() {
+  local force="${1:-}"
   if [[ "$DRY_RUN" == "true" ]]; then
     log "[DRY-RUN] Would update package index"
     return
   fi
+  if [[ "$force" != "--force" && -n "${GUEPARDO_INDEX_MARKER:-}" && -f "$GUEPARDO_INDEX_MARKER" ]]; then
+    log "APT package index already refreshed in this run."
+    return
+  fi
   run_quiet sudo apt-get update -y
+  if [[ -n "${GUEPARDO_INDEX_MARKER:-}" ]]; then
+    touch "$GUEPARDO_INDEX_MARKER"
+  fi
   success "Package index updated"
 }
 
@@ -227,7 +235,7 @@ Architectures: amd64,arm64,armhf
 Signed-By: $key_file
 EOF
 
-  apt_update
+  apt_update --force
   apt_install code
   success "Visual Studio Code installed with the code CLI"
 }
@@ -281,10 +289,9 @@ install_steam() {
   if ! dpkg --print-foreign-architectures | grep -Fxq i386; then
     log "Enabling the i386 architecture required by Steam..."
     run_quiet sudo dpkg --add-architecture i386
-    apt_update
   fi
 
-  apt_update
+  apt_update --force
   # Ubuntu 25.04 (and newer) dropped the transitional "steam" package in favour
   # of "steam-installer", so accept whichever name this release provides.
   apt_install_first_available steam steam-installer
@@ -306,7 +313,7 @@ install_lutris() {
 
   if [[ -n "$ubuntu_codename" ]] && curl -fsSL -o /dev/null "https://ppa.launchpadcontent.net/lutris-team/lutris/ubuntu/dists/$ubuntu_codename/Release" 2>/dev/null; then
     run_quiet sudo add-apt-repository -y ppa:lutris-team/lutris
-    apt_update
+    apt_update --force
     apt_install lutris
     success "Lutris installed"
   else

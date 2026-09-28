@@ -4,19 +4,6 @@ section "Desktop Apps"
 
 apt_install_optional gnome-shell-extension-dash-to-dock gnome-shell-extension-ubuntu-dock
 
-# Gaming extras
-if [[ "$INSTALL_MODE" == "full" || "$INSTALL_MODE" == "games" ]]; then
-  apt_install_optional steam-devices joystick jstest-gtk gamemode mangohud goverlay
-  install_steam
-  install_lutris
-  install_qbittorrent
-  install_discord
-  flatpak_install_app "com.stremio.Stremio"
-  flatpak_install_app "com.vysp3r.ProtonPlus"
-  flatpak_install_app "com.heroicgameslauncher.hgl"
-  flatpak_install_app "com.usebottles.bottles"
-fi
-
 install_vscode_desktop
 install_google_chrome
 install_obsidian

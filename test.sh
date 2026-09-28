@@ -331,6 +331,12 @@ installer_command_inline() {
   printf "%q " "${command[@]}"
 }
 
+build_test_binary() {
+  command -v go >/dev/null 2>&1 || { error "Go is required to build the test binary."; return 1; }
+  mkdir -p dist
+  run_quiet go build -o dist/guepardo-test ./cmd/guepardo
+}
+
 bootstrap_command() {
   case "$DISTRO" in
     ubuntu)
@@ -530,6 +536,11 @@ run_local_static_checks() {
   run_quiet bash tests/install-fixes.sh
   success "Installation fix behaviour validated"
 
+  log "Testing Go profiles and sudo refresh..."
+  run_quiet go test ./...
+  run_quiet bash tests/profile-selection.sh
+  success "Profile behaviour validated"
+
   log "Validating theme list..."
   run_quiet "./$SCRIPT_NAME" "${INSTALLER_ARGS[@]}" --list-themes
   success "Theme list validated"
@@ -538,6 +549,7 @@ run_local_static_checks() {
 run_container_test() {
   section "Container Test"
   detect_container_engine
+  build_test_binary
 
   log "Target distro: $DISTRO"
   log "Using installer: $SCRIPT_NAME ($INSTALL_DIR)"
@@ -564,12 +576,12 @@ run_container_test() {
       bash -n $(syntax_files_inline)
 
       echo '[INFO] Validating theme list...'
-      sudo -u testuser env HOME=/home/testuser $(installer_command_inline) --list-themes >/dev/null
+      sudo -u testuser env HOME=/home/testuser GUEPARDO_BIN=/workspace/dist/guepardo-test $(installer_command_inline) --list-themes >/dev/null
 
       if [[ '$RUN_INSTALLER' == 'true' ]]; then
         echo '[INFO] Executing installer inside the container...'
         chmod +x '$SCRIPT_NAME'
-        sudo -u testuser env HOME=/home/testuser $(installer_command_inline)
+        sudo -u testuser env HOME=/home/testuser GUEPARDO_BIN=/workspace/dist/guepardo-test $(installer_command_inline) --profiles=cli --yes
       else
         echo '[INFO] Skipping installer execution because --syntax-only was used.'
       fi
@@ -607,6 +619,7 @@ mount_workspace() {
 
 run_vm_test() {
   section "Multipass Test"
+  build_test_binary
   check_multipass_host_prereqs
   ensure_multipass
   warn "Multipass mode validates a clean Ubuntu VM and the CLI path of the installer."
@@ -635,7 +648,7 @@ run_vm_test() {
   run_quiet multipass exec "$VM_NAME" -- bash -lc "
     set -Eeuo pipefail
     cd '$VM_WORKDIR'
-    $(installer_command_inline) --list-themes >/dev/null
+    GUEPARDO_BIN='$VM_WORKDIR/dist/guepardo-test' $(installer_command_inline) --list-themes >/dev/null
   "
   success "Theme list validated"
 
@@ -649,7 +662,7 @@ run_vm_test() {
     set -Eeuo pipefail
     cd '$VM_WORKDIR'
     chmod +x '$SCRIPT_NAME'
-    $(installer_command_inline)
+    GUEPARDO_BIN='$VM_WORKDIR/dist/guepardo-test' $(installer_command_inline) --profiles=cli --yes
   " || return $?
   success "Installer completed in VM"
 }

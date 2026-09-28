@@ -580,6 +580,7 @@ test_antigravity_handles_private_bucket() {
   load_common
 
   # The public bucket now answers 401 to anonymous listing requests.
+  command_exists() { return 1; }
   stub_exit curl 22
 
   local output
@@ -603,6 +604,30 @@ test_antigravity_extract_dir_matches_arch() {
   assert_contains "$source_body" 'mv "$extract_dir/$extract_dir_name" "$app_dir"' "the extract dir is still hardcoded"
   assert_not_contains "$source_body" 'mv "$extract_dir/Antigravity-x64"' "a hardcoded x86_64 path remains"
 
+  cleanup_sandbox
+}
+
+test_gnome_settings_are_restored() {
+  new_sandbox
+  load_common
+  RUNNING_GNOME=true
+  gsettings() {
+    if [[ "$1" == get ]]; then
+      case "$3" in
+        lock-enabled) printf 'false\n' ;;
+        idle-delay) printf 'uint32 600\n' ;;
+      esac
+    else
+      printf '%s\n' "$*" >> "$CALLS"
+    fi
+  }
+  configure_gnome_for_install >/dev/null
+  cleanup >/dev/null
+  local calls
+  calls="$(cat "$CALLS")"
+  assert_contains "$calls" 'set org.gnome.desktop.screensaver lock-enabled false' 'GNOME lock setting was not restored'
+  assert_contains "$calls" 'set org.gnome.desktop.session idle-delay uint32 600' 'GNOME idle setting was not restored'
+  unset -f gsettings
   cleanup_sandbox
 }
 
@@ -633,6 +658,7 @@ run_test "install_obsidian falls back when the download fails" test_obsidian_fal
 run_test "require_sudo authenticates through SUDO_ASKPASS" test_require_sudo_uses_askpass
 run_test "require_sudo is skipped during a dry run" test_require_sudo_skipped_in_dry_run
 run_test "install_antigravity_desktop handles the private bucket" test_antigravity_handles_private_bucket
+run_test "GNOME settings are restored to their previous values" test_gnome_settings_are_restored
 run_test "install_antigravity_desktop unpacks per architecture" test_antigravity_extract_dir_matches_arch
 
 if (( FAILED > 0 )); then
