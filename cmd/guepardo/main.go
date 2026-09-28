@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/term"
 )
 
 var profileOrder = []string{"cli", "dev", "web", "desktop", "games", "fonts", "network"}
@@ -32,6 +34,8 @@ var profileLabels = map[string]string{
 }
 
 var presets = map[string]string{
+	"all":     "cli,dev,web,desktop,games,fonts,network",
+	"todos":   "cli,dev,web,desktop,games,fonts,network",
 	"server":  "cli",
 	"basic":   "cli,dev,web",
 	"full":    "cli,dev,web,desktop,games,fonts",
@@ -137,34 +141,43 @@ func color(code, value string, enabled bool) string {
 }
 
 func promptProfiles() (string, error) {
-	fmt.Println("  1  Servidor      CLI sem interface gráfica")
-	fmt.Println("  2  Desenvolvimento  CLI, Node/Bun/Podman e stack web")
-	fmt.Println("  3  Desktop completo  Desenvolvimento, apps e jogos")
-	fmt.Println("  4  Jogos         Apenas jogos e dependências")
-	fmt.Println("  5  Personalizar  Escolher perfis separados")
-	fmt.Print("\nEscolha [1-5, padrão 3]: ")
-	reader := bufio.NewReader(os.Stdin)
-	choice, err := reader.ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return "", err
+	state, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", fmt.Errorf("não consegui abrir o seletor interativo: %w", err)
 	}
-	switch strings.TrimSpace(choice) {
-	case "1":
-		return "server", nil
-	case "2":
-		return "basic", nil
-	case "", "3":
-		return "full", nil
-	case "4":
-		return "games", nil
-	case "5":
-		fmt.Printf("Perfis disponíveis: %s\n", strings.Join(profileOrder, ", "))
-		fmt.Print("Separe por vírgulas: ")
+	defer term.Restore(int(os.Stdin.Fd()), state)
+	fmt.Fprint(os.Stdout, "\x1b[?1049h\x1b[?25l")
+	defer fmt.Fprint(os.Stdout, "\x1b[?25h\x1b[?1049l")
+	return selectProfiles(os.Stdin, crlfWriter{os.Stdout}, os.Getenv("NO_COLOR") == "")
+}
+
+func promptNetworkSettings(opts *options, input io.Reader, output io.Writer) error {
+	reader := bufio.NewReader(input)
+	fields := []struct {
+		value *string
+		label string
+	}{
+		{&opts.networkInterface, "Interface de rede (ex.: enp1s0)"},
+		{&opts.networkAddress, "Endereço IPv4/CIDR (ex.: 192.168.1.77/24)"},
+		{&opts.networkGateway, "Gateway IPv4 (ex.: 192.168.1.1)"},
+		{&opts.networkDNS, "DNS IPv4 [1.1.1.1]"},
+	}
+	fmt.Fprintln(output, "\n  Configuração da rede IPv4")
+	for _, field := range fields {
+		if *field.value != "" {
+			continue
+		}
+		fmt.Fprintf(output, "  %s: ", field.label)
 		value, err := reader.ReadString('\n')
-		return strings.TrimSpace(value), err
-	default:
-		return "", fmt.Errorf("opção inválida: %s", strings.TrimSpace(choice))
+		if err != nil {
+			return fmt.Errorf("não consegui ler %s: %w", field.label, err)
+		}
+		*field.value = strings.TrimSpace(value)
 	}
+	if opts.networkDNS == "" {
+		opts.networkDNS = "1.1.1.1"
+	}
+	return nil
 }
 
 func resolveRoot(explicit string) (string, error) {
@@ -381,6 +394,11 @@ func run() error {
 	profiles, err := parseProfiles(opts.profiles)
 	if err != nil {
 		return err
+	}
+	if interactive && hasProfile(profiles, "network") && !opts.plan && !opts.dryRun {
+		if err := promptNetworkSettings(&opts, os.Stdin, os.Stdout); err != nil {
+			return err
+		}
 	}
 	if opts.theme != "" && !hasProfile(profiles, "desktop") {
 		return errors.New("--theme requer o perfil desktop")

@@ -12,6 +12,11 @@ games="$(go run ./cmd/guepardo --distro=fedora --profiles=games --plan)"
 [[ "$games" == *'1/1  games'* ]] || fail 'Games plan must contain only games'
 [[ "$games" != *'  web       '* && "$games" != *'  dev       '* ]] || fail 'Games plan includes development profiles'
 
+all="$(go run ./cmd/guepardo --distro=ubuntu --profiles=all --plan)"
+[[ "$all" == *'7/7  network'* ]] || fail 'All must include the network profile'
+fallback_all="$(bash scripts/fallback.sh --distro=ubuntu --profiles=all --plan)"
+[[ "$fallback_all" == *'• network'* ]] || fail 'Bash fallback must include the network profile in all'
+
 if go run ./cmd/guepardo --distro=ubuntu --profiles=cli --theme=nord --plan >/dev/null 2>&1; then
   fail 'Theme without desktop was accepted'
 fi
