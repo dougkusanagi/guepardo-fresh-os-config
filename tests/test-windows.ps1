@@ -40,8 +40,8 @@ if ($errors.Count -gt 0) {
 Write-Host "Running install.ps1 in Dry-Run mode (basic)..." -ForegroundColor Gray
 $dryRunOutput = & $installScript -Mode basic -DryRun -ErrorAction SilentlyContinue *>&1 | Out-String
 Assert-True ($dryRunOutput -like "*Fresh Config Installer (Windows)*") "Banner is displayed in dry-run mode"
-Assert-True ($dryRunOutput -like "*Warp Terminal*") "Warp Terminal is listed in dry-run mode for basic mode"
-Assert-True ($dryRunOutput -like "*Lightshot*") "Lightshot is listed in dry-run mode for basic mode"
+Assert-True ($dryRunOutput -notlike "*Warp Terminal*") "Basic mode excludes desktop applications"
+Assert-True ($dryRunOutput -notlike "*Lightshot*") "Basic mode excludes graphical utilities"
 Assert-True ($dryRunOutput -like "*Dry-run completed successfully.*") "Dry-run finishes with success message"
 
 # Test 3b: Verify Google Chrome in full mode dry-run
@@ -59,12 +59,23 @@ Assert-True ($dryRunFullOutput -like "*Zen Browser (Zen-Team.Zen-Browser)*") "Ze
 Assert-True ($dryRunFullOutput -like "*Podman Desktop (RedHat.Podman-Desktop)*") "Podman Desktop is listed with RedHat.Podman-Desktop"
 Assert-True ($dryRunFullOutput -like "*Lightshot (Skillbrains.Lightshot)*") "Lightshot is listed with Skillbrains.Lightshot"
 
+$serverOutput = & $installScript -Profiles 'cli' -Plan *>&1 | Out-String
+Assert-True ($serverOutput -like "*ripgrep*") "CLI profile contains terminal tools"
+Assert-True ($serverOutput -notlike "*PHP (PHP.PHP.8.4)*") "CLI profile excludes web tools"
+Assert-True ($serverOutput -notlike "*Warp Terminal*") "CLI profile excludes desktop apps"
+
+$gamesOutput = & $installScript -Profiles 'games' -Plan *>&1 | Out-String
+Assert-True ($gamesOutput -like "*Steam*") "Games profile contains Steam"
+Assert-True ($gamesOutput -notlike "*PHP (PHP.PHP.8.4)*") "Games profile excludes web tools"
+
 
 # Test 4: Logs generation
-$logDir = Join-Path $PSScriptRoot "..\logs"
+$statePath = [Environment]::GetFolderPath('LocalApplicationData')
+if ([string]::IsNullOrEmpty($statePath)) { $statePath = [IO.Path]::GetTempPath() }
+$logDir = Join-Path $statePath "Guepardo/Logs"
 Assert-True (Test-Path $logDir) "logs directory exists"
 $logFiles = Get-ChildItem -Path $logDir -Filter "install-*.log"
-Assert-True ($logFiles.Count -gt 0) "At least one install log file was created under logs/"
+Assert-True ($logFiles.Count -gt 0) "At least one install log file was created in the user data directory"
 
 # Final Summary
 Write-Host "`n=== Test Summary ===" -ForegroundColor Cyan

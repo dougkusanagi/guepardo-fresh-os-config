@@ -51,15 +51,7 @@ if command -v systemctl >/dev/null 2>&1; then
   success "MySQL service enabled"
 fi
 
-if [[ "$DRY_RUN" == "true" ]]; then
-  log "[DRY-RUN] Would configure MySQL root account"
-else
-  if run_quiet sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY ''; FLUSH PRIVILEGES;"; then
-    success "MySQL root account configured with empty password"
-  else
-    warn "Could not update the MySQL root user."
-  fi
-fi
+log "Keeping the distribution's MySQL root authentication unchanged."
 
 if command -v composer >/dev/null 2>&1; then
   log "Composer is already available."

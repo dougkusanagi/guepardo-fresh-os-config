@@ -5,11 +5,19 @@ dnf_package_installed() {
 }
 
 dnf_update() {
+  local force="${1:-}"
   if [[ "$DRY_RUN" == "true" ]]; then
     log "[DRY-RUN] Would update package index"
     return
   fi
+  if [[ "$force" != "--force" && -n "${GUEPARDO_INDEX_MARKER:-}" && -f "$GUEPARDO_INDEX_MARKER" ]]; then
+    log "DNF package index already refreshed in this run."
+    return
+  fi
   run_quiet sudo dnf makecache -y
+  if [[ -n "${GUEPARDO_INDEX_MARKER:-}" ]]; then
+    touch "$GUEPARDO_INDEX_MARKER"
+  fi
   success "Package index updated"
 }
 
@@ -128,7 +136,7 @@ gpgcheck=1
 gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 
-  dnf_update
+  dnf_update --force
   dnf_install code
   success "Visual Studio Code installed with the code CLI"
 }
@@ -162,7 +170,7 @@ gpgcheck=1
 gpgkey=https://dl.google.com/linux/linux_signing_key.pub
 EOF
 
-  dnf_update
+  dnf_update --force
   dnf_install google-chrome-stable
   success "Google Chrome installed from the official rpm repository"
 }

@@ -2,17 +2,21 @@
 
 section "Desktop Core"
 
+apt_update
+apt_install curl ca-certificates jq gpg unzip tar software-properties-common
 apt_install snapd
 
 run_quiet sudo add-apt-repository -y universe
 run_quiet sudo add-apt-repository -y multiverse
 success "Universe and multiverse repositories enabled"
-apt_update
+apt_update --force
 apt_install libfuse2t64 || warn "libfuse2t64 is not available on this distribution."
 
 apt_install flatpak gnome-software-plugin-flatpak
-ensure_dbus_session
-run_quiet flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+if [[ "$DRY_RUN" != "true" ]]; then
+  ensure_dbus_session || warn "Could not start a user DBus session; Flatpak may need a login session."
+fi
+run_quiet sudo flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 success "Flathub configured"
 
 apt_install gnome-tweaks timeshift flameshot

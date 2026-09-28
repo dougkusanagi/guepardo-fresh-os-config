@@ -36,15 +36,7 @@ if command -v systemctl >/dev/null 2>&1; then
   success "MariaDB service enabled"
 fi
 
-if [[ "$DRY_RUN" == "true" ]]; then
-  log "[DRY-RUN] Would configure MariaDB root account"
-else
-  if run_quiet sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY ''; FLUSH PRIVILEGES;"; then
-    success "MariaDB root account configured with empty password"
-  else
-    warn "Could not update the MariaDB root user."
-  fi
-fi
+log "Keeping the distribution's MariaDB root authentication unchanged."
 
 if command -v composer >/dev/null 2>&1; then
   log "Composer is already available."
