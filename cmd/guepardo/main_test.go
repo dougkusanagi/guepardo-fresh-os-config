@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -22,6 +23,7 @@ func TestParseProfilesSeparatesScopes(t *testing.T) {
 		{"web,cli,cli", []string{"cli", "web"}},
 		{"full", []string{"cli", "dev", "web", "desktop", "games", "fonts"}},
 		{"wsl", []string{"cli", "dev", "web"}},
+		{"todos", []string{"cli", "dev", "web", "desktop", "games", "fonts", "network"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
@@ -33,6 +35,48 @@ func TestParseProfilesSeparatesScopes(t *testing.T) {
 				t.Fatalf("profiles = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestProfilePickerKeyboardSelection(t *testing.T) {
+	tests := []struct {
+		name, keys, want string
+	}{
+		{"numbers toggle several", "1234\r", "cli,dev,web,desktop"},
+		{"space toggles focused row", "\x1b[B \r", "dev"},
+		{"all includes network", "8\r", "cli,dev,web,desktop,games,fonts,network"},
+		{"empty selection cannot continue", "\r7\r", "network"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var output bytes.Buffer
+			got, err := selectProfiles(strings.NewReader(tc.keys), &output, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("selection = %q, want %q", got, tc.want)
+			}
+			if !strings.Contains(output.String(), "[x]") || !strings.Contains(output.String(), "Todos") {
+				t.Fatalf("picker did not render checkboxes and Todos: %q", output.String())
+			}
+		})
+	}
+}
+
+func TestProfilePickerCancel(t *testing.T) {
+	if _, err := selectProfiles(strings.NewReader("q"), io.Discard, false); err == nil {
+		t.Fatal("cancel was ignored")
+	}
+}
+
+func TestPromptNetworkSettings(t *testing.T) {
+	opts := options{}
+	if err := promptNetworkSettings(&opts, strings.NewReader("enp1s0\n192.168.1.77/24\n192.168.1.1\n\n"), io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if opts.networkInterface != "enp1s0" || opts.networkAddress != "192.168.1.77/24" || opts.networkGateway != "192.168.1.1" || opts.networkDNS != "1.1.1.1" {
+		t.Fatalf("unexpected network settings: %+v", opts)
 	}
 }
 
