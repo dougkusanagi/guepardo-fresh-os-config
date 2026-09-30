@@ -8,9 +8,6 @@ dnf_install_optional fuse
 
 dnf_install flatpak
 run_quiet sudo flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-if flatpak remotes --user | grep -q "^flathub"; then
-  run_quiet flatpak remote-delete --user --force flathub 2>/dev/null || true
-fi
 success "Flathub configured"
 
 dnf_install gnome-tweaks flameshot
@@ -49,7 +46,7 @@ if rpm -q unrar-free >/dev/null 2>&1; then
     success "unrar installed (replaced unrar-free)"
   fi
 else
-  dnf_install unrar
+  dnf_install_optional unrar
 fi
 
 mark_reboot_required

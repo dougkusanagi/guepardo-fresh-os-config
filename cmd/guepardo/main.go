@@ -10,10 +10,12 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/term"
@@ -56,6 +58,7 @@ type options struct {
 	networkDNS       string
 	plan             bool
 	dryRun           bool
+	doctor           bool
 	yes              bool
 	list             bool
 	listThemes       bool
@@ -140,6 +143,14 @@ func color(code, value string, enabled bool) string {
 	return "\x1b[" + code + "m" + value + "\x1b[0m"
 }
 
+func isWSLEnvironment() bool {
+	if os.Getenv("WSL_DISTRO_NAME") != "" || os.Getenv("WSL_INTEROP") != "" {
+		return true
+	}
+	data, _ := os.ReadFile("/proc/sys/kernel/osrelease")
+	return strings.Contains(strings.ToLower(string(data)), "microsoft")
+}
+
 func promptProfiles() (string, error) {
 	state, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
@@ -148,7 +159,17 @@ func promptProfiles() (string, error) {
 	defer term.Restore(int(os.Stdin.Fd()), state)
 	fmt.Fprint(os.Stdout, "\x1b[?1049h\x1b[?25l")
 	defer fmt.Fprint(os.Stdout, "\x1b[?25h\x1b[?1049l")
-	return selectProfiles(os.Stdin, crlfWriter{os.Stdout}, os.Getenv("NO_COLOR") == "")
+	picker := newProfilePicker()
+	if width, height, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
+		if width < 40 || height < 20 {
+			return "", errors.New("amplie o terminal para pelo menos 40 colunas e 20 linhas para abrir o menu")
+		}
+		picker.width, picker.height = width, height
+	}
+	if isWSLEnvironment() {
+		picker.switchEnvironment()
+	}
+	return selectProfilesWithPicker(os.Stdin, crlfWriter{os.Stdout}, os.Getenv("NO_COLOR") == "", picker)
 }
 
 func promptNetworkSettings(opts *options, input io.Reader, output io.Writer) error {
@@ -270,6 +291,7 @@ func sudoSession(ctx context.Context, cancel context.CancelFunc, log io.Writer) 
 
 func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun bool, jobs int, indexMarker string, network [4]string, interactive bool, output io.Writer, log io.Writer) error {
 	cmd := exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts", "run-profile.sh"), distro, profile)
+	configureProcessCancellation(cmd)
 	cmd.Dir = root
 	cmd.Stdin = os.Stdin
 	cmd.Env = append(os.Environ(), "GUEPARDO_ROOT="+root, "GUEPARDO_SUDO_NONINTERACTIVE=1", "GUEPARDO_DRY_RUN="+fmt.Sprint(dryRun), "GUEPARDO_JOBS="+fmt.Sprint(jobs), "GUEPARDO_INDEX_MARKER="+indexMarker, "SELECTED_THEME="+theme,
@@ -286,6 +308,7 @@ func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
+		defer reader.Close()
 		scanner := bufio.NewScanner(reader)
 		scanner.Buffer(make([]byte, 4096), 1024*1024)
 		for scanner.Scan() {
@@ -304,9 +327,13 @@ func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun
 			case strings.HasPrefix(line, "OK"):
 				last = strings.TrimSpace(strings.TrimPrefix(line, "OK"))
 			default:
-				fmt.Fprintf(output, "\r\x1b[2K  %s\n", line)
+				// Detailed package-manager output is kept in the log. The
+				// terminal shows progress, warnings and explicit errors.
 			}
 			mu.Unlock()
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintln(log, "ERROR lendo saída do instalador:", err)
 		}
 	}()
 	stopSpinner := make(chan struct{})
@@ -352,6 +379,7 @@ func run() error {
 	flag.StringVar(&opts.networkDNS, "network-dns", "", "DNS IPv4 para o perfil network")
 	flag.BoolVar(&opts.plan, "plan", false, "mostrar plano e sair")
 	flag.BoolVar(&opts.dryRun, "dry-run", false, "simular execução sem modificar o sistema")
+	flag.BoolVar(&opts.doctor, "doctor", false, "verificar ferramentas e compatibilidade sem instalar")
 	flag.BoolVar(&opts.yes, "yes", false, "executar sem confirmação final")
 	flag.BoolVar(&opts.list, "list-profiles", false, "listar perfis")
 	flag.BoolVar(&opts.listThemes, "list-themes", false, "listar temas GNOME")
@@ -380,8 +408,11 @@ func run() error {
 		opts.profiles = opts.mode
 	}
 	interactive := isTerminal(os.Stdin) && isTerminal(os.Stdout)
+	if opts.profiles == "" && opts.doctor {
+		opts.profiles = "cli"
+	}
 	if opts.profiles == "" {
-		if interactive {
+		if interactive && !opts.yes {
 			var err error
 			opts.profiles, err = promptProfiles()
 			if err != nil {
@@ -395,7 +426,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if interactive && hasProfile(profiles, "network") && !opts.plan && !opts.dryRun {
+	if interactive && !opts.yes && hasProfile(profiles, "network") && !opts.plan && !opts.dryRun && !opts.doctor {
 		if err := promptNetworkSettings(&opts, os.Stdin, os.Stdout); err != nil {
 			return err
 		}
@@ -412,7 +443,7 @@ func run() error {
 			return fmt.Errorf("tema desconhecido: %s", opts.theme)
 		}
 	}
-	if hasProfile(profiles, "network") && !opts.plan && !opts.dryRun {
+	if hasProfile(profiles, "network") && !opts.plan && !opts.dryRun && !opts.doctor {
 		if opts.networkInterface == "" || opts.networkAddress == "" || opts.networkGateway == "" {
 			return errors.New("network requer --network-interface, --network-address e --network-gateway")
 		}
@@ -439,6 +470,16 @@ func run() error {
 	root, err := resolveRoot(opts.root)
 	if err != nil {
 		return err
+	}
+	if opts.doctor || (!opts.plan && !opts.dryRun) {
+		check := exec.Command("bash", filepath.Join(root, "scripts", "preflight.sh"), distro, strings.Join(profiles, ","), root)
+		check.Stdout, check.Stderr = os.Stdout, os.Stderr
+		if err := check.Run(); err != nil {
+			return fmt.Errorf("a verificação inicial falhou; corrija os itens acima e execute novamente: %w", err)
+		}
+		if opts.doctor {
+			return nil
+		}
 	}
 	colorEnabled := isTerminal(os.Stdout) && os.Getenv("NO_COLOR") == ""
 	fmt.Println(color("1;36", "\n  GUEPARDO  /  fresh OS config", colorEnabled))
@@ -468,6 +509,9 @@ func run() error {
 	if os.Geteuid() == 0 {
 		return errors.New("execute como usuário normal, sem sudo")
 	}
+	if !interactive && !opts.yes && !opts.dryRun {
+		return errors.New("em modo não interativo use --yes para autorizar a instalação")
+	}
 	if interactive && !opts.yes && !opts.dryRun {
 		fmt.Print("\nIniciar instalação? [s/N]: ")
 		answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
@@ -495,7 +539,7 @@ func run() error {
 	defer os.RemoveAll(indexDir)
 	indexMarker := filepath.Join(indexDir, "updated")
 	fmt.Printf("\n  Log: %s\n", path)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	privileged := false
 	for _, profile := range profiles {
@@ -522,7 +566,7 @@ func run() error {
 				return fmt.Errorf("perfil %s interrompido: %w (log: %s)", profile, authErr, path)
 			default:
 			}
-			return fmt.Errorf("perfil %s falhou após %s: %w (log: %s)", profile, time.Since(stepStart).Round(time.Second), err, path)
+			return fmt.Errorf("perfil %s falhou após %s: %w (log: %s). Corrija o erro e repita o mesmo comando; apps já instalados serão reaproveitados", profile, time.Since(stepStart).Round(time.Second), err, path)
 		}
 		fmt.Printf("  ✓ %s concluído em %s\n", profile, time.Since(stepStart).Round(time.Second))
 	}

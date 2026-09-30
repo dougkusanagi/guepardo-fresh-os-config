@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 section "Developer Tools"
-dnf_install nodejs npm xsel podman
+dnf_install xsel podman
+install_node_lts
 install_npm_global_package opencode opencode-ai
 install_npm_global_package codex @openai/codex
 if [[ "$DRY_RUN" == "true" ]]; then
@@ -22,13 +23,13 @@ success "Docker compatibility via podman-docker: /usr/bin/docker, alias docker-c
 if command -v bun >/dev/null 2>&1; then
   log "Bun is already available."
 else
-  run_quiet bash -lc 'curl -fsSL https://bun.sh/install | bash'
+  install_remote_script https://bun.sh/install
   success "Bun installed"
 fi
 
 if command -v uv >/dev/null 2>&1; then
   log "uv is already available."
 else
-  run_quiet sh -lc 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+  install_remote_script https://astral.sh/uv/install.sh sh
   success "uv installed"
 fi

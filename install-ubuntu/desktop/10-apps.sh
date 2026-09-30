@@ -20,6 +20,6 @@ install_antigravity_desktop
 if command -v zed >/dev/null 2>&1; then
   log "Zed is already available."
 else
-  run_quiet bash -lc 'curl -fsSL https://zed.dev/install.sh | bash'
+  install_remote_script https://zed.dev/install.sh
   success "Zed installed"
 fi

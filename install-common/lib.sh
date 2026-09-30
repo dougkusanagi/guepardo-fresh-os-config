@@ -8,6 +8,7 @@ REQUIRES_REBOOT="false"
 DRY_RUN="${DRY_RUN:-false}"
 TARGET_USER="${USER}"
 TARGET_HOME="${HOME}"
+export PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.bun/bin:$PATH"
 STATIC_NETWORK_INTERFACE="${STATIC_NETWORK_INTERFACE:-enp5s0}"
 STATIC_NETWORK_CONNECTION="${STATIC_NETWORK_CONNECTION:-static-${STATIC_NETWORK_INTERFACE}}"
 STATIC_NETWORK_ADDRESS="${STATIC_NETWORK_ADDRESS:-192.168.1.77/24}"
@@ -186,6 +187,7 @@ run_quiet() {
   log_file="$(mktemp)"
 
   if "$@" >"$log_file" 2>&1; then
+    cat "$log_file"
     rm -f "$log_file"
     return 0
   else
@@ -193,7 +195,11 @@ run_quiet() {
   fi
 
   error "Command failed: $*"
-  sed -n '1,120p' "$log_file" >&2 || true
+  # Prefix diagnostics so the interactive UI shows the actual cause, while
+  # successful package-manager output stays in the complete installation log.
+  tail -n 120 "$log_file" | while IFS= read -r line; do
+    printf 'ERROR %s\n' "$line" >&2
+  done || true
   rm -f "$log_file"
   return "$exit_code"
 }
@@ -209,7 +215,11 @@ run_independent() {
   fi
   for task in "$@"; do
     if (( limit == 1 )); then
-      "$task" || return 1
+      # Keep errexit enabled inside the installer: calling a function on the
+      # left side of || disables it throughout the function body.
+      "$task" &
+      pid="$!"
+      wait "$pid" || return 1
       continue
     fi
     "$task" &
@@ -431,8 +441,9 @@ flatpak_install_app() {
     return
   fi
 
-  ensure_dbus_session
-  run_quiet sudo flatpak install -y --system flathub "$app_id"
+  # System Flatpak installation works without a graphical user bus (SSH/VM).
+  ensure_dbus_session || true
+  run_quiet sudo flatpak install -y --system flathub "$app_id" || return 1
   success "Flatpak installed: $app_id"
 }
 
@@ -445,9 +456,118 @@ download_file() {
     return
   fi
 
-  mkdir -p "$(dirname "$destination")"
-  curl -fsSL "$url" -o "$destination"
+  local temporary
+  mkdir -p "$(dirname "$destination")" || return 1
+  temporary="$(mktemp "${destination}.part.XXXXXX")" || return 1
+  if curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 600 "$url" -o "$temporary"; then
+    mv -f "$temporary" "$destination" || { rm -f "$temporary"; return 1; }
+  else
+    rm -f "$temporary"
+    error "Download failed: $url. Check your connection and run the installer again."
+    return 1
+  fi
 }
+
+install_remote_script() (
+  local url="$1" shell_name="${2:-bash}" tmpdir
+  tmpdir="$(mktemp -d)" || return 1
+  trap 'rm -rf "$tmpdir"' EXIT
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would download and execute: $url ($shell_name)"
+    return 0
+  fi
+  download_file "$url" "$tmpdir/install.sh" || return 1
+  run_quiet "$shell_name" "$tmpdir/install.sh" || return 1
+)
+
+configure_user_path() {
+  add_line_if_missing 'export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"' "$TARGET_HOME/.bashrc"
+}
+
+install_node_lts() (
+  local version
+  version="$(node --version 2>/dev/null || true)"
+  if [[ "$version" =~ ^v(22|24)\. ]] && command_exists npm; then
+    log "Node $version and npm are already available."
+    return
+  fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would install Node 24 LTS and npm with SHA-256 verification"
+    return
+  fi
+  local architecture tmpdir archive checksum node_dir staging_dir=""
+  case "$(uname -m)" in
+    x86_64|amd64) architecture=x64 ;;
+    aarch64|arm64) architecture=arm64 ;;
+    *) error "Unsupported Node architecture: $(uname -m)"; return 1 ;;
+  esac
+  tmpdir="$(mktemp -d)" || return 1
+  trap 'rm -rf "$tmpdir"; if [[ -n "$staging_dir" ]]; then rm -rf "$staging_dir"; fi' EXIT
+  download_file https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt "$tmpdir/SHASUMS256.txt" || return 1
+  archive="$(awk -v arch="$architecture" '$2 ~ ("^node-v24\\.[0-9]+\\.[0-9]+-linux-" arch "\\.tar\\.xz$") {print $2; exit}' "$tmpdir/SHASUMS256.txt")"
+  [[ -n "$archive" ]] || { error "Node LTS archive not found for $architecture."; return 1; }
+  download_file "https://nodejs.org/dist/latest-v24.x/$archive" "$tmpdir/$archive" || return 1
+  checksum="$(awk -v name="$archive" '$2 == name {print; exit}' "$tmpdir/SHASUMS256.txt")"
+  (cd "$tmpdir" && printf '%s\n' "$checksum" | sha256sum -c -) || return 1
+  node_dir="$TARGET_HOME/.local/share/guepardo/${archive%.tar.xz}"
+  mkdir -p "$TARGET_HOME/.local/bin" "$(dirname "$node_dir")" || return 1
+  staging_dir="$(mktemp -d "$(dirname "$node_dir")/.node.XXXXXX")" || return 1
+  run_quiet tar -xJf "$tmpdir/$archive" --strip-components=1 -C "$staging_dir" || return 1
+  run_quiet "$staging_dir/bin/node" --version || return 1
+  if [[ ! -x "$node_dir/bin/node" || ! -x "$node_dir/bin/npm" ]]; then
+    rm -rf "$node_dir"
+    mv "$staging_dir" "$node_dir" || return 1
+    staging_dir=""
+  fi
+  local binary
+  for binary in node npm npx; do
+    ln -sfn "$node_dir/bin/$binary" "$TARGET_HOME/.local/bin/$binary" || return 1
+  done
+  success "Node 24 LTS and npm installed for the current user"
+)
+
+systemd_is_running() {
+  command_exists systemctl && [[ -d /run/systemd/system ]]
+}
+
+enable_system_service() {
+  local service="$1"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would enable and start $service"
+    return
+  fi
+  if ! systemd_is_running; then
+    warn "$service installed; systemd is not running here. Start the service in your normal system session."
+    return
+  fi
+  run_quiet sudo systemctl enable --now "$service" || return 1
+  success "$service service enabled and started"
+}
+
+install_composer() (
+  if command_exists composer; then
+    log "Composer is already available."
+    return
+  fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would verify and install Composer"
+    return
+  fi
+  local tmpdir expected actual
+  tmpdir="$(mktemp -d)" || return 1
+  trap 'rm -rf "$tmpdir"' EXIT
+  download_file https://composer.github.io/installer.sig "$tmpdir/installer.sig" || return 1
+  download_file https://getcomposer.org/installer "$tmpdir/composer-setup.php" || return 1
+  expected="$(tr -d '\r\n' < "$tmpdir/installer.sig")"
+  actual="$(sha384sum "$tmpdir/composer-setup.php")"
+  if [[ ! "$expected" =~ ^[a-f0-9]{96}$ || "${actual%% *}" != "$expected" ]]; then
+    error "Composer installer checksum mismatch; nothing was executed."
+    return 1
+  fi
+  run_quiet php "$tmpdir/composer-setup.php" --install-dir="$tmpdir" --filename=composer || return 1
+  run_quiet sudo install -m 0755 "$tmpdir/composer" /usr/local/bin/composer || return 1
+  success "Composer installed"
+)
 
 github_api_get() {
   local endpoint="$1"
@@ -462,7 +582,7 @@ github_api_get() {
     fi
   fi
 
-  local -a curl_args=(-fsSL -H "Accept: application/vnd.github+json")
+  local -a curl_args=(-fsSL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 60 -H "Accept: application/vnd.github+json")
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     curl_args+=(-H "Authorization: Bearer $GITHUB_TOKEN")
   fi
@@ -515,7 +635,7 @@ install_npm_global_package() {
     return 1
   fi
 
-  run_quiet sudo npm install -g "$package_name"
+  run_quiet npm install -g --prefix "$TARGET_HOME/.local" "$package_name" || return 1
   success "$command_name installed"
 }
 
@@ -525,7 +645,7 @@ install_dust() {
     return
   fi
 
-  run_quiet bash -lc 'curl -sSfL https://raw.githubusercontent.com/bootandy/dust/refs/heads/master/install.sh | sh'
+  install_remote_script https://raw.githubusercontent.com/bootandy/dust/refs/heads/master/install.sh || return 1
   success "dust installed"
 }
 
@@ -561,7 +681,12 @@ install_lazygit() {
   fi
 
   tmpdir="$(mktemp -d)"
-  run_quiet bash -lc "curl -sSfL '$url' | tar xz -C '$tmpdir' lazygit && sudo install -m 0755 '$tmpdir/lazygit' /usr/local/bin/lazygit"
+  if ! download_file "$url" "$tmpdir/lazygit.tar.gz" \
+    || ! run_quiet tar -xzf "$tmpdir/lazygit.tar.gz" -C "$tmpdir" lazygit \
+    || ! run_quiet sudo install -m 0755 "$tmpdir/lazygit" /usr/local/bin/lazygit; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
   rm -rf "$tmpdir"
   success "lazygit installed"
 }
@@ -598,7 +723,10 @@ install_yazi() {
   fi
 
   tmpdir="$(mktemp -d)"
-  run_quiet bash -lc "curl -sSfL '$url' -o '$tmpdir/yazi.zip' && unzip -q '$tmpdir/yazi.zip' -d '$tmpdir'"
+  if ! download_file "$url" "$tmpdir/yazi.zip" || ! run_quiet unzip -q "$tmpdir/yazi.zip" -d "$tmpdir"; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
   yazi_binary="$(find "$tmpdir" -type f -name yazi -perm /111 | head -n 1)"
   ya_binary="$(find "$tmpdir" -type f -name ya -perm /111 | head -n 1)"
   if [[ -z "$yazi_binary" || -z "$ya_binary" ]]; then
@@ -606,8 +734,11 @@ install_yazi() {
     error "Could not find yazi and ya binaries in the release archive."
     return 1
   fi
-  run_quiet sudo install -m 0755 "$yazi_binary" /usr/local/bin/yazi
-  run_quiet sudo install -m 0755 "$ya_binary" /usr/local/bin/ya
+  if ! run_quiet sudo install -m 0755 "$yazi_binary" /usr/local/bin/yazi \
+    || ! run_quiet sudo install -m 0755 "$ya_binary" /usr/local/bin/ya; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
   rm -rf "$tmpdir"
   success "yazi installed"
 }

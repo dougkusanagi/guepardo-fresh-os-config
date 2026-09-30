@@ -15,9 +15,10 @@ for distro in ubuntu fedora; do
   excludes "$cli" 'configure_static_ipv4_network'
   excludes "$cli" 'warp-terminal'
   excludes "$cli" 'mysql-server'
-  contains "$dev" 'nodejs npm'
+  contains "$dev" 'install_node_lts'
   contains "$dev" 'install_npm_global_package codex @openai/codex'
   contains "$web" 'composer'
+  contains "$web" 'xsel'
   excludes "$web" "BY '';"
   contains "$desktop" 'install_vscode_desktop'
   excludes "$desktop" 'install_steam'

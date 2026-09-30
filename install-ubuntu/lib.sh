@@ -8,6 +8,10 @@ runUnlessDry() {
   "$@"
 }
 
+apt_install_local_package() {
+  run_quiet sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 install -y "$1"
+}
+
 apt_package_installed() {
   dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"
 }
@@ -34,7 +38,7 @@ apt_update() {
     log "APT package index already refreshed in this run."
     return
   fi
-  run_quiet sudo apt-get update -y
+  run_quiet sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update || return 1
   if [[ -n "${GUEPARDO_INDEX_MARKER:-}" ]]; then
     touch "$GUEPARDO_INDEX_MARKER"
   fi
@@ -64,7 +68,7 @@ apt_install() {
     return
   fi
 
-  run_quiet sudo apt-get install -y "${missing_packages[@]}"
+  run_quiet sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 install -y "${missing_packages[@]}" || return 1
 
   for package in "${missing_packages[@]}"; do
     success "$package installed"
@@ -92,7 +96,8 @@ apt_install_first_available() {
     log "Skipping unavailable package: $package"
   done
 
-  warn "No available apt package found among: $*"
+  error "No available apt package found among: $*"
+  return 1
 }
 
 apt_install_optional() {
@@ -201,7 +206,7 @@ install_opencode_desktop() {
   fi
 
   download_file "https://opencode.ai/download/stable/linux-x64-deb" "$package_file"
-  run_quiet sudo apt-get install -y "$package_file"
+  apt_install_local_package "$package_file"
   rm -f "$package_file"
   success "OpenCode Desktop installed"
 }
@@ -262,7 +267,7 @@ install_google_chrome() {
   fi
 
   download_file "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb" "$package_file"
-  run_quiet sudo apt-get install -y "$package_file"
+  apt_install_local_package "$package_file"
   rm -f "$package_file"
   success "Google Chrome installed from the official deb package"
 }
@@ -342,7 +347,7 @@ install_discord() {
   fi
   local package_file="/tmp/discord.deb"
   download_file "https://discord.com/api/download?platform=linux&format=deb" "$package_file"
-  run_quiet sudo apt-get install -y "$package_file"
+  apt_install_local_package "$package_file"
   rm -f "$package_file"
   success "Discord installed"
 }
@@ -369,7 +374,7 @@ install_obsidian() {
     flatpak_install_app "md.obsidian.Obsidian"
     return
   fi
-  if ! run_quiet sudo apt-get install -y "$package_file"; then
+  if ! apt_install_local_package "$package_file"; then
     warn "Could not install the Obsidian .deb; falling back to Flatpak."
     rm -f "$package_file"
     flatpak_install_app "md.obsidian.Obsidian"

@@ -14,7 +14,7 @@ dnf_update() {
     log "DNF package index already refreshed in this run."
     return
   fi
-  run_quiet sudo dnf makecache -y
+  run_quiet sudo dnf makecache -y || return 1
   if [[ -n "${GUEPARDO_INDEX_MARKER:-}" ]]; then
     touch "$GUEPARDO_INDEX_MARKER"
   fi
@@ -46,9 +46,9 @@ dnf_install() {
   fi
 
   if [[ "$allow_skip" == "true" ]]; then
-    run_quiet sudo dnf install -y --skip-unavailable "${missing_packages[@]}"
+    run_quiet sudo dnf install -y --skip-unavailable "${missing_packages[@]}" || return 1
   else
-    run_quiet sudo dnf install -y "${missing_packages[@]}"
+    run_quiet sudo dnf install -y "${missing_packages[@]}" || return 1
   fi
 
   for package in "${missing_packages[@]}"; do
@@ -78,10 +78,24 @@ install_sd() {
     return
   fi
 
-  local tmpdir url
+  local tmpdir url target
+  case "$(uname -m)" in
+    x86_64|amd64) target=x86_64 ;;
+    aarch64|arm64) target=aarch64 ;;
+    *) error "Unsupported sd architecture: $(uname -m)"; return 1 ;;
+  esac
   tmpdir="$(mktemp -d)"
-  url="$(curl -sL https://api.github.com/repos/chmln/sd/releases/latest | jq -r '.assets[] | select(.name | test("x86_64.*linux-gnu\\.tar\\.gz$")) | .browser_download_url')"
-  run_quiet bash -lc "curl -sSfL '$url' | tar xz -C '$tmpdir' && sudo mv '$tmpdir'/*/sd /usr/local/bin/sd"
+  url="$(github_latest_asset_url chmln/sd "${target}.*linux-gnu\\.tar\\.gz$")" || { rm -rf "$tmpdir"; return 1; }
+  if ! download_file "$url" "$tmpdir/sd.tar.gz" || ! run_quiet tar -xzf "$tmpdir/sd.tar.gz" -C "$tmpdir"; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
+  local binary
+  binary="$(find "$tmpdir" -type f -name sd | head -n 1)"
+  if [[ -z "$binary" ]] || ! run_quiet sudo install -m 0755 "$binary" /usr/local/bin/sd; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
   rm -rf "$tmpdir"
   success "sd installed"
 }

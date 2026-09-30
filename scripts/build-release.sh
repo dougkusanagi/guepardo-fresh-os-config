@@ -10,5 +10,6 @@ for architecture in amd64 arm64; do
   printf 'Building Linux %s...\n' "$architecture"
   (cd "$ROOT_DIR" && CGO_ENABLED=0 GOOS=linux GOARCH="$architecture" go build -trimpath -ldflags='-s -w' -o "$DIST_DIR/guepardo-linux-$architecture" ./cmd/guepardo)
 done
-(cd "$DIST_DIR" && sha256sum guepardo-linux-amd64 guepardo-linux-arm64 > SHA256SUMS)
+bash "$ROOT_DIR/scripts/source-digest.sh" "$ROOT_DIR" > "$DIST_DIR/SOURCE_SHA256"
+(cd "$DIST_DIR" && sha256sum guepardo-linux-amd64 guepardo-linux-arm64 SOURCE_SHA256 > SHA256SUMS)
 printf 'Release assets: %s\n' "$DIST_DIR"

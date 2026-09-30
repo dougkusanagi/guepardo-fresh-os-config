@@ -44,11 +44,24 @@ finish_runner() {
 }
 trap finish_runner EXIT
 
+# Every profile must work on a clean machine without selecting CLI first.
+if [[ "$PROFILE" != "fonts" ]]; then
+  if [[ "$DISTRO" == "ubuntu" ]]; then
+    apt_update
+    apt_install curl ca-certificates tar unzip jq gpg xz-utils
+  else
+    dnf_update
+    dnf_install curl ca-certificates tar unzip jq gnupg2 xz
+  fi
+fi
+
 case "$PROFILE" in
   cli)
+    configure_user_path
     source "$INSTALL_ROOT/terminal/00-cli.sh"
     ;;
   dev)
+    configure_user_path
     source "$INSTALL_ROOT/terminal/05-dev-tools.sh"
     ;;
   web)
@@ -86,3 +99,10 @@ case "$PROFILE" in
     exit 1
     ;;
 esac
+
+if [[ "$PROFILE" == "cli" || "$PROFILE" == "dev" || "$PROFILE" == "web" ]]; then
+  warn "Open a new terminal to load the updated PATH and aliases."
+fi
+if [[ "$REQUIRES_REBOOT" == "true" ]]; then
+  warn "Reboot before using Samba/Nautilus Share; log out and back in for desktop changes."
+fi

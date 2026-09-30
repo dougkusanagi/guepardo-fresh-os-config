@@ -43,7 +43,7 @@ else
   log "gh is already installed."
 fi
 
-if ! command_exists eza; then
+if ! command_exists eza && { [[ "$DRY_RUN" == "true" ]] || ! apt_package_available eza; }; then
   log "Configuring eza repository..."
   if [[ "$DRY_RUN" == "true" ]]; then
     log "[DRY-RUN] Would configure eza repository"

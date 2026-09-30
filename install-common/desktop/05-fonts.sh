@@ -15,15 +15,13 @@ if [[ "$DRY_RUN" == "true" ]]; then
   return
 fi
 
-if [[ -d "$FONT_DEST_DIR" ]]; then
-  log "Fonts already installed, skipping copy."
-else
-  mkdir -p "$FONT_DEST_DIR"
-
-  while IFS= read -r -d '' font_file; do
+mkdir -p "$FONT_DEST_DIR"
+while IFS= read -r -d '' font_file; do
+  # A previous interrupted copy may have left the directory incomplete.
+  if ! cmp -s "$font_file" "$FONT_DEST_DIR/$(basename "$font_file")"; then
     cp -f "$font_file" "$FONT_DEST_DIR/"
-  done < <(find "$FONT_SOURCE_DIR" -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.otf' \) -print0)
-fi
+  fi
+done < <(find "$FONT_SOURCE_DIR" -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.otf' \) -print0)
 
 if command -v fc-cache >/dev/null 2>&1; then
   mkdir -p "$TARGET_HOME/.cache/fontconfig"

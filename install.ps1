@@ -26,6 +26,8 @@ param (
     [switch]$Help
 )
 
+$ErrorActionPreference = 'Stop'
+
 if ($ListProfiles) {
     Write-Host "cli, dev, web, desktop, games"
     exit 0
@@ -258,7 +260,21 @@ function Update-ProcessEnvironment {
 
 Write-Section "Installing Applications via winget"
 $failed = @()
-$successCodes = @(0, -1978335189, 2316697643, -1978335204, 2316697628, -1978335203, 2316697629, -1978335186, 2316697646)
+function Get-InstallResult {
+    param ([long]$ExitCode)
+    # Native HRESULTs can arrive as either signed or unsigned integers.
+    $normalized = $ExitCode -band 4294967295L
+    switch ($normalized) {
+        0 { 'installed' }
+        2316632107 { 'already-installed' } # 0x8A15002B: update not applicable
+        2316632161 { 'already-installed' } # 0x8A150061: package already installed
+        2316632333 { 'already-installed' } # 0x8A15010D: installer reports already installed
+        2316632329 { 'reboot-required' }   # 0x8A150109: reboot required to finish
+        3010 { 'reboot-required' }        # Successful EXE/MSI requiring a reboot
+        default { 'failed' }
+    }
+}
+$rebootRequired = $false
 $startedAt = Get-Date
 $packageIndex = 0
 
@@ -266,14 +282,18 @@ foreach ($pkg in $toInstall) {
     $packageIndex++
     Write-Log -Message "[$packageIndex/$($toInstall.Count)] Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
     
+    $exitCode = 1
     if ($pkg.Id -eq "Composer.Composer") {
         # Refresh environment variables first to make sure PHP is in PATH
         Update-ProcessEnvironment
         
         try {
             Write-Log -Message "Downloading Composer installer..." -Level "INFO"
-            $tempPath = Join-Path $env:TEMP "Composer-Setup.exe"
-            Invoke-WebRequest -Uri "https://getcomposer.org/Composer-Setup.exe" -OutFile $tempPath -UseBasicParsing -ErrorAction Stop
+            if (-not (Get-Command php -ErrorAction SilentlyContinue)) { throw 'PHP is required to install Composer.' }
+            $tempDir = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+            New-Item -ItemType Directory -Path $tempDir | Out-Null
+            $tempPath = Join-Path $tempDir 'Composer-Setup.exe'
+            Invoke-WebRequest -Uri "https://getcomposer.org/Composer-Setup.exe" -OutFile $tempPath -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop
             
             Write-Log -Message "Running Composer installer..." -Level "INFO"
             $process = Start-Process -FilePath $tempPath -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait -PassThru -NoNewWindow
@@ -281,31 +301,23 @@ foreach ($pkg in $toInstall) {
         } catch {
             Write-Log -Message "Failed to download or run Composer installer: $_" -Level "WARN"
             $exitCode = 1
-        }
-    } elseif ($pkg.Id -eq "RARLab.WinRAR") {
-        try {
-            Write-Log -Message "Downloading WinRAR installer..." -Level "INFO"
-            $tempPath = Join-Path $env:TEMP "winrar-setup.exe"
-            Invoke-WebRequest -Uri "https://www.rarlab.com/rar/winrar-x64-701.exe" -OutFile $tempPath -UseBasicParsing -ErrorAction Stop
-            
-            Write-Log -Message "Running WinRAR installer..." -Level "INFO"
-            # WinRAR requires elevation to install to Program Files, so we run with -Verb RunAs
-            $process = Start-Process -FilePath $tempPath -ArgumentList "/S" -Verb RunAs -Wait -PassThru
-            $exitCode = $process.ExitCode
-        } catch {
-            Write-Log -Message "Failed to download or run WinRAR installer: $_" -Level "WARN"
-            $exitCode = 1
+        } finally {
+            if ($tempDir -and (Test-Path $tempDir)) { Remove-Item -Path $tempDir -Recurse -Force }
         }
     } else {
-        $argsList = @("install", "-e", "--id", $pkg.Id, "--accept-package-agreements", "--accept-source-agreements")
-        if ($pkg.Force) {
-            $argsList += "--force"
+        $argsList = @('install', '-e', '--id', $pkg.Id, '--source', 'winget', '--silent', '--disable-interactivity', '--no-upgrade', '--accept-package-agreements', '--accept-source-agreements')
+        try {
+            & winget @argsList 2>&1 | Tee-Object -FilePath $logFile -Append
+            $exitCode = $LASTEXITCODE
+        } catch {
+            Write-Log -Message "Failed to run winget for $($pkg.Name): $_" -Level 'WARN'
+            $exitCode = 1
         }
-        & winget $argsList
-        $exitCode = $LASTEXITCODE
     }
 
-    if ($successCodes -contains $exitCode) {
+    $result = Get-InstallResult $exitCode
+    if ($result -eq 'reboot-required') { $rebootRequired = $true }
+    if ($result -ne 'failed') {
         Write-Log -Message "$($pkg.Name) installed/updated successfully (or already installed)." -Level "OK"
     } else {
         Write-Log -Message "Failed to install $($pkg.Name) (Exit Code: $exitCode)." -Level "WARN"
@@ -372,4 +384,8 @@ if ($failed.Count -eq 0) {
     Write-Log -Message "All requested applications installed successfully!" -Level "OK"
 } else {
     Write-Log -Message "Installation finished with warnings. The following apps failed to install:`n  $($failed -join ', ')" -Level "WARN"
+    Write-Log -Message 'Fix the errors and repeat the same command; installed apps are reused.' -Level 'INFO'
 }
+if ($rebootRequired) { Write-Log -Message 'Restart Windows to finish installing the applications.' -Level 'WARN' }
+if ($failed.Count -gt 0) { exit 1 }
+exit 0

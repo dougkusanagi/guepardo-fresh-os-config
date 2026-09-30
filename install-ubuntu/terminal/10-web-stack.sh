@@ -40,40 +40,18 @@ else
   apt_install_first_available "${PHP_OPCACHE_PACKAGES[@]}"
 fi
 
-if command -v systemctl >/dev/null 2>&1; then
-  log "Enabling MySQL service..."
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would enable and start MySQL service"
-  else
-    sudo systemctl enable mysql || true
-    sudo systemctl start mysql || true
-  fi
-  success "MySQL service enabled"
-fi
+enable_system_service mysql
 
 log "Keeping the distribution's MySQL root authentication unchanged."
 
-if command -v composer >/dev/null 2>&1; then
-  log "Composer is already available."
-else
-  log "Installing Composer..."
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would install Composer"
-  else
-    run_quiet php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-    run_quiet php composer-setup.php
-    sudo mv composer.phar /usr/local/bin/composer
-    rm -f composer-setup.php
-    success "Composer installed"
-  fi
-fi
+install_composer
 
 add_line_if_missing "export PATH=\"\$HOME/.config/composer/vendor/bin:\$PATH\"" "$TARGET_HOME/.bashrc"
 add_line_if_missing "export PATH=\"\$HOME/.bun/bin:\$PATH\"" "$TARGET_HOME/.bashrc"
 export PATH="$HOME/.config/composer/vendor/bin:$HOME/.bun/bin:$PATH"
 success "Shell PATH updated for Composer and Bun"
 
-apt_install libnss3-tools
+apt_install libnss3-tools xsel
 
 add_line_if_missing 'alias copy="xsel -b"' "$TARGET_HOME/.bashrc"
 add_line_if_missing 'alias paste="xsel -b -o"' "$TARGET_HOME/.bashrc"

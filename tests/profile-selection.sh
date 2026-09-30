@@ -74,8 +74,8 @@ rm -rf "$index_dir" "$calls"
 # The sudo shim must reach both sourced Bash code and nested POSIX sh scripts.
 fake_root="$(mktemp -d)"
 mkdir -p "$fake_root/install-common" "$fake_root/install-ubuntu/terminal" "$fake_root/fake-bin"
-printf 'cleanup() { :; }\n' > "$fake_root/install-common/lib.sh"
-: > "$fake_root/install-ubuntu/lib.sh"
+printf 'cleanup() { :; }\nconfigure_user_path() { :; }\nREQUIRES_REBOOT=false\n' > "$fake_root/install-common/lib.sh"
+printf 'apt_update() { :; }\napt_install() { :; }\nwarn() { :; }\n' > "$fake_root/install-ubuntu/lib.sh"
 printf 'sudo -v\nsh -c "sudo -v"\n' > "$fake_root/install-ubuntu/terminal/00-cli.sh"
 cat > "$fake_root/fake-bin/sudo" <<'SH'
 #!/bin/sh
