@@ -16,7 +16,7 @@ for distro in ubuntu fedora; do
   done
 done
 [[ -x "$ROOT_DIR/install.sh" ]] || fail 'install.sh is not executable'
-grep -Fq 'GUEPARDO_REF:-stable' "$ROOT_DIR/install.sh" || fail 'bootstrap must fetch stable by default'
+grep -Fq 'GUEPARDO_REF:-master' "$ROOT_DIR/install.sh" || fail 'bootstrap must fetch master by default'
 grep -Fq 'SHA256SUMS' "$ROOT_DIR/install.sh" || fail 'release binary must be checksum verified'
 grep -Fq 'GUEPARDO_SUDO_NONINTERACTIVE=1' "$ROOT_DIR/cmd/guepardo/main.go" || fail 'child installers must use sudo -n'
 printf 'Project structure checks passed\n'

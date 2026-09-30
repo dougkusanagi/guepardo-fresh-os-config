@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 REPOSITORY="dougkusanagi/guepardo-fresh-os-config"
-REF="${GUEPARDO_REF:-stable}"
+REF="${GUEPARDO_REF:-master}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMP_DIR=""
 

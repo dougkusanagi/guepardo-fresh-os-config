@@ -78,7 +78,12 @@ if bash "$repo/install.sh" --list-profiles >/dev/null 2>&1; then fail 'Missing c
 mkdir -p "$sandbox/remote"
 cp "$ROOT_DIR/install.sh" "$sandbox/remote/install.sh"
 tar -czf "$sandbox/archive.tar.gz" -C "$sandbox" repo
-export GUEPARDO_REF=feature/test GUEPARDO_TEST_ARCHIVE="$sandbox/archive.tar.gz" GUEPARDO_BIN="$repo/scripts/fallback.sh"
+export GUEPARDO_TEST_ARCHIVE="$sandbox/archive.tar.gz" GUEPARDO_BIN="$repo/scripts/fallback.sh"
+unset GUEPARDO_REF
+: > "$sandbox/urls"
+bash "$sandbox/remote/install.sh" --plan >/dev/null 2>&1
+[[ "$(cat "$sandbox/urls")" == *'/tar.gz/master'* ]] || fail 'Remote bootstrap must fetch production master by default'
+export GUEPARDO_REF=feature/test
 : > "$sandbox/calls"
 bash "$sandbox/remote/install.sh" --plan >/dev/null 2>&1
 [[ "$(cat "$sandbox/calls")" == *'--root='*'/repository --plan' ]] || fail 'Remote archive did not preserve the root and arguments'
@@ -113,6 +118,7 @@ SH
 chmod +x "$sandbox/readme-bin/"*
 readme_command="$(sed -n '/^bash -c /{p;q;}' "$ROOT_DIR/README.md")"
 [[ -n "$readme_command" ]] || fail 'README is missing its recommended command'
+[[ "$readme_command" == *'/master/install.sh'* ]] || fail 'README must download production master'
 for environment in linux wsl interop; do
   distro_name='' interop=''
   [[ "$environment" == wsl ]] && distro_name=Ubuntu

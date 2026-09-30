@@ -2,15 +2,17 @@
 
 Instalador de ambiente para Ubuntu, Fedora/Nobara e Windows. No Linux, o orquestrador é escrito em Go e executa módulos por perfil. Os scripts Bash existentes continuam responsáveis pelas operações específicas de cada distribuição.
 
+O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
+
 ## Ubuntu ou WSL Ubuntu novo: um comando
 
 Abra um terminal como seu usuário normal e cole o comando abaixo. Ele prepara o download e detecta o ambiente: no Ubuntu normal, instala terminal, desenvolvimento, stack web, desktop, jogos e fontes; no WSL Ubuntu, instala apenas terminal, desenvolvimento e stack web. A senha de administrador é solicitada pelo `sudo`; a rede permanece com sua configuração atual.
 
 ```bash
-bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/stable/install.sh -o "$installer"; mode=full; if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] || grep -qi microsoft /proc/sys/kernel/osrelease; then mode=wsl; fi; bash "$installer" --mode="$mode" --yes'
+bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/master/install.sh -o "$installer"; mode=full; if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] || grep -qi microsoft /proc/sys/kernel/osrelease; then mode=wsl; fi; bash "$installer" --mode="$mode" --yes'
 ```
 
-**Publicação pendente:** o comando remoto requer a versão nova deste instalador em `stable`. O branch publicado ainda usa o instalador antigo, sem suporte a `--yes`; enquanto esta atualização não for publicada, não use este comando remoto. Melhorias feitas no checkout local passam a fazer parte dele após a publicação nesse branch. Para testar este checkout, use `./install.sh --mode=full --plan` e depois `./install.sh --mode=full --yes`.
+**Publicação pendente:** o comando remoto requer a versão nova deste instalador em `master`. O branch publicado ainda usa o instalador antigo; enquanto esta atualização não for publicada, não use este comando remoto. Melhorias feitas no checkout local passam a fazer parte dele após a publicação nesse branch. Para testar este checkout, use `./install.sh --mode=full --plan` e depois `./install.sh --mode=full --yes`.
 
 Para instalar apenas as ferramentas de trabalho, substitua `--mode=full` por `--profiles=cli,dev,web`. Para escolher os grupos na tela, substitua a chamada final por `bash "$installer"`. Não execute o instalador inteiro com `sudo`.
 
@@ -59,10 +61,10 @@ O programa chama `sudo -v` uma vez antes da primeira etapa privilegiada. Enquant
 
 ### Servidor sem Go instalado
 
-Publique uma release com os quatro arquivos de `./scripts/build-release.sh`: `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` verifica os checksums e usa o binário somente se a impressão dos arquivos de origem corresponder ao checkout baixado. Sem Go 1.22 ou superior, procura uma release compatível e, se não encontrar, usa o executor Bash com os mesmos perfis, logs e renovação de `sudo`. Um checksum incorreto encerra o processo sem executar o binário. O comando remoto do branch `stable` usa os arquivos desse branch; publique a release correspondente ao promover uma versão para `stable`.
+Publique uma release com os quatro arquivos de `./scripts/build-release.sh`: `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` verifica os checksums e usa o binário somente se a impressão dos arquivos de origem corresponder ao checkout baixado. Sem Go 1.22 ou superior, procura uma release compatível e, se não encontrar, usa o executor Bash com os mesmos perfis, logs e renovação de `sudo`. Um checksum incorreto encerra o processo sem executar o binário. O comando remoto do branch `master` usa os arquivos desse branch; publique a release correspondente ao promover uma versão para `master`.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/stable/install.sh) --profiles=cli --yes
+bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/master/install.sh) --profiles=cli --yes
 ```
 
 Você também pode fornecer um binário já compilado com `GUEPARDO_BIN=/caminho/guepardo ./install.sh --profiles=cli`.
