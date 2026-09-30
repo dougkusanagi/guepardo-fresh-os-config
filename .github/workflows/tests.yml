@@ -1,0 +1,28 @@
+name: Installer tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - run: ./test.sh --mode=static --distro=ubuntu
+      - run: ./test.sh --mode=static --distro=fedora
+      - run: go test -race ./...
+      - run: ./scripts/build-release.sh
+      - run: cd dist && sha256sum -c SHA256SUMS
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - shell: pwsh
+        run: ./tests/test-windows.ps1
+      - shell: pwsh
+        run: ./tests/windows-reliability.ps1

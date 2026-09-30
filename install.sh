@@ -1,296 +1,80 @@
 #!/usr/bin/env bash
-
 set -Eeuo pipefail
 
+REPOSITORY="dougkusanagi/guepardo-fresh-os-config"
+REF="${GUEPARDO_REF:-master}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TMP_DIR=""
 
-# When running via bash <(curl ...), BASH_SOURCE[0] is /dev/fd/XX and
-# the supporting directories are not accessible. Download the repo.
-if [[ ! -d "$ROOT_DIR/install-common" ]]; then
-  echo "Repository not found locally. Downloading..."
-  TMP_REPO="$(mktemp -d)"
-  curl -fsSL "https://github.com/dougkusanagi/guepardo-fresh-os-config/archive/refs/heads/master.tar.gz" | tar xz -C "$TMP_REPO"
-  ROOT_DIR="$TMP_REPO/guepardo-fresh-os-config-master"
+cleanup_bootstrap() {
+  if [[ -n "$TMP_DIR" ]]; then
+    rm -rf "$TMP_DIR"
+  fi
+}
+trap cleanup_bootstrap EXIT
+
+bootstrap_download() {
+  curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 600 "$1" -o "$2"
+}
+
+for prerequisite in curl tar sha256sum mktemp; do
+  command -v "$prerequisite" >/dev/null 2>&1 || {
+    echo "Ferramenta necessária ausente: $prerequisite. Instale-a e execute novamente." >&2
+    exit 1
+  }
+done
+[[ "$(uname -s)" == Linux ]] || { echo 'No Windows use install.ps1; este instalador requer Linux.' >&2; exit 1; }
+
+# Process substitution supplies only install.sh, so fetch all supporting files
+# from the same branch. The caller can choose another branch with GUEPARDO_REF.
+if [[ ! -f "$ROOT_DIR/go.mod" || ! -d "$ROOT_DIR/install-common" ]]; then
+  TMP_DIR="$(mktemp -d)"
+  echo "Baixando configuração: $REF..." >&2
+  bootstrap_download "https://codeload.github.com/$REPOSITORY/tar.gz/$REF" "$TMP_DIR/repo.tar.gz"
+  mkdir -p "$TMP_DIR/repository"
+  tar -xzf "$TMP_DIR/repo.tar.gz" --strip-components=1 -C "$TMP_DIR/repository"
+  ROOT_DIR="$TMP_DIR/repository"
+  [[ -f "$ROOT_DIR/go.mod" ]] || { echo "Could not download repository ref $REF" >&2; exit 1; }
 fi
 
-REQUESTED_DISTRO="auto"
-DRY_RUN="false"
-INSTALL_MODE="full"
-MODE_EXPLICITLY_SET=false
-INSTALL_FAMILY=""
-INSTALL_ROOT=""
-LOG_DIR="$ROOT_DIR/logs"
-SELECTED_THEME=""
-export SELECTED_THEME
-
-if [[ -t 1 ]]; then
-  COLOR_RESET=$'\033[0m'
-  COLOR_BOLD=$'\033[1m'
-  COLOR_DIM=$'\033[2m'
-  COLOR_CYAN=$'\033[36m'
-  COLOR_GREEN=$'\033[32m'
-  COLOR_YELLOW=$'\033[33m'
-else
-  COLOR_RESET=""
-  COLOR_BOLD=""
-  COLOR_DIM=""
-  COLOR_CYAN=""
-  COLOR_GREEN=""
-  COLOR_YELLOW=""
+if [[ -n "${GUEPARDO_BIN:-}" ]]; then
+  "$GUEPARDO_BIN" --root="$ROOT_DIR" "$@"
+  exit $?
 fi
 
-usage() {
-  cat <<'EOF'
-Usage:
-  ./install.sh [--distro=auto|ubuntu|fedora|nobara] [--mode=full|basic|games|wsl] [--theme=NAME] [--list-themes] [--help]
+go_version="$(go version 2>/dev/null || true)"
+if [[ "$go_version" =~ go1\.([0-9]+) ]] && (( BASH_REMATCH[1] >= 22 )); then
+  (cd "$ROOT_DIR" && go run ./cmd/guepardo --root="$ROOT_DIR" "$@")
+  exit $?
+fi
 
-Options:
-  --distro=NAME
-      Select installer family. Default: auto.
+case "$(uname -m)" in
+  x86_64|amd64) architecture="amd64" ;;
+  aarch64|arm64) architecture="arm64" ;;
+  *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+esac
 
-  --mode=MODE
-      Installation scope: full (dev + desktop + games), basic (dev only),
-      games (gaming apps only), or wsl (non-desktop apps only). Default: full.
-
-  --dry-run
-      Show what would be installed without making any changes.
-
-  --theme=NAME
-      Apply one of the Omakub-inspired themes after desktop installation.
-
-  --list-themes
-      List supported themes and exit.
-
-  --help
-      Show this help.
-EOF
-}
-
-normalize_local_name() {
-  echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'
-}
-
-preparse_args() {
-  for arg in "$@"; do
-    case "$arg" in
-      --distro=*)
-        REQUESTED_DISTRO="$(normalize_local_name "${arg#*=}")"
-        ;;
-      --dry-run)
-        DRY_RUN="true"
-        ;;
-      --mode=*)
-        INSTALL_MODE="${arg#*=}"
-        MODE_EXPLICITLY_SET=true
-        ;;
-      --help)
-        usage
-        exit 0
-        ;;
-    esac
-  done
-}
-
-detect_install_family() {
-  local requested="$1"
-
-  case "$requested" in
-    auto)
-      ;;
-    ubuntu)
-      INSTALL_FAMILY="ubuntu"
-      INSTALL_ROOT="$ROOT_DIR/install-ubuntu"
-      return
-      ;;
-    fedora|nobara)
-      INSTALL_FAMILY="fedora"
-      INSTALL_ROOT="$ROOT_DIR/install-fedora"
-      return
-      ;;
-    *)
-      echo "Unsupported distro: $requested" >&2
-      echo "Supported values: auto, ubuntu, fedora, nobara" >&2
-      exit 1
-      ;;
-  esac
-
-  if [[ ! -r /etc/os-release ]]; then
-    echo "Could not detect distro because /etc/os-release is not readable." >&2
-    echo "Retry with --distro=ubuntu, --distro=fedora, or --distro=nobara." >&2
-    exit 1
+if [[ -z "$TMP_DIR" ]]; then
+  TMP_DIR="$(mktemp -d)"
+fi
+release="https://github.com/$REPOSITORY/releases/latest/download"
+asset="guepardo-linux-$architecture"
+if bootstrap_download "$release/SOURCE_SHA256" "$TMP_DIR/SOURCE_SHA256" 2>/dev/null \
+  && bootstrap_download "$release/SHA256SUMS" "$TMP_DIR/SHA256SUMS" 2>/dev/null; then
+  source_checksum="$(awk '$2 == "SOURCE_SHA256" {print; exit}' "$TMP_DIR/SHA256SUMS")"
+  [[ -n "$source_checksum" ]] || { echo 'Release sem checksum de origem; download rejeitado.' >&2; exit 1; }
+  (cd "$TMP_DIR" && printf '%s\n' "$source_checksum" | sha256sum -c -)
+  expected_source="$(bash "$ROOT_DIR/scripts/source-digest.sh" "$ROOT_DIR")"
+  if [[ "$(cat "$TMP_DIR/SOURCE_SHA256")" == "$expected_source" ]]; then
+    if bootstrap_download "$release/$asset" "$TMP_DIR/$asset" 2>/dev/null; then
+      asset_checksum="$(awk -v asset="$asset" '$2 == asset {print; exit}' "$TMP_DIR/SHA256SUMS")"
+      [[ -n "$asset_checksum" ]] || { echo 'Release sem checksum do binário; download rejeitado.' >&2; exit 1; }
+      (cd "$TMP_DIR" && printf '%s\n' "$asset_checksum" | sha256sum -c -)
+      chmod +x "$TMP_DIR/$asset"
+      "$TMP_DIR/$asset" --root="$ROOT_DIR" "$@"
+      exit $?
+    fi
   fi
-
-  # shellcheck source=/dev/null
-  source /etc/os-release
-
-  case "${ID:-}" in
-    ubuntu)
-      INSTALL_FAMILY="ubuntu"
-      INSTALL_ROOT="$ROOT_DIR/install-ubuntu"
-      ;;
-    fedora|nobara)
-      INSTALL_FAMILY="fedora"
-      INSTALL_ROOT="$ROOT_DIR/install-fedora"
-      ;;
-    *)
-      if [[ " ${ID_LIKE:-} " == *" debian "* ]]; then
-        INSTALL_FAMILY="ubuntu"
-        INSTALL_ROOT="$ROOT_DIR/install-ubuntu"
-      elif [[ " ${ID_LIKE:-} " == *" fedora "* ]]; then
-        INSTALL_FAMILY="fedora"
-        INSTALL_ROOT="$ROOT_DIR/install-fedora"
-      else
-        echo "Unsupported distro: ${PRETTY_NAME:-${ID:-unknown}}" >&2
-        echo "Retry with --distro=ubuntu, --distro=fedora, or --distro=nobara if you know it is compatible." >&2
-        exit 1
-      fi
-      ;;
-  esac
-}
-
-parse_args() {
-  for arg in "$@"; do
-    case "$arg" in
-      --distro=*)
-        ;;
-      --dry-run)
-        ;;
-      --mode=*)
-        ;;
-      --theme=*)
-        SELECTED_THEME="$(normalize_theme_name "${arg#*=}")"
-        ;;
-      --list-themes)
-        list_supported_themes
-        exit 0
-        ;;
-      --help)
-        usage
-        exit 0
-        ;;
-      *)
-        error "Unknown option: $arg"
-        echo
-        usage
-        exit 1
-        ;;
-    esac
-  done
-}
-
-show_install_intro() {
-  printf "\n%s" "${COLOR_BOLD}${COLOR_CYAN}"
-  cat <<'EOF'
-   ______                                __    
-  / ____/_  _____  ____  ____ __________/ /___ 
- / / __/ / / / _ \/ __ \/ __ `/ ___/ __  / __ \
-/ /_/ / /_/ /  __/ /_/ / /_/ / /  / /_/ / /_/ /
-\____/\__,_/\___/ .___/\__,_/_/   \__,_/\____/ 
-               /_/                             
-EOF
-  printf "%s\n" "$COLOR_RESET"
-  printf "%sFresh Config Installer%s\n" "${COLOR_BOLD}${COLOR_GREEN}" "$COLOR_RESET"
-  printf "%sDistro target:%s %s\n" "$COLOR_YELLOW" "$COLOR_RESET" "$INSTALL_FAMILY"
-  printf "%sMode:%s %s\n" "$COLOR_YELLOW" "$COLOR_RESET" "$INSTALL_MODE"
-  if [[ "$INSTALL_MODE" == "wsl" ]]; then
-    printf "%sScope:%s terminal tools, dev stack and non-desktop apps only\n" "$COLOR_YELLOW" "$COLOR_RESET"
-  else
-    printf "%sScope:%s terminal tools, dev stack, desktop apps and GNOME polish\n" "$COLOR_YELLOW" "$COLOR_RESET"
-  fi
-  if [[ -n "${INSTALL_LOG:-}" ]]; then
-    printf "%sLog:%s %s\n\n" "$COLOR_DIM" "$COLOR_RESET" "$INSTALL_LOG"
-  else
-    printf "%sLog:%s disabled (no writable log directory)\n\n" "$COLOR_DIM" "$COLOR_RESET"
-  fi
-}
-
-trap 'echo "A instalacao falhou. Voce pode tentar novamente com: ./install.sh"' ERR
-
-preparse_args "$@"
-detect_install_family "$REQUESTED_DISTRO"
-
-export DRY_RUN
-export INSTALL_MODE
-
-# shellcheck source=/dev/null
-source "$ROOT_DIR/install-common/lib.sh"
-
-# shellcheck source=/dev/null
-source "$INSTALL_ROOT/lib.sh"
-
-trap cleanup EXIT
-
-main() {
-  parse_args "$@"
-
-  if [[ "${EUID}" -eq 0 ]]; then
-    error "Execute este script com seu usuario normal, sem sudo."
-    exit 1
-  fi
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    echo "Running in DRY-RUN mode - no changes will be made"
-    echo
-  fi
-
-  ensure_log_dir_writable "$LOG_DIR" || true
-  if [[ -n "$LOG_DIR" ]]; then
-    export INSTALL_LOG="$LOG_DIR/install-$(date +%Y%m%d-%H%M%S)-$$.log"
-  fi
-  log_to_file "INFO" "Installation started - $INSTALL_FAMILY"
-
-  show_install_intro
-
-  case "$INSTALL_MODE" in
-    full|basic|games|wsl) ;;
-    *)
-      error "Invalid mode: $INSTALL_MODE. Use full, basic, games, or wsl."
-      exit 1
-      ;;
-  esac
-
-  if [[ -t 0 && "$MODE_EXPLICITLY_SET" == "false" ]]; then
-    local answer
-    read -r -p "Installation mode? [F]ull, [B]asic, [G]ames, or [W]SL (default: Full): " answer
-    case "${answer,,}" in
-      b|basic) INSTALL_MODE="basic" ;;
-      g|games) INSTALL_MODE="games" ;;
-      w|wsl) INSTALL_MODE="wsl" ;;
-    esac
-  fi
-
-  if [[ "$INSTALL_MODE" == "wsl" ]]; then
-    echo "This is a very opinionated basic dev environment with PHP, Composer, Node and non-desktop apps"
-  else
-    echo "This is a very opinionated basic dev environment with PHP, Composer, Node and many desktop apps"
-  fi
-  log "Selected installer mode: $INSTALL_MODE"
-  echo
-  echo "Begin installation (or abort with ctrl+c)..."
-
-  require_sudo
-  detect_desktop
-
-  if desktop_install_enabled && [[ "$RUNNING_GNOME" == "true" ]]; then
-    configure_gnome_for_install
-    log "Installing terminal and desktop tools..."
-  elif desktop_install_enabled; then
-    log "Only installing terminal tools..."
-  else
-    log "WSL mode selected; installing terminal tools only."
-  fi
-
-  # shellcheck source=/dev/null
-  source "$INSTALL_ROOT/terminal.sh"
-
-  if desktop_install_enabled && [[ "$RUNNING_GNOME" == "true" ]]; then
-    # shellcheck source=/dev/null
-    source "$INSTALL_ROOT/desktop.sh"
-  elif ! desktop_install_enabled; then
-    log "Skipping desktop apps because WSL mode was selected."
-  fi
-
-  finish_installation
-}
-
-main "$@"
+fi
+echo "Sem binário Go compatível com esta configuração; usando o executor Bash." >&2
+bash "$ROOT_DIR/scripts/fallback.sh" "$@"

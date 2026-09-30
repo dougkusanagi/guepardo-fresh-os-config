@@ -8,6 +8,10 @@ runUnlessDry() {
   "$@"
 }
 
+apt_install_local_package() {
+  run_quiet sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 install -y "$1"
+}
+
 apt_package_installed() {
   dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"
 }
@@ -25,11 +29,19 @@ apt_package_available() {
 }
 
 apt_update() {
+  local force="${1:-}"
   if [[ "$DRY_RUN" == "true" ]]; then
     log "[DRY-RUN] Would update package index"
     return
   fi
-  run_quiet sudo apt-get update -y
+  if [[ "$force" != "--force" && -n "${GUEPARDO_INDEX_MARKER:-}" && -f "$GUEPARDO_INDEX_MARKER" ]]; then
+    log "APT package index already refreshed in this run."
+    return
+  fi
+  run_quiet sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update || return 1
+  if [[ -n "${GUEPARDO_INDEX_MARKER:-}" ]]; then
+    touch "$GUEPARDO_INDEX_MARKER"
+  fi
   success "Package index updated"
 }
 
@@ -56,7 +68,7 @@ apt_install() {
     return
   fi
 
-  run_quiet sudo apt-get install -y "${missing_packages[@]}"
+  run_quiet sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 install -y "${missing_packages[@]}" || return 1
 
   for package in "${missing_packages[@]}"; do
     success "$package installed"
@@ -84,7 +96,8 @@ apt_install_first_available() {
     log "Skipping unavailable package: $package"
   done
 
-  warn "No available apt package found among: $*"
+  error "No available apt package found among: $*"
+  return 1
 }
 
 apt_install_optional() {
@@ -193,7 +206,7 @@ install_opencode_desktop() {
   fi
 
   download_file "https://opencode.ai/download/stable/linux-x64-deb" "$package_file"
-  run_quiet sudo apt-get install -y "$package_file"
+  apt_install_local_package "$package_file"
   rm -f "$package_file"
   success "OpenCode Desktop installed"
 }
@@ -227,7 +240,7 @@ Architectures: amd64,arm64,armhf
 Signed-By: $key_file
 EOF
 
-  apt_update
+  apt_update --force
   apt_install code
   success "Visual Studio Code installed with the code CLI"
 }
@@ -254,7 +267,7 @@ install_google_chrome() {
   fi
 
   download_file "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb" "$package_file"
-  run_quiet sudo apt-get install -y "$package_file"
+  apt_install_local_package "$package_file"
   rm -f "$package_file"
   success "Google Chrome installed from the official deb package"
 }
@@ -281,10 +294,9 @@ install_steam() {
   if ! dpkg --print-foreign-architectures | grep -Fxq i386; then
     log "Enabling the i386 architecture required by Steam..."
     run_quiet sudo dpkg --add-architecture i386
-    apt_update
   fi
 
-  apt_update
+  apt_update --force
   # Ubuntu 25.04 (and newer) dropped the transitional "steam" package in favour
   # of "steam-installer", so accept whichever name this release provides.
   apt_install_first_available steam steam-installer
@@ -306,7 +318,7 @@ install_lutris() {
 
   if [[ -n "$ubuntu_codename" ]] && curl -fsSL -o /dev/null "https://ppa.launchpadcontent.net/lutris-team/lutris/ubuntu/dists/$ubuntu_codename/Release" 2>/dev/null; then
     run_quiet sudo add-apt-repository -y ppa:lutris-team/lutris
-    apt_update
+    apt_update --force
     apt_install lutris
     success "Lutris installed"
   else
@@ -335,7 +347,7 @@ install_discord() {
   fi
   local package_file="/tmp/discord.deb"
   download_file "https://discord.com/api/download?platform=linux&format=deb" "$package_file"
-  run_quiet sudo apt-get install -y "$package_file"
+  apt_install_local_package "$package_file"
   rm -f "$package_file"
   success "Discord installed"
 }
@@ -362,7 +374,7 @@ install_obsidian() {
     flatpak_install_app "md.obsidian.Obsidian"
     return
   fi
-  if ! run_quiet sudo apt-get install -y "$package_file"; then
+  if ! apt_install_local_package "$package_file"; then
     warn "Could not install the Obsidian .deb; falling back to Flatpak."
     rm -f "$package_file"
     flatpak_install_app "md.obsidian.Obsidian"

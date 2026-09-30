@@ -20,6 +20,7 @@ VM_DISK="30G"
 VM_WORKDIR="/home/ubuntu/workspace"
 KEEP_VM="false"
 RUN_INSTALLER="false"
+TEST_PROFILES="cli"
 MULTIPASS_CERT_PATH="/var/snap/multipass/common/data/multipassd/multipass_root_cert.pem"
 
 if [[ -t 1 ]]; then
@@ -106,6 +107,9 @@ Options:
       Execute the installer after bootstrap checks. This is slow in containers
       and mainly useful for dedicated throwaway environments.
 
+  --profiles=cli,dev,web
+      Profiles to install in a disposable container/VM. Default: cli.
+
   --keep-vm
       Keeps the Multipass VM after the test.
 
@@ -154,6 +158,11 @@ parse_args() {
         ;;
       --run-installer)
         RUN_INSTALLER="true"
+        ;;
+      --profiles=*)
+        TEST_PROFILES="${arg#*=}"
+        # This value is embedded in the disposable environment's shell command.
+        [[ "$TEST_PROFILES" =~ ^[a-z,-]+$ ]] || { error 'Invalid --profiles value.'; exit 1; }
         ;;
       --keep-vm)
         KEEP_VM="true"
@@ -312,14 +321,8 @@ require_paths() {
 }
 
 syntax_files() {
-  printf "%s\n" \
-    "$SCRIPT_NAME" \
-    "$INSTALL_DIR/lib.sh" \
-    "$INSTALL_DIR/terminal.sh" \
-    "$INSTALL_DIR/desktop.sh" \
-    "$INSTALL_DIR"/terminal/*.sh \
-    "$INSTALL_DIR"/desktop/*.sh \
-    "install-common/lib.sh"
+  printf '%s\n' "$SCRIPT_NAME" test.sh
+  find scripts install-common "$INSTALL_DIR" tests -type f -name '*.sh' | sort
 }
 
 syntax_files_inline() {
@@ -329,6 +332,12 @@ syntax_files_inline() {
 installer_command_inline() {
   local command=("./$SCRIPT_NAME" "${INSTALLER_ARGS[@]}")
   printf "%q " "${command[@]}"
+}
+
+build_test_binary() {
+  command -v go >/dev/null 2>&1 || { error "Go is required to build the test binary."; return 1; }
+  mkdir -p dist
+  run_quiet go build -o dist/guepardo-test ./cmd/guepardo
 }
 
 bootstrap_command() {
@@ -515,7 +524,8 @@ cleanup() {
 run_local_static_checks() {
   section "Local Static Checks"
   log "Validating shell syntax for $SCRIPT_NAME and $INSTALL_DIR..."
-  run_quiet bash -n $(syntax_files)
+  local file
+  while IFS= read -r file; do run_quiet bash -n "$file"; done < <(syntax_files)
   success "Shell syntax validated"
 
   log "Validating project structure..."
@@ -530,6 +540,25 @@ run_local_static_checks() {
   run_quiet bash tests/install-fixes.sh
   success "Installation fix behaviour validated"
 
+  log "Testing clean-install reliability and remote bootstrap..."
+  run_quiet bash tests/reliability.sh
+  run_quiet bash tests/bootstrap.sh
+  success "Clean-install reliability validated"
+
+  log "Testing Go profiles and sudo refresh..."
+  run_quiet go test ./...
+  run_quiet bash tests/profile-selection.sh
+  success "Profile behaviour validated"
+
+  if command_exists pwsh; then
+    log "Testing Windows installer behaviour..."
+    run_quiet pwsh -NoLogo -NoProfile -File tests/test-windows.ps1
+    run_quiet pwsh -NoLogo -NoProfile -File tests/windows-reliability.ps1
+    success "Windows behaviour validated"
+  else
+    warn "PowerShell not found; run tests/test-windows.ps1 and tests/windows-reliability.ps1 on Windows or with pwsh."
+  fi
+
   log "Validating theme list..."
   run_quiet "./$SCRIPT_NAME" "${INSTALLER_ARGS[@]}" --list-themes
   success "Theme list validated"
@@ -538,6 +567,7 @@ run_local_static_checks() {
 run_container_test() {
   section "Container Test"
   detect_container_engine
+  build_test_binary
 
   log "Target distro: $DISTRO"
   log "Using installer: $SCRIPT_NAME ($INSTALL_DIR)"
@@ -561,15 +591,15 @@ run_container_test() {
       $(container_bootstrap_command)
 
       echo '[INFO] Validating shell syntax...'
-      bash -n $(syntax_files_inline)
+      for file in $(syntax_files_inline); do bash -n \"\$file\"; done
 
       echo '[INFO] Validating theme list...'
-      sudo -u testuser env HOME=/home/testuser $(installer_command_inline) --list-themes >/dev/null
+      sudo -u testuser env HOME=/home/testuser GUEPARDO_BIN=/workspace/dist/guepardo-test $(installer_command_inline) --list-themes >/dev/null
 
       if [[ '$RUN_INSTALLER' == 'true' ]]; then
         echo '[INFO] Executing installer inside the container...'
         chmod +x '$SCRIPT_NAME'
-        sudo -u testuser env HOME=/home/testuser $(installer_command_inline)
+        sudo -u testuser env HOME=/home/testuser GUEPARDO_BIN=/workspace/dist/guepardo-test $(installer_command_inline) --profiles='$TEST_PROFILES' --yes
       else
         echo '[INFO] Skipping installer execution because --syntax-only was used.'
       fi
@@ -607,6 +637,7 @@ mount_workspace() {
 
 run_vm_test() {
   section "Multipass Test"
+  build_test_binary
   check_multipass_host_prereqs
   ensure_multipass
   warn "Multipass mode validates a clean Ubuntu VM and the CLI path of the installer."
@@ -627,7 +658,7 @@ run_vm_test() {
   run_quiet multipass exec "$VM_NAME" -- bash -lc "
     set -Eeuo pipefail
     cd '$VM_WORKDIR'
-    bash -n $(syntax_files_inline)
+    for file in $(syntax_files_inline); do bash -n \"\$file\"; done
   "
   success "Installer syntax validated"
 
@@ -635,7 +666,7 @@ run_vm_test() {
   run_quiet multipass exec "$VM_NAME" -- bash -lc "
     set -Eeuo pipefail
     cd '$VM_WORKDIR'
-    $(installer_command_inline) --list-themes >/dev/null
+    GUEPARDO_BIN='$VM_WORKDIR/dist/guepardo-test' $(installer_command_inline) --list-themes >/dev/null
   "
   success "Theme list validated"
 
@@ -649,7 +680,7 @@ run_vm_test() {
     set -Eeuo pipefail
     cd '$VM_WORKDIR'
     chmod +x '$SCRIPT_NAME'
-    $(installer_command_inline)
+    GUEPARDO_BIN='$VM_WORKDIR/dist/guepardo-test' $(installer_command_inline) --profiles='$TEST_PROFILES' --yes
   " || return $?
   success "Installer completed in VM"
 }

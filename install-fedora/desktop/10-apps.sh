@@ -17,22 +17,9 @@ install_antigravity_desktop
 
 dnf_install_optional gnome-shell-extension-dash-to-dock
 
-# Gaming extras
-if [[ "$INSTALL_MODE" == "full" || "$INSTALL_MODE" == "games" ]]; then
-  dnf_install_optional steam-devices joystick-support gamemode mangohud gamescope goverlay
-  install_steam
-  install_lutris
-  install_qbittorrent
-  install_discord
-  flatpak_install_app "com.stremio.Stremio"
-  flatpak_install_app "com.vysp3r.ProtonPlus"
-  flatpak_install_app "com.heroicgameslauncher.hgl"
-  flatpak_install_app "com.usebottles.bottles"
-fi
-
 if command -v zed >/dev/null 2>&1; then
   log "Zed is already available."
 else
-  run_quiet bash -lc 'curl -fsSL https://zed.dev/install.sh | bash'
+  install_remote_script https://zed.dev/install.sh
   success "Zed installed"
 fi
