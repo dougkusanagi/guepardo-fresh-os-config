@@ -1,0 +1,98 @@
+/* GlassFin (https://github.com/KBH-Reeper/GlassFin), baseado no ElegantFin */
+@import url("https://cdn.jsdelivr.net/gh/KBH-Reeper/GlassFin@latest/Theme/GlassFin-Theme-latest-stable.css");
+@import url("https://cdn.jsdelivr.net/gh/KBH-Reeper/GlassFin@main/Theme/PluginStyling/MediaBar-Plugin-latest.css");
+/* Polish layer sobre o GlassFin: paleta quase-preta, um unico acento, vidro fosco, botoes em pilula. */
+:root{
+  --bg0:#07080c; --accent:#8b7cff;
+  --darkerGradientPoint:#07080c; --lighterGradientPoint:#0b0d13;
+  --darkerGradientPointAlpha:rgba(7,8,12,.9); --lighterGradientPointAlpha:rgba(11,13,19,.85);
+  --gradientPointAlpha:rgba(11,13,19,.3);
+  --headerColor:rgba(9,10,15,.72); --drawerColor:rgba(11,13,19,.92);
+  --borderColor:rgba(255,255,255,.09); --darkerBorderColor:rgba(255,255,255,.05); --lighterBorderColor:rgba(255,255,255,.16);
+  --activeColor:var(--accent); --activeColorAlpha:rgba(139,124,255,.9); --uiAccentColor:var(--accent);
+  --checkboxCheckedBgColor:var(--accent);
+  --textColor:#e7e9ee; --dimTextColor:#9aa1b2;
+  --largerRadius:20px; --largeRadius:16px; --smallRadius:10px;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --libraryLabelVisibility:block; --resumeCardScale:1.15;
+  --overlayPlayButtonPosition:50%; --extraCardButtonsVisibility:block;
+  /* Media Bar */
+  --slideshow-height:100vh; --slideshow-content-top:65vh;
+}
+html{background:var(--bg0)!important}
+body{background:transparent!important;-webkit-font-smoothing:antialiased}
+.backgroundContainer:not(.withBackdrop){background:radial-gradient(1200px 600px at 15% -10%,rgba(139,124,255,.10),transparent 60%),var(--bg0)!important}
+
+/* barra superior: sem fundo, abas em pilula no centro, acoes agrupadas num cartao de vidro */
+header.MuiPaper-root{background:transparent!important;box-shadow:none!important;border:0!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+header.MuiPaper-root::before,header.MuiPaper-root::after{display:none!important}
+header.MuiPaper-root>.MuiToolbar-root{position:relative;justify-content:flex-end;min-height:0!important;padding:16px 28px!important}
+header.MuiPaper-root>.MuiToolbar-root>.MuiStack-root{position:absolute;left:50%;top:16px;transform:translateX(-50%);gap:2px;padding:4px;border-radius:999px;background:rgba(10,11,16,.74);border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+header.MuiPaper-root .MuiStack-root>a{border-radius:999px!important;height:40px;padding:0 18px!important;min-width:0!important;color:#cfd3dd!important;font-weight:600;text-transform:none;transition:background .2s,color .2s}
+header.MuiPaper-root .MuiStack-root>a:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
+header.MuiPaper-root .MuiStack-root>a:first-child{font-size:0!important}
+header.MuiPaper-root .MuiStack-root>a:first-child .MuiButton-startIcon{display:none}
+header.MuiPaper-root .MuiStack-root>a:first-child::after{content:"Início";font-size:.875rem;font-weight:600}
+header.MuiPaper-root>.MuiToolbar-root>.MuiBox-root:nth-child(2){flex:0 0 auto!important;width:auto!important;height:48px;display:flex;align-items:center;padding:0 52px 0 10px;border-radius:999px;background:rgba(10,11,16,.74);border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+header.MuiPaper-root>.MuiToolbar-root>.MuiBox-root:nth-child(3){position:relative;z-index:2;flex:0 0 auto;margin:0 0 0 -50px!important;width:36px!important;height:36px!important;background:transparent!important;border:0!important}
+header.MuiPaper-root .MuiIconButton-root,header .je-header-buttons-tray .headerButton{border-radius:999px!important;color:#d8dbe4}
+header.MuiPaper-root .MuiIconButton-root:hover,header .je-header-buttons-tray .headerButton:hover{background:rgba(255,255,255,.1)!important}
+header.MuiPaper-root .je-header-buttons-tray *{border:0!important;background:transparent!important;box-shadow:none!important;outline:0!important}
+div:has(>.skinHeader){display:block!important;height:0!important;position:relative;z-index:1400}
+.skinHeader{background:transparent!important;border:0!important;box-shadow:none!important;height:0!important;pointer-events:none;z-index:5000!important;contain:none!important;overflow:visible!important}
+.skinHeader .headerTop,.skinHeader .headerLeft{overflow:visible!important}
+.skinHeader .headerRight,.skinHeader .headerTabs,.skinHeader .pageTitle,.skinHeader .headerHomeButton,.skinHeader .headerBackButton{display:none!important}
+.mainDrawerButton{display:flex!important;align-items:center;justify-content:center;pointer-events:auto;position:fixed!important;top:16px;left:28px;z-index:1300;width:48px;height:48px;border-radius:999px!important;background:rgba(10,11,16,.74)!important;border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);box-shadow:0 8px 30px rgba(0,0,0,.35);color:#fff}
+
+/* menu lateral: cartao de vidro flutuante */
+body:has(.mainDrawer.drawer-open) .mainDrawerButton{opacity:0;pointer-events:none}
+.mainDrawer{top:12px!important;height:calc(100% - 24px)!important;border-radius:0 20px 20px 0!important;background:rgba(10,11,16,.82)!important;border:1px solid rgba(255,255,255,.12);-webkit-backdrop-filter:blur(24px) saturate(1.4);backdrop-filter:blur(24px) saturate(1.4);box-shadow:0 24px 80px rgba(0,0,0,.6);overflow:hidden}
+
+/* troca o ciano padrao por branco/acento */
+.MuiButton-contained{background:#fff!important;color:#0a0b10!important;border-radius:999px!important;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.4)!important}
+.MuiButton-contained:hover{background:#e9eaf0!important}
+.navMenuOption-selected{background:rgba(255,255,255,.1)!important;color:#fff!important;box-shadow:inset 3px 0 0 var(--accent)}
+.mainDrawerButton,.mainDrawerButton .material-icons{color:#fff!important}
+
+/* titulos de secao */
+.sectionTitle,.sectionTitle-cards{font-weight:700!important;letter-spacing:-.02em!important;font-size:1.35rem!important;color:#fff!important}
+
+/* cartoes */
+.cardBox .cardScalable{border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s}
+.card-hoverable:hover .cardScalable{transform:translateY(-6px) scale(1.035);box-shadow:0 22px 50px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.14)}
+.cardText-first{color:#f2f3f7;font-weight:600}
+.countIndicator{background:rgba(10,11,16,.72)!important;color:#fff!important;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.18);font-weight:700}
+.itemProgressBarForeground{background:var(--accent)!important}
+
+/* Media Bar (banner da home): quase tela cheia, rodape sobreposto pela primeira fileira */
+#slides-container{top:0!important}
+.dots-container{left:auto!important;right:4vw!important;bottom:calc(var(--slideshow-height) - var(--slideshow-content-top) + 1.2rem)!important}
+.backdrop-container,.backdrop-overlay,.gradient-overlay{-webkit-mask-image:linear-gradient(to top,transparent 0,#000 12%)!important;mask-image:linear-gradient(to top,transparent 0,#000 12%)!important}
+.backdrop-overlay{background:linear-gradient(90deg,rgba(7,8,12,.55) 0,rgba(7,8,12,0) 55%),linear-gradient(0deg,rgba(7,8,12,.92) 0,rgba(7,8,12,.55) 18%,rgba(7,8,12,0) 42%)!important}
+.homeSectionsContainer{margin-top:84px!important;position:relative;z-index:2}
+body:has(#slides-container .slide) .homeSectionsContainer{margin-top:calc(var(--slideshow-height) - 149px - 31vh)!important}
+.button-container{gap:8px!important;align-items:center}
+.slide .button-container>*{margin:0!important}
+.slide .play-button{background:#fff!important;color:#0a0b10!important;border:0!important;border-radius:999px!important;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.slide .detail-button,.slide .favorite-button{background:rgba(255,255,255,.14)!important;border:1px solid rgba(255,255,255,.22)!important;border-radius:999px!important;backdrop-filter:blur(14px)}
+.slide .plot{color:rgba(255,255,255,.92)!important;text-shadow:0 1px 12px rgba(0,0,0,.6)}
+.slide .age-rating{background:rgba(255,255,255,.14)!important;color:#fff!important;border-radius:6px}
+.dot.active{background:var(--accent)!important}
+
+/* setas do carrossel: nas laterais, sem encostar nos pontos */
+#slides-container .arrow{top:50%!important;bottom:auto!important}
+#slides-container .left-arrow{left:2vw!important;right:auto!important}
+#slides-container .right-arrow{right:2vw!important;left:auto!important}
+
+/* player: sem fundo decorativo, sem hamburguer por cima do OSD */
+html:has(#videoOsdPage:not(.hide)){background:#000!important}
+body:has(#videoOsdPage:not(.hide)) .backgroundContainer,body:has(#videoOsdPage:not(.hide)) .backdropContainer{display:none!important}
+body:has(#videoOsdPage:not(.hide)) .mainDrawerButton{display:none!important}
+
+/* pagina de detalhe */
+.mainDetailButtons .btnPlay,.detailButtons .btnPlay{background:#fff!important;color:#0a0b10!important;border:0!important;border-radius:999px!important;font-weight:700;padding:.7em 1.8em!important;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.mainDetailButtons .btnPlay .material-icons,.mainDetailButtons .btnPlay .detailButton-icon{color:#0a0b10!important}
+.mainDetailButtons .detailButton:not(.btnPlay){background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.16)!important;border-radius:999px!important;backdrop-filter:blur(14px)}
+.backdropContainer::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,8,12,.15) 0,rgba(7,8,12,.55) 55%,rgba(7,8,12,.9) 100%);pointer-events:none}
+
+* {scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
