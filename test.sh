@@ -538,6 +538,7 @@ run_local_static_checks() {
 
   log "Validating installation fix behaviour..."
   run_quiet bash tests/install-fixes.sh
+  run_quiet bash tests/multi-monitor-panel.sh
   success "Installation fix behaviour validated"
 
   log "Testing clean-install reliability and remote bootstrap..."

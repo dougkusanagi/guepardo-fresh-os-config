@@ -55,6 +55,8 @@ Cada perfil prepara suas próprias dependências e atualiza o índice de pacotes
 
 O perfil `dev` mantém Node 22/24 existente quando npm está disponível; caso contrário instala Node 24 LTS para o usuário. Os pacotes npm globais ficam em `~/.local`, e `~/.local/bin` e `~/.bun/bin` são adicionados ao PATH do Bash. O instalador configura atalhos no Bash; usuários de outros shells devem incluir esses diretórios no próprio PATH.
 
+O perfil `desktop` instala e habilita [Top Bar All Monitors](https://extensions.gnome.org/extension/10094/top-bar-all-monitors/) nas versões compatíveis do GNOME (atualmente GNOME 50), para mostrar relógio, calendário e controles do sistema em todos os monitores. Se a barra secundária não aparecer imediatamente, saia da sessão e entre novamente. Indicadores de outras extensões podem continuar apenas no monitor principal. Versões sem suporte são ignoradas com um aviso.
+
 ### Autenticação
 
 O programa chama `sudo -v` uma vez antes da primeira etapa privilegiada. Enquanto instala, renova a credencial a cada 25 segundos; os módulos usam `sudo -n` para evitar uma nova pergunta de senha no meio do processo. Se a credencial não puder ser renovada, a instalação para com um erro claro. Em automação sem terminal, use `sudo` sem senha ou configure `SUDO_ASKPASS`.
