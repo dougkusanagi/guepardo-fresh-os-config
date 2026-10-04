@@ -532,6 +532,10 @@ run_local_static_checks() {
   run_quiet bash tests/project-structure.sh
   success "Project structure validated"
 
+  log "Validating portable media library notes..."
+  run_quiet bash tests/media-agents.sh
+  success "Portable media library notes validated"
+
   log "Validating developer tool coverage..."
   run_quiet bash tests/dev-tools.sh
   success "Developer tool coverage validated"

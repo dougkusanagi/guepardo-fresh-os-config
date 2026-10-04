@@ -8,6 +8,9 @@ repo="$sandbox/repo"
 mkdir -p "$repo"/{scripts,cmd,install-common,install-ubuntu,install-fedora} "$sandbox/bin" "$sandbox/release"
 cp "$ROOT_DIR/install.sh" "$repo/install.sh"
 cp "$ROOT_DIR/scripts/source-digest.sh" "$repo/scripts/source-digest.sh"
+cp "$ROOT_DIR/scripts/install-media-agents.sh" "$repo/scripts/install-media-agents.sh"
+mkdir -p "$repo/templates/media-library"
+cp "$ROOT_DIR/templates/media-library/AGENTS.md" "$repo/templates/media-library/AGENTS.md"
 printf 'module bootstrap.test\n' > "$repo/go.mod"
 touch "$repo/go.sum" "$repo/install-common/lib.sh"
 cat > "$repo/scripts/fallback.sh" <<'SH'
@@ -88,6 +91,13 @@ export GUEPARDO_REF=feature/test
 bash "$sandbox/remote/install.sh" --plan >/dev/null 2>&1
 [[ "$(cat "$sandbox/calls")" == *'--root='*'/repository --plan' ]] || fail 'Remote archive did not preserve the root and arguments'
 [[ "$(cat "$sandbox/urls")" == *'/tar.gz/feature/test'* ]] || fail 'Remote branch ref was not used'
+# The media helper must work with the downloaded repository too.
+mkdir -p "$sandbox/media library"
+: > "$sandbox/calls"
+bash "$sandbox/remote/install.sh" --media-agents "$sandbox/media library" >/dev/null 2>&1
+cmp "$ROOT_DIR/templates/media-library/AGENTS.md" "$sandbox/media library/AGENTS.md" || fail 'Remote helper did not copy notes'
+[[ ! -s "$sandbox/calls" ]] || fail 'Remote media helper invoked app installer'
+
 # Execute the exact README one-liner with downloads/sudo mocked: a fresh WSL
 # must never receive the desktop/games full preset, and the temp file is removed.
 mkdir -p "$sandbox/readme-bin"

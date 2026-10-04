@@ -85,6 +85,21 @@ O instalador PowerShell aceita os mesmos grupos principais:
 
 O Winget usa a fonte `winget`, modo silencioso e reaproveita aplicativos existentes. Se um app falhar, o instalador continua os demais, lista as falhas e sai com código `1`. Pedidos de reinicialização são informados no final. O Windows ainda pode exibir a confirmação de administrador (UAC) de alguns instaladores.
 
+## Notas da biblioteca de mídia
+
+O modelo `templates/media-library/AGENTS.md` guarda as notas da biblioteca de animes compartilhada entre Jellyfin e qBittorrent: cuidados com arquivos em seed, hardlinks, `.ignore` e escaneamento. O histórico registrado descreve a biblioteca original; confira o estado real dos torrents e das pastas antes de aplicar essas práticas em outra biblioteca.
+
+Para colocar as notas na biblioteca, informe a pasta atual:
+
+```bash
+./install.sh --helpers
+./install.sh --media-agents "/caminho/da/biblioteca"
+```
+
+A pasta precisa existir. O comando copia apenas `AGENTS.md`; não altera vídeos, torrents nem configurações do Jellyfin. Se já houver um arquivo diferente, ele é preservado e as notas devem ser combinadas manualmente. Uma cópia idêntica é reutilizada.
+
+Agentes que consultam `AGENTS.md` podem usar essas notas ao trabalhar na biblioteca. Jellyfin e qBittorrent não leem esse arquivo. Se mover a biblioteca inteira, leve o `AGENTS.md` junto; se criar uma nova pasta, execute o comando com o novo caminho. A pasta de mídia não fica vinculada a um caminho fixo no repo.
+
 ## Desenvolvimento e testes
 
 ```bash

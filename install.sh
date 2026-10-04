@@ -6,6 +6,32 @@ REF="${GUEPARDO_REF:-master}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMP_DIR=""
 
+show_helpers() {
+  cat <<'EOF'
+Helpers disponíveis:
+  ./install.sh --media-agents "/caminho/da/biblioteca"
+      Copia as notas AGENTS.md de Jellyfin/qBittorrent para a biblioteca.
+      Preserva arquivos existentes; não altera vídeos nem torrents.
+  ./install.sh --helpers
+      Mostra esta ajuda sem instalar apps.
+EOF
+}
+
+case "${1:-}" in
+  --helpers)
+    [[ "$#" == 1 ]] || { echo 'Use --helpers sem outros argumentos.' >&2; exit 1; }
+    show_helpers
+    exit 0
+    ;;
+  --media-agents)
+    [[ "$#" == 2 && -n "$2" ]] || { echo 'Uso: ./install.sh --media-agents "/caminho/da/biblioteca"' >&2; exit 1; }
+    ;;
+  --help|-h) show_helpers ;;
+esac
+if [[ "$#" == 0 ]]; then
+  echo 'Dica: ./install.sh --helpers mostra os helpers, incluindo notas para bibliotecas Jellyfin/qBittorrent.'
+fi
+
 cleanup_bootstrap() {
   if [[ -n "$TMP_DIR" ]]; then
     rm -rf "$TMP_DIR"
@@ -35,6 +61,11 @@ if [[ ! -f "$ROOT_DIR/go.mod" || ! -d "$ROOT_DIR/install-common" ]]; then
   tar -xzf "$TMP_DIR/repo.tar.gz" --strip-components=1 -C "$TMP_DIR/repository"
   ROOT_DIR="$TMP_DIR/repository"
   [[ -f "$ROOT_DIR/go.mod" ]] || { echo "Could not download repository ref $REF" >&2; exit 1; }
+fi
+
+if [[ "${1:-}" == --media-agents ]]; then
+  bash "$ROOT_DIR/scripts/install-media-agents.sh" "$2"
+  exit $?
 fi
 
 if [[ -n "${GUEPARDO_BIN:-}" ]]; then
