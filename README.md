@@ -73,15 +73,63 @@ Você também pode fornecer um binário já compilado com `GUEPARDO_BIN=/caminho
 
 ## Windows
 
-O instalador PowerShell aceita os mesmos grupos principais:
+Na pasta do projeto, execute apenas:
 
 ```powershell
+.\install.cmd
+```
+
+O launcher abre o instalador PowerShell sem precisar digitar seus parametros.
+O seletor Windows usa cores, destaca o modulo em foco e permite selecionar
+varios grupos, como o menu Linux/WSL: setas para navegar, Espaco ou `1` a `7`
+para marcar, Enter para instalar e `Q` ou Esc para cancelar. Comeca sem grupos
+marcados. **Todos** seleciona CLI, desenvolvimento, stack web, desktop, jogos
+e Jellyfin. O menu mostra a descricao de cada grupo e o total selecionado.
+
+**Jellyfin completo** instala o servidor pelo Winget, aplica `jellyfin/polish.css`
+(GlassFin) e instala AniDB, AniList, AniSearch, Kitsu, Artwork, Cover Art Archive,
+File Transformation e Media Bar. Aguarda o assistente inicial no navegador e
+pede no terminal o login de administrador do Jellyfin. Nao salva senha nem
+token em arquivos. O CSS anterior fica em
+`%LOCALAPPDATA%\WindowsFreshInstall\Jellyfin\<id-do-servidor>.json`;
+reaplicar preserva o primeiro backup. Para restaurar o CSS sem remover plugins,
+use `modules/jellyfin.ps1 -Restore`.
+
+Ao instalar plugins, o modulo mostra o comando `Restart-Service` com o nome
+detectado do servico para executar em PowerShell como administrador, seguido
+de Ctrl+Shift+R no navegador. Com sudo habilitado, por exemplo:
+
+```powershell
+sudo powershell.exe -NoProfile -Command "Restart-Service -Name 'JellyfinServer'"
+```
+
+Os seis provedores usam o catalogo oficial. Media Bar e File Transformation usam
+o repositorio do autor em `https://www.iamparadox.dev/jellyfin/plugins/manifest.json`,
+com pacotes para a linha exata do servidor, verificados e instalados pelo
+Jellyfin. Um catalogo temporario em loopback impede a selecao de ZIPs de outra
+linha com o mesmo numero de versao; os repositorios anteriores sao restaurados
+ao terminar. Execute o modulo no computador do servidor via localhost.
+O tema importa estilos do jsDelivr, que precisam estar acessiveis nos clientes.
+O banner precisa de itens com imagens de fundo na biblioteca. Essas mudancas
+se aplicam ao instalador Windows; `install.sh` e o menu Go Linux/WSL mantem seus
+perfis atuais.
+
+Para automacao ou instalacao de um grupo especifico:
+
+```powershell
+.\install.cmd -Profiles jellyfin
+.\install.cmd -Profiles jellyfin -Plan
 .\install.ps1 -Profiles 'cli,dev,web' -Plan
 .\install.ps1 -Profiles 'games'
 .\install.ps1 -Mode full -DryRun
 ```
 
-`-Plan` e `-DryRun` listam os pacotes sem chamar o Winget. Os atalhos `-Mode full`, `basic`, `games`, `server`, `desktop` e `wsl` permanecem disponíveis. O Windows continua usando PowerShell e Winget; o executável Go implementa o fluxo Linux.
+`-Plan` e `-DryRun` mostram os pacotes e a configuracao prevista sem Winget,
+API, downloads de plugins ou perguntas de login. `full` inclui agora o Jellyfin
+completo. O perfil `desktop` fica apenas com aplicativos graficos; combine
+`-Profiles 'desktop,jellyfin'` para instalar ambos. Os atalhos `-Mode full`,
+`basic`, `games`, `server`, `desktop`, `wsl` e `jellyfin` estao disponiveis.
+O Windows usa PowerShell e Winget; o executavel Go implementa o fluxo Linux.
 
 O Winget usa a fonte `winget`, modo silencioso e reaproveita aplicativos existentes. Se um app falhar, o instalador continua os demais, lista as falhas e sai com código `1`. Pedidos de reinicialização são informados no final. O Windows ainda pode exibir a confirmação de administrador (UAC) de alguns instaladores.
 
@@ -109,6 +157,7 @@ go test ./...
 ./scripts/build-release.sh
 pwsh -NoProfile -File tests/test-windows.ps1
 pwsh -NoProfile -File tests/windows-reliability.ps1
+pwsh -NoProfile -File tests/jellyfin-suite.ps1
 ./test.sh --mode=container --distro=ubuntu --profiles=dev --run-installer
 ```
 

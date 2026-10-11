@@ -68,6 +68,13 @@ $gamesOutput = & $installScript -Profiles 'games' -Plan *>&1 | Out-String
 Assert-True ($gamesOutput -like "*Steam*") "Games profile contains Steam"
 Assert-True ($gamesOutput -notlike "*PHP (PHP.PHP.8.4)*") "Games profile excludes web tools"
 
+$jellyfinOutput = & $installScript -Profiles jellyfin -Plan *>&1 | Out-String
+Assert-True ($jellyfinOutput -like '*Jellyfin Server (Jellyfin.Server)*') 'Jellyfin profile installs the server'
+Assert-True ($jellyfinOutput -like '*File Transformation*Media Bar*') 'Jellyfin plan includes banner dependencies'
+Assert-True ($jellyfinOutput -notlike '*Google Chrome*' -and $jellyfinOutput -notlike '*PHP (PHP.PHP.8.4)*') 'Jellyfin profile is independent'
+Assert-True ($dryRunFullOutput -like '*File Transformation*Media Bar*') 'Full preset includes complete Jellyfin setup'
+Assert-True ($dryRunOutput -notlike '*Jellyfin Server*') 'Basic preset excludes Jellyfin'
+
 
 # Test 4: Logs generation
 $statePath = [Environment]::GetFolderPath('LocalApplicationData')

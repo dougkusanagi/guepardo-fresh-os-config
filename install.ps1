@@ -12,7 +12,7 @@
 #>
 [CmdletBinding()]
 param (
-    [ValidateSet('full', 'basic', 'games', 'server', 'desktop', 'wsl')]
+    [ValidateSet('full', 'basic', 'games', 'server', 'desktop', 'wsl', 'jellyfin')]
     [string]$Mode = 'full',
 
     [string]$Profiles,
@@ -29,19 +29,20 @@ param (
 $ErrorActionPreference = 'Stop'
 
 if ($ListProfiles) {
-    Write-Host "cli, dev, web, desktop, games"
+    Write-Host "cli, dev, web, desktop, games, jellyfin"
     exit 0
 }
 
 if ($Help) {
     Write-Host @"
 Usage:
-  .\install.ps1 [-Profiles cli,dev,web,desktop,games] [-Plan] [-DryRun]
-  .\install.ps1 [-Mode <full|basic|games|server|desktop|wsl>]
+  .\install.cmd
+  .\install.ps1 [-Profiles cli,dev,web,desktop,games,jellyfin] [-Plan] [-DryRun]
+  .\install.ps1 [-Mode <full|basic|games|server|desktop|wsl|jellyfin>]
 
 Options:
   -Profiles Select independent profiles separated by commas.
-  -Mode      Legacy shortcut; full, basic, games, server, desktop, or wsl.
+  -Mode      Shortcut; full, basic, games, server, desktop, wsl, or jellyfin.
   -Plan      Show the package plan without changes.
   -ListProfiles List available profiles.
   -DryRun    Show what would be installed without making any changes.
@@ -113,23 +114,9 @@ function Show-Intro {
 # Prompt if not explicitly set
 $modeExplicitlySet = $PSBoundParameters.ContainsKey('Mode') -or $PSBoundParameters.ContainsKey('Profiles')
 if (-not $modeExplicitlySet -and -not $Plan -and -not $DryRun -and [Environment]::UserInteractive) {
-    $title = "Select Installation Mode"
-    $message = "Choose the scope of the installation:"
-    $full = New-Object System.Management.Automation.Host.ChoiceDescription "&Full", "Dev tools + Desktop apps + Games"
-    $basic = New-Object System.Management.Automation.Host.ChoiceDescription "&Basic", "Dev tools only"
-    $games = New-Object System.Management.Automation.Host.ChoiceDescription "&Games", "Gaming apps only"
-    $server = New-Object System.Management.Automation.Host.ChoiceDescription '&Server', 'CLI tools only'
-    $desktopOnly = New-Object System.Management.Automation.Host.ChoiceDescription '&Desktop', 'Desktop apps only'
-    $choices = [System.Management.Automation.Host.ChoiceDescription[]]($full, $basic, $games, $server, $desktopOnly)
-    $decision = $Host.UI.PromptForChoice($title, $message, $choices, 0)
-    
-    switch ($decision) {
-        0 { $Mode = 'full' }
-        1 { $Mode = 'basic' }
-        2 { $Mode = 'games' }
-        3 { $Mode = 'server' }
-        4 { $Mode = 'desktop' }
-    }
+    . (Join-Path $PSScriptRoot 'modules/windows-picker.ps1')
+    $Profiles = Select-WindowsProfiles
+    if (-not $Profiles) {Write-Host 'Cancelado.'; exit 0}
 }
 
 Show-Intro
@@ -173,7 +160,6 @@ $desktopPackages = @(
     @{ Id = "OBSProject.OBSStudio"; Name = "OBS Studio" }
     @{ Id = "ElementLabs.LMStudio"; Name = "LM Studio" }
     @{ Id = "RARLab.WinRAR"; Name = "WinRAR"; Force = $true }
-    @{ Id = "Jellyfin.Server"; Name = "Jellyfin Server" }
     @{ Id = "Zen-Team.Zen-Browser"; Name = "Zen Browser" }
     @{ Id = "dynobo.NormCap"; Name = "NormCap" }
     @{ Id = "RedHat.Podman-Desktop"; Name = "Podman Desktop" }
@@ -189,22 +175,24 @@ $gamingPackages = @(
     @{ Id = "Stremio.Stremio"; Name = "Stremio" }
     @{ Id = "HeroicGamesLauncher.HeroicGamesLauncher"; Name = "Heroic Games Launcher" }
 )
+$jellyfinPackages = @(@{ Id = 'Jellyfin.Server'; Name = 'Jellyfin Server' })
 
 if ($Profiles -and $PSBoundParameters.ContainsKey('Mode')) {
     throw "Use -Profiles or -Mode, not both."
 }
 if (-not $Profiles) {
     $Profiles = switch ($Mode) {
-        'full'    { 'cli,dev,web,desktop,games' }
+        'full'    { 'cli,dev,web,desktop,games,jellyfin' }
         'basic'   { 'cli,dev,web' }
         'server'  { 'cli' }
         'wsl'     { 'cli,dev,web' }
         'desktop' { 'desktop' }
         'games'   { 'games' }
+        'jellyfin' { 'jellyfin' }
     }
 }
 $selectedProfiles = @($Profiles.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
-$validProfiles = @('cli', 'dev', 'web', 'desktop', 'games')
+$validProfiles = @('cli', 'dev', 'web', 'desktop', 'games', 'jellyfin')
 foreach ($profileName in $selectedProfiles) {
     if ($profileName -notin $validProfiles) { throw "Unknown profile: $profileName" }
 }
@@ -216,6 +204,7 @@ $groups = @{
     web = $webPackages
     desktop = $desktopPackages
     games = $gamingPackages
+    jellyfin = $jellyfinPackages
 }
 $toInstall = @()
 foreach ($profileName in $validProfiles) {
@@ -231,6 +220,11 @@ if ($Plan -or $DryRun) {
     Write-Log "Installation plan for profiles: $($selectedProfiles -join ', ')" -Level "INFO"
     foreach ($pkg in $toInstall) {
         Write-Log -Message "  $($pkg.Name) ($($pkg.Id))" -Level "INFO"
+    }
+    if ('jellyfin' -in $selectedProfiles) {
+        Write-Log -Message '  Jellyfin: aguardar assistente inicial; login de administrador; tema GlassFin/polish.css com backup.' -Level INFO
+        Write-Log -Message '  Plugins: AniDB, AniList, AniSearch, Kitsu, Artwork, Cover Art Archive, File Transformation e Media Bar (pacotes compativeis).' -Level INFO
+        Write-Log -Message '  Ao terminar: comando para reiniciar o servico Jellyfin e Ctrl+Shift+R no navegador.' -Level INFO
     }
     Write-Log -Message "Dry-run completed successfully." -Level "OK"
     exit 0
@@ -277,6 +271,7 @@ function Get-InstallResult {
 $rebootRequired = $false
 $startedAt = Get-Date
 $packageIndex = 0
+$jellyfinResult = 'not-selected'
 
 foreach ($pkg in $toInstall) {
     $packageIndex++
@@ -316,12 +311,32 @@ foreach ($pkg in $toInstall) {
     }
 
     $result = Get-InstallResult $exitCode
+    if ($pkg.Id -eq 'Jellyfin.Server') { $jellyfinResult = $result }
     if ($result -eq 'reboot-required') { $rebootRequired = $true }
     if ($result -ne 'failed') {
         Write-Log -Message "$($pkg.Name) installed/updated successfully (or already installed)." -Level "OK"
     } else {
         Write-Log -Message "Failed to install $($pkg.Name) (Exit Code: $exitCode)." -Level "WARN"
         $failed += $pkg.Name
+    }
+}
+
+if ('jellyfin' -in $selectedProfiles) {
+    Write-Section 'Configuring Jellyfin theme and plugins'
+    if ($jellyfinResult -in @('installed','already-installed')) {
+        try {
+            # O servidor ja foi instalado acima; nao repete Winget nem loga credenciais.
+            & (Join-Path $PSScriptRoot 'modules/jellyfin.ps1') -SkipInstall
+            Write-Log -Message 'Jellyfin theme and plugin configuration completed.' -Level OK
+        } catch {
+            Write-Log -Message "Jellyfin configuration failed: $($_.Exception.Message)" -Level WARN
+            $failed += 'Jellyfin configuration'
+        }
+    } elseif ($jellyfinResult -eq 'reboot-required') {
+        Write-Log -Message 'Restart Windows, then run install.cmd -Profiles jellyfin to apply the theme and plugins.' -Level WARN
+        $failed += 'Jellyfin configuration (Windows restart pending)'
+    } else {
+        Write-Log -Message 'Jellyfin configuration skipped because the server installation failed.' -Level WARN
     }
 }
 
