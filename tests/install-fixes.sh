@@ -632,6 +632,202 @@ test_gnome_settings_are_restored() {
 }
 
 ########################################
+# configure_static_ipv4_network
+########################################
+
+# Installs an nmcli stub that models one managed NIC (enp5s0), a second NIC
+# (eno9), an active unbound DHCP profile, an idle profile bound to enp5s0 and a
+# profile bound to the other NIC. Every call is appended to $CALLS.
+install_nmcli_stub() {
+  cat > "$BIN_DIR/nmcli" <<STUB
+#!/usr/bin/env bash
+CALLS="$CALLS"
+UP_FAIL="$SANDBOX/up-fail"
+STATE_FILE="$SANDBOX/device-state"
+printf '%s\n' "nmcli \$*" >> "\$CALLS"
+case "\$*" in
+  "-t -f DEVICE,TYPE,STATE device status")
+    printf '%s\n' "docker0:bridge:unmanaged" "lo:loopback:unmanaged" "wlan0:wifi:connected" "veth1:ethernet:connected" "enp5s0:ethernet:\${NMCLI_ENP5S0_STATE:-connected}" "eno9:ethernet:disconnected" ;;
+  "-t -f DEVICE device status")
+    printf '%s\n' "docker0" "lo" "wlan0" "enp5s0" "eno9" ;;
+  "-t -f UUID,DEVICE connection show --active")
+    printf '%s\n' "uuid-active:enp5s0" ;;
+  "-t -f NAME connection show")
+    printf '%s\n' "Wired connection 1" "Wired connection 2" ;;
+  "-t -f UUID,TYPE connection show")
+    printf '%s\n' "uuid-active:802-3-ethernet" "uuid-idle:802-3-ethernet" "uuid-other:802-3-ethernet" "uuid-own:802-3-ethernet" "uuid-wifi:802-11-wireless" ;;
+  "-g connection.uuid connection show "*) echo "uuid-own" ;;
+  "-g connection.interface-name connection show uuid uuid-active") echo "" ;;
+  "-g connection.interface-name connection show uuid uuid-idle") echo "enp5s0" ;;
+  "-g connection.interface-name connection show uuid uuid-other") echo "eno9" ;;
+  "-g connection.autoconnect connection show uuid "*) echo "yes" ;;
+  "-g GENERAL.STATE device show "*) cat "\$STATE_FILE" 2>/dev/null || echo "100 (connected)" ;;
+  "connection up "*) [[ -e "\$UP_FAIL" ]] && exit 4 ;;
+esac
+exit 0
+STUB
+  chmod +x "$BIN_DIR/nmcli"
+}
+
+reset_static_network_env() {
+  STATIC_NETWORK_INTERFACE=""
+  STATIC_NETWORK_CONNECTION=""
+  STATIC_NETWORK_ADDRESS="192.168.1.77/24"
+  STATIC_NETWORK_GATEWAY="192.168.1.1"
+  STATIC_NETWORK_DNS="1.1.1.1"
+  unset NMCLI_ENP5S0_STATE
+}
+
+test_static_network_autodetects_interface() {
+  new_sandbox
+  load_common
+  install_nmcli_stub
+  reset_static_network_env
+
+  configure_static_ipv4_network >/dev/null 2>&1
+  local calls
+  calls="$(cat "$CALLS")"
+  assert_contains "$calls" 'connection add type ethernet ifname enp5s0 con-name static-enp5s0' 'the detected interface was not used'
+  assert_not_contains "$calls" 'ifname veth1' 'a virtual interface was picked'
+  assert_not_contains "$calls" 'ifname wlan0' 'a wifi interface was picked'
+
+  cleanup_sandbox
+}
+
+test_static_network_applies_manual_settings_and_priority() {
+  new_sandbox
+  load_common
+  install_nmcli_stub
+  reset_static_network_env
+
+  configure_static_ipv4_network >/dev/null 2>&1
+  local calls
+  calls="$(cat "$CALLS")"
+  assert_contains "$calls" 'ipv4.method manual' 'ipv4 was not set to manual'
+  assert_contains "$calls" 'ipv4.addresses 192.168.1.77/24' 'address was not applied'
+  assert_contains "$calls" 'ipv4.gateway 192.168.1.1' 'gateway was not applied'
+  assert_contains "$calls" 'connection.autoconnect-priority 100' 'priority was not raised'
+  assert_contains "$calls" 'connection up static-enp5s0' 'the static connection was not activated'
+
+  cleanup_sandbox
+}
+
+test_static_network_disables_idle_and_active_competitors() {
+  new_sandbox
+  load_common
+  install_nmcli_stub
+  reset_static_network_env
+
+  configure_static_ipv4_network >/dev/null 2>&1
+  local calls
+  calls="$(cat "$CALLS")"
+  assert_contains "$calls" 'connection modify uuid uuid-active connection.autoconnect no' 'the active DHCP profile kept autoconnect'
+  assert_contains "$calls" 'connection modify uuid uuid-idle connection.autoconnect no' 'an inactive profile bound to the interface kept autoconnect'
+  assert_not_contains "$calls" 'uuid uuid-other connection.autoconnect no' 'a profile of another NIC was disabled'
+  assert_not_contains "$calls" 'uuid uuid-wifi connection.autoconnect no' 'a non-ethernet profile was disabled'
+  assert_not_contains "$calls" 'uuid uuid-own connection.autoconnect no' 'the static profile disabled itself'
+
+  cleanup_sandbox
+}
+
+test_static_network_explicit_missing_interface_fails() {
+  new_sandbox
+  load_common
+  install_nmcli_stub
+  reset_static_network_env
+  STATIC_NETWORK_INTERFACE="enp99s0"
+
+  if configure_static_ipv4_network >/dev/null 2>&1; then
+    fail "a missing explicit interface was reported as success"
+  else
+    ok
+  fi
+  assert_not_contains "$(cat "$CALLS")" 'connection add' 'a connection was created for a missing interface'
+
+  cleanup_sandbox
+}
+
+test_static_network_rejects_invalid_settings() {
+  new_sandbox
+  load_common
+  install_nmcli_stub
+
+  local label address gateway dns
+  while IFS='|' read -r label address gateway dns; do
+    reset_static_network_env
+    STATIC_NETWORK_ADDRESS="$address"
+    STATIC_NETWORK_GATEWAY="$gateway"
+    STATIC_NETWORK_DNS="$dns"
+    : > "$CALLS"
+    if configure_static_ipv4_network >/dev/null 2>&1; then
+      fail "$label was accepted"
+    else
+      ok
+    fi
+    assert_not_contains "$(cat "$CALLS")" 'connection' "$label still reached nmcli"
+  done <<'CASES'
+address without prefix|192.168.1.77|192.168.1.1|1.1.1.1
+octet above 255|192.168.1.300/24|192.168.1.1|1.1.1.1
+gateway outside subnet|192.168.1.77/24|10.0.0.1|1.1.1.1
+gateway equal to address|192.168.1.77/24|192.168.1.77|1.1.1.1
+bad dns|192.168.1.77/24|192.168.1.1|not-an-ip
+CASES
+
+  cleanup_sandbox
+}
+
+test_static_network_rolls_back_when_activation_fails() {
+  new_sandbox
+  load_common
+  install_nmcli_stub
+  reset_static_network_env
+  : > "$SANDBOX/up-fail"
+
+  if configure_static_ipv4_network >/dev/null 2>&1; then
+    fail "a failed activation was reported as success"
+  else
+    ok
+  fi
+  local calls
+  calls="$(cat "$CALLS")"
+  assert_contains "$calls" 'connection modify static-enp5s0 connection.autoconnect no' 'the broken static profile stayed enabled'
+  assert_contains "$calls" 'connection modify uuid uuid-active connection.autoconnect yes' 'the previous profile was not restored'
+
+  cleanup_sandbox
+}
+
+test_static_network_keeps_config_when_cable_is_unplugged() {
+  new_sandbox
+  load_common
+  install_nmcli_stub
+  reset_static_network_env
+  : > "$SANDBOX/up-fail"
+  echo "20 (unavailable)" > "$SANDBOX/device-state"
+
+  if configure_static_ipv4_network >/dev/null 2>&1; then
+    ok
+  else
+    fail "an unplugged cable aborted the installation"
+  fi
+  assert_not_contains "$(cat "$CALLS")" 'connection modify static-enp5s0 connection.autoconnect no' 'the static profile was rolled back for a missing cable'
+
+  cleanup_sandbox
+}
+
+test_static_network_dry_run_changes_nothing() {
+  new_sandbox
+  load_common
+  install_nmcli_stub
+  reset_static_network_env
+  DRY_RUN=true
+
+  configure_static_ipv4_network >/dev/null 2>&1
+  assert_equals "" "$(cat "$CALLS")" 'dry run reached nmcli'
+
+  cleanup_sandbox
+}
+
+########################################
 # Runner
 ########################################
 
@@ -660,6 +856,14 @@ run_test "require_sudo is skipped during a dry run" test_require_sudo_skipped_in
 run_test "install_antigravity_desktop handles the private bucket" test_antigravity_handles_private_bucket
 run_test "GNOME settings are restored to their previous values" test_gnome_settings_are_restored
 run_test "install_antigravity_desktop unpacks per architecture" test_antigravity_extract_dir_matches_arch
+run_test "static network auto-detects the ethernet interface" test_static_network_autodetects_interface
+run_test "static network applies manual settings and priority" test_static_network_applies_manual_settings_and_priority
+run_test "static network disables idle and active competing profiles" test_static_network_disables_idle_and_active_competitors
+run_test "static network fails for a missing explicit interface" test_static_network_explicit_missing_interface_fails
+run_test "static network rejects invalid settings" test_static_network_rejects_invalid_settings
+run_test "static network rolls back when activation fails" test_static_network_rolls_back_when_activation_fails
+run_test "static network keeps config when the cable is unplugged" test_static_network_keeps_config_when_cable_is_unplugged
+run_test "static network dry run changes nothing" test_static_network_dry_run_changes_nothing
 
 if (( FAILED > 0 )); then
   printf "Installation fix checks FAILED (%d passed, %d failed)\n" "$PASSED" "$FAILED" >&2

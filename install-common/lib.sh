@@ -9,8 +9,10 @@ DRY_RUN="${DRY_RUN:-false}"
 TARGET_USER="${USER}"
 TARGET_HOME="${HOME}"
 export PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.bun/bin:$PATH"
-STATIC_NETWORK_INTERFACE="${STATIC_NETWORK_INTERFACE:-enp5s0}"
-STATIC_NETWORK_CONNECTION="${STATIC_NETWORK_CONNECTION:-static-${STATIC_NETWORK_INTERFACE}}"
+# Empty interface = auto-detect the ethernet device (set it to force one).
+STATIC_NETWORK_INTERFACE="${STATIC_NETWORK_INTERFACE:-}"
+STATIC_NETWORK_CONNECTION="${STATIC_NETWORK_CONNECTION:-}"
+STATIC_NETWORK_PRIORITY="${STATIC_NETWORK_PRIORITY:-100}"
 STATIC_NETWORK_ADDRESS="${STATIC_NETWORK_ADDRESS:-192.168.1.77/24}"
 STATIC_NETWORK_GATEWAY="${STATIC_NETWORK_GATEWAY:-192.168.1.1}"
 STATIC_NETWORK_DNS="${STATIC_NETWORK_DNS:-1.1.1.1}"
@@ -278,35 +280,129 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# Converts a dotted IPv4 address into an integer. Fails for anything that is
+# not four octets in the 0-255 range.
+ipv4_to_int() {
+  local ip="$1" octet value=0
+  local -a octets
+  [[ "$ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  IFS=. read -r -a octets <<< "$ip"
+  for octet in "${octets[@]}"; do
+    (( 10#$octet <= 255 )) || return 1
+    value=$(( (value << 8) + 10#$octet ))
+  done
+  echo "$value"
+}
+
+# Rejects malformed static network settings before anything is touched, so a
+# typo can never leave the machine with a broken or unreachable address.
+validate_static_network_settings() {
+  local address ip prefix mask gateway_int address_int dns_entry
+
+  address="$STATIC_NETWORK_ADDRESS"
+  if ! [[ "$address" =~ ^[0-9.]+/[0-9]{1,2}$ ]]; then
+    error "Invalid STATIC_NETWORK_ADDRESS '$address' (expected a.b.c.d/prefix)"
+    return 1
+  fi
+  ip="${address%/*}"
+  prefix="${address#*/}"
+  if ! address_int="$(ipv4_to_int "$ip")" || (( prefix < 1 || prefix > 32 )); then
+    error "Invalid STATIC_NETWORK_ADDRESS '$address'"
+    return 1
+  fi
+  if ! gateway_int="$(ipv4_to_int "$STATIC_NETWORK_GATEWAY")"; then
+    error "Invalid STATIC_NETWORK_GATEWAY '$STATIC_NETWORK_GATEWAY'"
+    return 1
+  fi
+  mask=$(( (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF ))
+  if (( (address_int & mask) != (gateway_int & mask) )); then
+    error "Gateway $STATIC_NETWORK_GATEWAY is outside the subnet of $address"
+    return 1
+  fi
+  if (( gateway_int == address_int )); then
+    error "Gateway $STATIC_NETWORK_GATEWAY must differ from the machine address"
+    return 1
+  fi
+
+  local -a dns_entries
+  IFS=', ' read -r -a dns_entries <<< "$STATIC_NETWORK_DNS"
+  if (( ${#dns_entries[@]} == 0 )); then
+    error "STATIC_NETWORK_DNS is empty"
+    return 1
+  fi
+  for dns_entry in "${dns_entries[@]}"; do
+    [[ -z "$dns_entry" ]] && continue
+    if ! ipv4_to_int "$dns_entry" >/dev/null; then
+      error "Invalid STATIC_NETWORK_DNS entry '$dns_entry'"
+      return 1
+    fi
+  done
+}
+
+# Prints the physical ethernet interface NetworkManager manages. Prefers a
+# device that is already connected, then one waiting for a cable. Virtual
+# devices (docker, bridges, veth) and unmanaged devices are ignored.
+detect_ethernet_interface() {
+  local device type state
+  local connected="" disconnected="" unavailable=""
+
+  while IFS=: read -r device type state; do
+    [[ "$type" == "ethernet" ]] || continue
+    case "$device" in
+      veth*|docker*|br-*|virbr*|lo) continue ;;
+    esac
+    case "$state" in
+      connected*|connecting*) connected="${connected:-$device}" ;;
+      disconnected*) disconnected="${disconnected:-$device}" ;;
+      unavailable*) unavailable="${unavailable:-$device}" ;;
+    esac
+  done < <(nmcli -t -f DEVICE,TYPE,STATE device status 2>/dev/null)
+
+  local chosen="${connected:-${disconnected:-$unavailable}}"
+  [[ -n "$chosen" ]] || return 1
+  echo "$chosen"
+}
+
 configure_static_ipv4_network() {
   local interface="$STATIC_NETWORK_INTERFACE"
-  local connection="$STATIC_NETWORK_CONNECTION"
-  local previous_connections=()
-  local active_connection active_device
+  local explicit_interface="false"
+  local connection own_uuid priority="${STATIC_NETWORK_PRIORITY:-100}"
+  local uuid type bound autoconnect device_state entry
+  local -a active_on_interface=() previous_profiles=()
+
+  [[ -n "$interface" ]] && explicit_interface="true"
 
   section "Network"
-  log "Configuring static IPv4 for $interface..."
+
+  validate_static_network_settings || return 1
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would configure $interface with $STATIC_NETWORK_ADDRESS, gateway $STATIC_NETWORK_GATEWAY, DNS $STATIC_NETWORK_DNS"
-    return
+    log "[DRY-RUN] Would configure ${interface:-the detected ethernet interface} with $STATIC_NETWORK_ADDRESS, gateway $STATIC_NETWORK_GATEWAY, DNS $STATIC_NETWORK_DNS"
+    return 0
   fi
 
   if ! command_exists nmcli; then
-    warn "NetworkManager nmcli is not available; skipping static IPv4 configuration"
-    return
+    warn "NetworkManager nmcli is not available; the network was NOT changed"
+    return 0
   fi
 
-  if ! nmcli -t -f DEVICE device status | grep -Fxq "$interface"; then
-    warn "Network interface $interface was not found; skipping static IPv4 configuration"
-    return
-  fi
-
-  while IFS=: read -r active_connection active_device; do
-    if [[ "$active_device" == "$interface" && "$active_connection" != "$connection" ]]; then
-      previous_connections+=("$active_connection")
+  if [[ -z "$interface" ]]; then
+    if ! interface="$(detect_ethernet_interface)"; then
+      error "No ethernet interface found; the network was NOT changed (set STATIC_NETWORK_INTERFACE to force one)"
+      return 0
     fi
-  done < <(nmcli -t -f NAME,DEVICE connection show --active)
+    log "Detected ethernet interface $interface"
+  elif ! nmcli -t -f DEVICE device status | grep -Fxq "$interface"; then
+    error "Network interface $interface was not found; the network was NOT changed"
+    return 1
+  fi
+
+  connection="${STATIC_NETWORK_CONNECTION:-static-${interface}}"
+  log "Configuring static IPv4 for $interface..."
+
+  while IFS=: read -r uuid device_state; do
+    [[ "$device_state" == "$interface" ]] && active_on_interface+=("$uuid")
+  done < <(nmcli -t -f UUID,DEVICE connection show --active)
 
   if nmcli -t -f NAME connection show | grep -Fxq "$connection"; then
     run_quiet nmcli connection modify "$connection" connection.interface-name "$interface"
@@ -316,6 +412,7 @@ configure_static_ipv4_network() {
 
   run_quiet nmcli connection modify "$connection" \
     connection.autoconnect yes \
+    connection.autoconnect-priority "$priority" \
     ipv4.method manual \
     ipv4.addresses "$STATIC_NETWORK_ADDRESS" \
     ipv4.gateway "$STATIC_NETWORK_GATEWAY" \
@@ -323,12 +420,47 @@ configure_static_ipv4_network() {
     ipv4.ignore-auto-dns yes \
     ipv6.ignore-auto-dns yes
 
-  for active_connection in "${previous_connections[@]}"; do
-    nmcli connection modify "$active_connection" connection.autoconnect no >/dev/null 2>&1 || true
-  done
+  own_uuid="$(nmcli -g connection.uuid connection show "$connection" 2>/dev/null || true)"
 
-  run_quiet nmcli connection up "$connection"
-  success "Static IPv4 configured on $interface"
+  # Disable autoconnect on EVERY other ethernet profile for this interface, not
+  # only the active ones: NetworkManager creates "Wired connection N" profiles
+  # whenever a cable is plugged in, and an inactive one would compete later.
+  while IFS=: read -r uuid type; do
+    [[ "$type" == "802-3-ethernet" ]] || continue
+    [[ "$uuid" == "$own_uuid" ]] && continue
+    bound="$(nmcli -g connection.interface-name connection show uuid "$uuid" 2>/dev/null || true)"
+    if [[ -z "$bound" ]]; then
+      # An unbound profile applies to any NIC; only touch it when it is the one
+      # currently driving this interface.
+      [[ " ${active_on_interface[*]} " == *" $uuid "* ]] || continue
+    elif [[ "$bound" != "$interface" ]]; then
+      continue
+    fi
+    autoconnect="$(nmcli -g connection.autoconnect connection show uuid "$uuid" 2>/dev/null || true)"
+    [[ "$autoconnect" == "no" ]] && continue
+    previous_profiles+=("$uuid")
+    nmcli connection modify uuid "$uuid" connection.autoconnect no >/dev/null 2>&1 || true
+  done < <(nmcli -t -f UUID,TYPE connection show)
+
+  if ! run_quiet nmcli connection up "$connection"; then
+    device_state="$(nmcli -g GENERAL.STATE device show "$interface" 2>/dev/null || true)"
+    if [[ "$device_state" == 20* ]]; then
+      warn "$interface has no link (cable unplugged?); the static IPv4 will apply as soon as it connects"
+      return 0
+    fi
+
+    error "Could not activate the static IPv4 on $interface; restoring the previous network configuration"
+    nmcli connection modify "$connection" connection.autoconnect no >/dev/null 2>&1 || true
+    for entry in "${previous_profiles[@]}"; do
+      nmcli connection modify uuid "$entry" connection.autoconnect yes >/dev/null 2>&1 || true
+    done
+    if (( ${#previous_profiles[@]} > 0 )); then
+      nmcli connection up uuid "${previous_profiles[0]}" >/dev/null 2>&1 || true
+    fi
+    return 1
+  fi
+
+  success "Static IPv4 configured on $interface ($STATIC_NETWORK_ADDRESS)"
 }
 
 normalize_theme_name() {
