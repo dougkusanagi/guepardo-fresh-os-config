@@ -10,6 +10,17 @@ import (
 )
 
 var pickerNames = []string{"CLI e servidor", "Desenvolvimento", "Stack web", "Desktop", "Jogos", "Fontes", "Rede IPv4", "Todos"}
+var windowsProfileOrder = []string{"cli", "dev", "web", "desktop", "games", "jellyfin", "wsl2"}
+var windowsPickerNames = []string{"Ferramentas", "Desenvolvimento", "Web", "Desktop", "Jogos", "Jellyfin completo", "WSL 2 + Ubuntu", "Todos"}
+var windowsProfileLabels = map[string]string{
+	"cli":      "Git, GitHub CLI e ferramentas de terminal (WinGet + Scoop)",
+	"dev":      "Bun, uv, NVM, Codex CLI, OpenCode CLI e ferramentas de desenvolvimento",
+	"web":      "PHP, Composer e MySQL",
+	"desktop":  "Navegadores, produtividade, multimídia e criação",
+	"games":    "Steam, Epic, qBittorrent e Stremio",
+	"jellyfin": "Servidor Jellyfin, tema e plugins",
+	"wsl2":     "WSL 2 atualizado e a versão Ubuntu padrão mais recente",
+}
 
 type profilePicker struct {
 	selected       map[string]bool
@@ -20,6 +31,7 @@ type profilePicker struct {
 	wslSelection   map[string]bool
 	width          int
 	height         int
+	windows        bool
 }
 
 // Raw terminal mode disables output processing, so line feeds need a carriage return.
@@ -39,6 +51,9 @@ func newProfilePicker() *profilePicker {
 }
 
 func (p *profilePicker) availableProfiles() []string {
+	if p.windows {
+		return windowsProfileOrder
+	}
 	if p.wsl {
 		return profileOrder[:3]
 	}
@@ -46,6 +61,9 @@ func (p *profilePicker) availableProfiles() []string {
 }
 
 func (p *profilePicker) names() []string {
+	if p.windows {
+		return windowsPickerNames
+	}
 	if p.wsl {
 		return append(append([]string{}, pickerNames[:3]...), "Todos")
 	}
@@ -89,6 +107,9 @@ func (p *profilePicker) profiles() string {
 
 // Switching environments applies a recommendation, while preserving the Linux selection.
 func (p *profilePicker) switchEnvironment() {
+	if p.windows {
+		return
+	}
 	if !p.wsl {
 		p.linuxSelection = p.selected
 		if p.wslSelection == nil {
@@ -144,9 +165,15 @@ func (p *profilePicker) render(w io.Writer, colored bool) {
 	if width < 40 {
 		modeHint = "    Tab/W"
 	}
-	fmt.Fprintln(w, "   "+linux+"  "+wsl+paint("38;2;148;163;184", modeHint))
+	if p.windows {
+		fmt.Fprintln(w, "   "+paint("1;38;2;17;24;39;48;2;167;139;250", "  Windows  ")+paint("38;2;148;163;184", "  aplicativos pelo Winget + Scoop"))
+	} else {
+		fmt.Fprintln(w, "   "+linux+"  "+wsl+paint("38;2;148;163;184", modeHint))
+	}
 	if p.wsl {
 		line("Ferramentas para o Ubuntu dentro do Windows.")
+	} else if p.windows {
+		line("Escolha os grupos de aplicativos para instalar neste Windows.")
 	} else {
 		line("Escolha o que quer ter pronto neste computador.")
 	}
@@ -181,11 +208,17 @@ func (p *profilePicker) render(w io.Writer, colored bool) {
 		}
 	}
 	description := "Seleciona todos os módulos, inclusive a rede IPv4."
-	if p.wsl {
+	if p.windows {
+		description = "Seleciona ferramentas, desenvolvimento, aplicativos, Jellyfin e WSL 2 com Ubuntu."
+	} else if p.wsl {
 		description = "Seleciona CLI, desenvolvimento e stack web."
 	}
 	if p.active < len(p.availableProfiles()) {
-		description = profileLabels[p.availableProfiles()[p.active]]
+		if p.windows {
+			description = windowsProfileLabels[p.availableProfiles()[p.active]]
+		} else {
+			description = profileLabels[p.availableProfiles()[p.active]]
+		}
 	}
 	fmt.Fprintln(w, "   "+paint("38;2;148;163;184", fitPickerText(description, width)))
 	fmt.Fprintln(w)
@@ -230,7 +263,7 @@ func selectProfilesWithPicker(input io.Reader, output io.Writer, colored bool, p
 				return selection, nil
 			}
 			p.message = "Marque ao menos um perfil para continuar."
-		case key == '\t' || key == 'w' || key == 'W':
+		case (key == '\t' || key == 'w' || key == 'W') && !p.windows:
 			p.switchEnvironment()
 		case key == ' ':
 			p.toggle(p.active)
@@ -254,6 +287,9 @@ func selectProfilesWithPicker(input io.Reader, output io.Writer, colored bool, p
 					case 'A':
 						p.active = (p.active + len(p.names()) - 1) % len(p.names())
 					case 'C', 'D':
+						if p.windows {
+							break
+						}
 						p.switchEnvironment()
 					case 'B':
 						p.active = (p.active + 1) % len(p.names())

@@ -1,6 +1,6 @@
 # guepardo-fresh-os-config
 
-Instalador de ambiente para Ubuntu, Fedora/Nobara e Windows. No Linux, o orquestrador é escrito em Go e executa módulos por perfil. Os scripts Bash existentes continuam responsáveis pelas operações específicas de cada distribuição.
+Instalador de ambiente para Ubuntu, Fedora/Nobara e Windows. O orquestrador e as interfaces de seleção são escritos em Go. No Linux, ele executa módulos Bash específicos de cada distribuição; no Windows, instala aplicativos via WinGet/Scoop e coordena a configuração do Jellyfin.
 
 O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 
@@ -79,12 +79,54 @@ Na pasta do projeto, execute apenas:
 .\install.cmd
 ```
 
-O launcher abre o instalador PowerShell sem precisar digitar seus parametros.
-O seletor Windows usa cores, destaca o modulo em foco e permite selecionar
-varios grupos, como o menu Linux/WSL: setas para navegar, Espaco ou `1` a `7`
-para marcar, Enter para instalar e `Q` ou Esc para cancelar. Comeca sem grupos
-marcados. **Todos** seleciona CLI, desenvolvimento, stack web, desktop, jogos
-e Jellyfin. O menu mostra a descricao de cada grupo e o total selecionado.
+O instalador Go requer Go 1.22 ou superior no checkout. O lançador da pasta do
+OneDrive baixa este repositório pelo GitHub, instala Go via Winget se necessário,
+compila o executável e o inicia. Por padrão, usa a ref `dev`; defina
+`GUEPARDO_REF` para escolher outra branch.
+
+O seletor Windows usa a interface Go do Linux: setas para navegar, Espaço ou
+`1` a `7` para marcar, Enter para continuar, `8` para alternar todos os perfis e
+`Q` ou Esc para cancelar. O menu mostra a descrição de cada grupo e o total
+selecionado. WinGet instala os programas tradicionais e a maioria das CLIs;
+Scoop complementa o perfil de terminal com `wget` e `unzip`.
+
+| Perfil | Aplicativos |
+| --- | --- |
+| `cli` | Git, GitHub CLI, GnuPG, wget, unzip e CLIs como bat, bottom, fd, fzf, ripgrep, eza, sd, tealdeer, jq, dust, lazygit e yazi |
+| `dev` | Bun, uv, NVM com Node LTS, Codex CLI, OpenCode CLI, Zed, GitHub Desktop, Termius, T3 Code e ferramentas de criação |
+| `web` | PHP, Composer e MySQL |
+| `desktop` | 7-Zip, PowerToys, Revo, navegadores, produtividade, áudio e vídeo |
+| `games` | Steam, Epic, GOG, Discord, qBittorrent e Stremio |
+| `jellyfin` | Jellyfin Server, tema GlassFin e plugins |
+| `wsl2` | WSL atualizado, WSL 2 e a distribuição Ubuntu padrão mais recente |
+
+**Todos** seleciona os sete perfis. `full` também inclui `wsl2`; `basic` continua
+com `cli,dev,web`, e o atalho `wsl` seleciona esses três grupos junto com WSL.
+O perfil WSL pede elevação via UAC, usa `wsl --install` para habilitar os
+componentes necessários (incluindo Virtual Machine Platform), instala Ubuntu
+sem iniciar o primeiro shell, atualiza o WSL e define WSL 2 e Ubuntu como
+padrões. A função completa do Hyper-V não é necessária. Reinicie se o Windows
+solicitar; depois execute `wsl -d Ubuntu` uma vez para criar seu usuário Linux.
+O processador também precisa ter virtualização habilitada no firmware UEFI/BIOS.
+
+As listas combinam os aplicativos que já
+estavam no instalador do repositório e na lista pessoal do OneDrive. Os dois
+gerenciadores reaproveitam instalações existentes e não atualizam os programas
+durante a configuração. Na primeira instalação de `wget` ou `unzip`, o Scoop é
+instalado no perfil do usuário; o instalador define a política PowerShell desse
+usuário como `RemoteSigned`, requisito documentado pelo Scoop.
+
+Os atalhos de shell são gravados nos perfis do Windows PowerShell 5.1 e do
+PowerShell 7. O perfil `cli` cria `ls`, `l`, `ll`, `la` e `bottom` usando eza e
+bottom. Também remove os aliases padrão de PowerShell `curl` e `wget` para que
+os executáveis de linha de comando sejam usados; os cmdlets continuam
+disponíveis como `Invoke-WebRequest`.
+
+O OneDrive sincroniza os arquivos após a entrada na conta, mas não inicia o
+executável automaticamente. Para manter o bootstrap que busca a ref atual do
+GitHub e um fallback local sem rede, mantenha `install.cmd` e `guepardo.exe` na
+pasta sincronizada; o `README.md` é útil para consulta, mas não é necessário
+para executar o instalador.
 
 **Jellyfin completo** instala o servidor pelo Winget, aplica `jellyfin/polish.css`
 (GlassFin) e instala AniDB, AniList, AniSearch, Kitsu, Artwork, Cover Art Archive,
@@ -109,29 +151,31 @@ com pacotes para a linha exata do servidor, verificados e instalados pelo
 Jellyfin. Um catalogo temporario em loopback impede a selecao de ZIPs de outra
 linha com o mesmo numero de versao; os repositorios anteriores sao restaurados
 ao terminar. Execute o modulo no computador do servidor via localhost.
-O tema importa estilos do jsDelivr, que precisam estar acessiveis nos clientes.
-O banner precisa de itens com imagens de fundo na biblioteca. Essas mudancas
-se aplicam ao instalador Windows; `install.sh` e o menu Go Linux/WSL mantem seus
-perfis atuais.
+O tema importa estilos do jsDelivr, que precisam estar acessíveis nos clientes.
+O banner precisa de itens com imagens de fundo na biblioteca.
 
-Para automacao ou instalacao de um grupo especifico:
+Para automação, planejamento ou instalação de um grupo específico:
 
 ```powershell
-.\install.cmd -Profiles jellyfin
-.\install.cmd -Profiles jellyfin -Plan
-.\install.ps1 -Profiles 'cli,dev,web' -Plan
-.\install.ps1 -Profiles 'games'
-.\install.ps1 -Mode full -DryRun
+.\install.cmd --profiles=jellyfin
+.\install.cmd --profiles=jellyfin --plan
+.\install.cmd --profiles=cli,dev,web --plan
+.\install.cmd --profiles=games
+go run ./cmd/guepardo --mode=full --dry-run
 ```
 
-`-Plan` e `-DryRun` mostram os pacotes e a configuracao prevista sem Winget,
-API, downloads de plugins ou perguntas de login. `full` inclui agora o Jellyfin
-completo. O perfil `desktop` fica apenas com aplicativos graficos; combine
-`-Profiles 'desktop,jellyfin'` para instalar ambos. Os atalhos `-Mode full`,
-`basic`, `games`, `server`, `desktop`, `wsl` e `jellyfin` estao disponiveis.
-O Windows usa PowerShell e Winget; o executavel Go implementa o fluxo Linux.
+`--plan` e `--dry-run` mostram os pacotes e a configuração prevista sem instalar
+via Winget/Scoop, API, downloads de plugins ou perguntas de login. `full` inclui
+os sete grupos, inclusive WSL 2 e Ubuntu.
+O `install.ps1` continua como encaminhador compatível para as opções antigas,
+mas a instalação e o menu são executados pelo Go.
 
-O Winget usa a fonte `winget`, modo silencioso e reaproveita aplicativos existentes. Se um app falhar, o instalador continua os demais, lista as falhas e sai com código `1`. Pedidos de reinicialização são informados no final. O Windows ainda pode exibir a confirmação de administrador (UAC) de alguns instaladores.
+O WinGet usa a fonte `winget`, modo silencioso e reaproveita aplicativos
+existentes. Scoop instala `wget` e `unzip` como ferramentas portáteis do usuário;
+se ainda não estiver instalado, o instalador o configura automaticamente. Se um
+app falhar, o instalador continua os demais, lista as falhas e sai com código
+`1`. Pedidos de reinicialização são informados no final. O Windows ainda pode
+exibir a confirmação de administrador (UAC) de alguns instaladores.
 
 ## Notas da biblioteca de mídia
 

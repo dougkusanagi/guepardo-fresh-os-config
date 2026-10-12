@@ -10,12 +10,10 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"golang.org/x/term"
@@ -216,6 +214,9 @@ func resolveRoot(explicit string) (string, error) {
 		if _, err := os.Stat(filepath.Join(dir, "install-common", "lib.sh")); err == nil {
 			return dir, nil
 		}
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break
@@ -227,7 +228,16 @@ func resolveRoot(explicit string) (string, error) {
 
 func logPath() (string, error) {
 	state := os.Getenv("XDG_STATE_HOME")
-	if state == "" {
+	if runtime.GOOS == "windows" {
+		state = os.Getenv("LOCALAPPDATA")
+		if state == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return "", err
+			}
+			state = filepath.Join(home, "AppData", "Local")
+		}
+	} else if state == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return "", err
@@ -388,6 +398,9 @@ func run() error {
 	if flag.NArg() != 0 {
 		return fmt.Errorf("argumentos desconhecidos: %s", strings.Join(flag.Args(), " "))
 	}
+	if runtime.GOOS == "windows" {
+		return runWindows(opts)
+	}
 	if opts.list {
 		for _, p := range profileOrder {
 			fmt.Printf("%-9s %s\n", p, profileLabels[p])
@@ -460,9 +473,6 @@ func run() error {
 			}
 		}
 	}
-	if runtime.GOOS != "linux" {
-		return errors.New("este executável implementa Linux; no Windows use install.ps1")
-	}
 	distro, err := detectDistro(opts.distro)
 	if err != nil {
 		return err
@@ -506,7 +516,7 @@ func run() error {
 		}
 		return nil
 	}
-	if os.Geteuid() == 0 {
+	if isElevated() {
 		return errors.New("execute como usuário normal, sem sudo")
 	}
 	if !interactive && !opts.yes && !opts.dryRun {
@@ -539,7 +549,7 @@ func run() error {
 	defer os.RemoveAll(indexDir)
 	indexMarker := filepath.Join(indexDir, "updated")
 	fmt.Printf("\n  Log: %s\n", path)
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := newSignalContext()
 	defer cancel()
 	privileged := false
 	for _, profile := range profiles {

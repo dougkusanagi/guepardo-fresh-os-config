@@ -1,52 +1,43 @@
 $ErrorActionPreference = 'Stop'
-$installer = Join-Path $PSScriptRoot '../install.ps1'
-$tokens = $null
-$errors = $null
-$ast = [System.Management.Automation.Language.Parser]::ParseFile($installer, [ref]$tokens, [ref]$errors)
-if ($errors.Count) { throw 'PowerShell syntax errors' }
+$root = Split-Path $PSScriptRoot -Parent
+$go = Get-Command go.exe -ErrorAction SilentlyContinue
+if (-not $go) { throw 'Go 1.22+ is required for the Windows installer build check.' }
 
-# Load only the result classifier, without running the installer.
-$function = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-InstallResult' }, $true)
-Invoke-Expression $function.Extent.Text
-foreach ($code in @(0, -1978335189, 2316632107, -1978335135, 2316632161, -1978334963, 2316632333)) {
-    if ((Get-InstallResult $code) -eq 'failed') { throw "Success/no-op code rejected: $code" }
-}
-foreach ($code in @(-1978335204, 2316632092, -1978335203, 2316632093, -1978335186, 2316632110, 2316697643, 1)) {
-    if ((Get-InstallResult $code) -ne 'failed') { throw "Failure reported as success: $code" }
-}
-if ((Get-InstallResult 3010) -ne 'reboot-required') { throw 'EXE restart code was lost' }
-if ((Get-InstallResult -1978334967) -ne 'reboot-required') { throw 'Winget restart code was lost' }
-
-# Run a child PowerShell with a fake Winget; isolate HOME/profile writes and
-# environment refresh. No real app or Windows setting is touched.
-$sandbox = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
-New-Item -ItemType Directory -Path $sandbox | Out-Null
+$tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+$buildDir = Join-Path $tempRoot ('guepardo-windows-build-' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $buildDir | Out-Null
 try {
-    $driver = Join-Path $sandbox 'driver.ps1'
-    @'
-param([string]$Installer, [string]$Sandbox, [int]$FakeExitCode)
-$PROFILE = Join-Path $Sandbox 'profile.ps1'
-$global:GuepardoFakeExitCode = $FakeExitCode
-function winget {
-    $args -join ' ' | Add-Content (Join-Path $Sandbox 'calls')
-    Write-Output 'Fake Winget diagnostic'
-    $global:LASTEXITCODE = $global:GuepardoFakeExitCode
-}
-& $Installer -Profiles cli
-exit $LASTEXITCODE
-'@ | Set-Content $driver
-    $pwsh = (Get-Process -Id $PID).Path
-    foreach ($case in @(@{ Code = 0; Expected = 0 }, @{ Code = -1978335189; Expected = 0 }, @{ Code = -1978335186; Expected = 1 })) {
-        $output = & $pwsh -NoLogo -NoProfile -File $driver -Installer $installer -Sandbox $sandbox -FakeExitCode $case.Code 2>&1 | Out-String
-        if ($LASTEXITCODE -ne $case.Expected) { throw "Unexpected installer exit for $($case.Code): $LASTEXITCODE`n$output" }
-        if ($case.Expected -eq 1 -and $output -notlike '*following apps failed*') { throw 'Failure summary missing' }
-        if ($case.Expected -eq 1 -and $output -like '*All requested applications installed successfully*') { throw 'False success banner' }
+    Push-Location $root
+    try {
+        $executable = Join-Path $buildDir 'guepardo.exe'
+        & $go.Source build -o $executable ./cmd/guepardo
+        if ($LASTEXITCODE -ne 0) { throw "Windows build failed ($LASTEXITCODE)." }
+    } finally {
+        Pop-Location
     }
-    $calls = Get-Content (Join-Path $sandbox 'calls')
-    if (@($calls | Where-Object { $_ -notlike '*--silent*--disable-interactivity*--no-upgrade*' }).Count) { throw 'Winget can prompt or unnecessarily upgrade apps' }
-    if (@($calls | Where-Object { $_ -notlike '*--source winget*' }).Count) { throw 'Winget source is ambiguous' }
-    if (@($calls | Where-Object { $_ -like '*--force*' }).Count) { throw 'Installed apps were forced to reinstall' }
-    Write-Host 'Windows reliability checks passed'
+
+    Push-Location $buildDir
+    try {
+        $plan = & $executable --profiles=full --plan 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) { throw "Compiled Windows plan failed:`n$plan" }
+        foreach ($package in @('RevoUninstaller.RevoUninstaller','Oven-sh.Bun','astral-sh.uv','Jellyfin.Server')) {
+            if ($plan -notlike "*$package*") { throw "Compiled plan is missing $package." }
+        }
+        if ($plan -notlike '*Sistema: Windows*' -or $plan -notlike '*Nenhum aplicativo ou configuração foi alterado*') {
+            throw 'Compiled executable did not use the safe Windows plan.'
+        }
+        if ($plan -notlike '*WSL 2*' -or $plan -notlike '*Virtual Machine Platform*' -or $plan -notlike '*Ubuntu*') {
+            throw 'Compiled Windows plan is missing the WSL 2 and Ubuntu setup.'
+        }
+    } finally {
+        Pop-Location
+    }
 } finally {
-    Remove-Item $sandbox -Recurse -Force
+    $resolvedBuild = [IO.Path]::GetFullPath($buildDir)
+    if (-not $resolvedBuild.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Temporary build path is outside the temp directory; not removed: $resolvedBuild"
+    }
+    Remove-Item -LiteralPath $resolvedBuild -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+Write-Host 'Windows reliability checks passed.'

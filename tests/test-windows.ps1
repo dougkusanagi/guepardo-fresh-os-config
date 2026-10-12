@@ -1,98 +1,57 @@
 # Windows installer tests
+$ErrorActionPreference = 'Stop'
+$root = Split-Path $PSScriptRoot -Parent
+$go = Get-Command go.exe -ErrorAction SilentlyContinue
+if (-not $go) { throw 'Go 1.22+ is required for the Windows Go installer tests.' }
 
-$ErrorActionPreference = "Stop"
-
-$testsFailed = 0
-$testsPassed = 0
-
-function Assert-True {
-    param (
-        [bool]$Condition,
-        [string]$Message
-    )
-    if ($Condition) {
-        Write-Host "PASS: $Message" -ForegroundColor Green
-        $script:testsPassed++
-    } else {
-        Write-Host "FAIL: $Message" -ForegroundColor Red
-        $script:testsFailed++
-    }
-}
-
-Write-Host "=== Running Windows Installer Tests ===" -ForegroundColor Cyan
-
-# Test 1: Check file existence
-$installScript = Join-Path $PSScriptRoot "..\install.ps1"
-Assert-True (Test-Path $installScript) "install.ps1 file exists at the root directory"
-
-# Test 2: Syntax validation
 $tokens = $null
 $errors = $null
-$ast = [System.Management.Automation.Language.Parser]::ParseFile($installScript, [ref]$tokens, [ref]$errors)
-Assert-True ($errors.Count -eq 0) "install.ps1 has no PowerShell syntax errors"
-if ($errors.Count -gt 0) {
-    foreach ($err in $errors) {
-        Write-Host "  Syntax Error: $($err.Message) at line $($err.Extent.StartLineNumber)" -ForegroundColor Red
+[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'install.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+if ($errors.Count) { throw 'install.ps1 has PowerShell syntax errors.' }
+[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'scripts/bootstrap-windows.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+if ($errors.Count) { throw 'bootstrap-windows.ps1 has PowerShell syntax errors.' }
+
+$launcher = Get-Content (Join-Path $root 'install.cmd') -Raw
+if ($launcher -notlike '*go run ./cmd/guepardo*') { throw 'install.cmd must launch the Go installer.' }
+$bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-windows.ps1') -Raw
+if ($bootstrap -notlike '*github.com/dougkusanagi/guepardo-fresh-os-config*' -or $bootstrap -notlike '* build -o $executable ./cmd/guepardo*' -or $bootstrap -notlike '*GUEPARDO_INSTALL_HOME*') {
+    throw 'OneDrive bootstrap must download this GitHub repository and compile the Go installer.'
+}
+
+Push-Location $root
+try {
+    & $go.Source test ./...
+    if ($LASTEXITCODE -ne 0) { throw "Go tests failed ($LASTEXITCODE)." }
+
+    $plan = & $go.Source run ./cmd/guepardo --profiles=full --plan 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) { throw "Windows full plan failed:`n$plan" }
+    foreach ($package in @(
+        'RevoUninstaller.RevoUninstaller', 'Oven-sh.Bun', 'astral-sh.uv',
+        'CoreyButler.NVMforWindows', 'GitHub.GitHubDesktop', 'T3Tools.T3Code',
+        'Canva.Affinity', 'Comfy.ComfyUI-Desktop', 'Jellyfin.Server',
+        'GnuPG.Gpg4win', 'wget', 'unzip', 'OpenAI.Codex', 'SST.opencode'
+    )) {
+        if ($plan -notlike "*$package*") { throw "Full Windows plan is missing $package." }
     }
+    if ($plan -notlike '*scoop: wget*' -or $plan -notlike '*scoop: unzip*' -or $plan -notlike '*Node.js LTS e npm via NVM*') {
+        throw 'Full Windows plan must show Scoop utilities and Node LTS setup.'
+    }
+    if ($plan -notlike '*WSL 2*' -or $plan -notlike '*Ubuntu*' -or $plan -notlike '*Virtual Machine Platform*') {
+        throw 'Full Windows plan must include WSL 2, Virtual Machine Platform, and Ubuntu.'
+    }
+    if ($plan -notlike '*Nenhum aplicativo ou configuração foi alterado*') { throw 'Plan mode must not change the system.' }
+
+    $desktop = & $go.Source run ./cmd/guepardo --profiles=desktop --plan 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0 -or $desktop -notlike '*RevoUninstaller.RevoUninstaller*' -or $desktop -like '*GitHub CLI*') {
+        throw "Windows desktop profile is incorrect:`n$desktop"
+    }
+
+    $wsl = & $go.Source run ./cmd/guepardo --profiles=wsl2 --plan 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0 -or $wsl -notlike '*Ubuntu*' -or $wsl -notlike '*Nenhum aplicativo ou configuração foi alterado*') {
+        throw "Windows WSL plan is incorrect:`n$wsl"
+    }
+} finally {
+    Pop-Location
 }
 
-# Test 3: Dry-run execution
-Write-Host "Running install.ps1 in Dry-Run mode (basic)..." -ForegroundColor Gray
-$dryRunOutput = & $installScript -Mode basic -DryRun -ErrorAction SilentlyContinue *>&1 | Out-String
-Assert-True ($dryRunOutput -like "*Fresh Config Installer (Windows)*") "Banner is displayed in dry-run mode"
-Assert-True ($dryRunOutput -notlike "*Warp Terminal*") "Basic mode excludes desktop applications"
-Assert-True ($dryRunOutput -notlike "*Lightshot*") "Basic mode excludes graphical utilities"
-Assert-True ($dryRunOutput -like "*Dry-run completed successfully.*") "Dry-run finishes with success message"
-
-# Test 3b: Verify Google Chrome in full mode dry-run
-Write-Host "Running install.ps1 in Dry-Run mode (full)..." -ForegroundColor Gray
-$dryRunFullOutput = & $installScript -Mode full -DryRun -ErrorAction SilentlyContinue *>&1 | Out-String
-Assert-True ($dryRunFullOutput -like "*Google Chrome*") "Google Chrome is listed in dry-run mode for full mode"
-
-
-# Test 3c: Verify new package IDs and custom installers in dry-run
-Assert-True ($dryRunFullOutput -like "*bottom (Clement.bottom)*") "bottom is listed with Clement.bottom"
-Assert-True ($dryRunFullOutput -like "*ripgrep (BurntSushi.ripgrep.MSVC)*") "ripgrep is listed with BurntSushi.ripgrep.MSVC"
-Assert-True ($dryRunFullOutput -like "*lazygit (JesseDuffield.lazygit)*") "lazygit is listed with JesseDuffield.lazygit"
-Assert-True ($dryRunFullOutput -like "*PHP (PHP.PHP.8.4)*") "PHP is listed with PHP.PHP.8.4"
-Assert-True ($dryRunFullOutput -like "*Zen Browser (Zen-Team.Zen-Browser)*") "Zen Browser is listed with Zen-Team.Zen-Browser"
-Assert-True ($dryRunFullOutput -like "*Podman Desktop (RedHat.Podman-Desktop)*") "Podman Desktop is listed with RedHat.Podman-Desktop"
-Assert-True ($dryRunFullOutput -like "*Lightshot (Skillbrains.Lightshot)*") "Lightshot is listed with Skillbrains.Lightshot"
-
-$serverOutput = & $installScript -Profiles 'cli' -Plan *>&1 | Out-String
-Assert-True ($serverOutput -like "*ripgrep*") "CLI profile contains terminal tools"
-Assert-True ($serverOutput -notlike "*PHP (PHP.PHP.8.4)*") "CLI profile excludes web tools"
-Assert-True ($serverOutput -notlike "*Warp Terminal*") "CLI profile excludes desktop apps"
-
-$gamesOutput = & $installScript -Profiles 'games' -Plan *>&1 | Out-String
-Assert-True ($gamesOutput -like "*Steam*") "Games profile contains Steam"
-Assert-True ($gamesOutput -notlike "*PHP (PHP.PHP.8.4)*") "Games profile excludes web tools"
-
-$jellyfinOutput = & $installScript -Profiles jellyfin -Plan *>&1 | Out-String
-Assert-True ($jellyfinOutput -like '*Jellyfin Server (Jellyfin.Server)*') 'Jellyfin profile installs the server'
-Assert-True ($jellyfinOutput -like '*File Transformation*Media Bar*') 'Jellyfin plan includes banner dependencies'
-Assert-True ($jellyfinOutput -notlike '*Google Chrome*' -and $jellyfinOutput -notlike '*PHP (PHP.PHP.8.4)*') 'Jellyfin profile is independent'
-Assert-True ($dryRunFullOutput -like '*File Transformation*Media Bar*') 'Full preset includes complete Jellyfin setup'
-Assert-True ($dryRunOutput -notlike '*Jellyfin Server*') 'Basic preset excludes Jellyfin'
-
-
-# Test 4: Logs generation
-$statePath = [Environment]::GetFolderPath('LocalApplicationData')
-if ([string]::IsNullOrEmpty($statePath)) { $statePath = [IO.Path]::GetTempPath() }
-$logDir = Join-Path $statePath "Guepardo/Logs"
-Assert-True (Test-Path $logDir) "logs directory exists"
-$logFiles = Get-ChildItem -Path $logDir -Filter "install-*.log"
-Assert-True ($logFiles.Count -gt 0) "At least one install log file was created in the user data directory"
-
-# Final Summary
-Write-Host "`n=== Test Summary ===" -ForegroundColor Cyan
-Write-Host "Passed: $testsPassed" -ForegroundColor Green
-Write-Host "Failed: $testsFailed" -ForegroundColor Red
-
-if ($testsFailed -gt 0) {
-    Write-Host "Some tests failed!" -ForegroundColor Red
-    exit 1
-} else {
-    Write-Host "All Windows installer tests passed!" -ForegroundColor Green
-    exit 0
-}
+Write-Host 'Windows Go installer tests passed.' -ForegroundColor Green

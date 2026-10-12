@@ -3,8 +3,10 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
+	"os/signal"
 	"syscall"
 	"time"
 	"unsafe"
@@ -26,4 +28,10 @@ func isTerminal(f *os.File) bool {
 	var state syscall.Termios
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), uintptr(syscall.TCGETS), uintptr(unsafe.Pointer(&state)))
 	return errno == 0
+}
+
+func isElevated() bool { return os.Geteuid() == 0 }
+
+func newSignalContext() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 }
