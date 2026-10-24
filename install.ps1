@@ -152,9 +152,9 @@ $cliPackages = @(
     @{ Id = "sxyazi.yazi"; Name = "yazi" }
 )
 $devPackages = @(
+    @{ Id = "guepardo.vite-plus"; Name = "Vite+ global CLI (vp)" }
     @{ Id = "OpenAI.Codex"; Name = "Codex CLI" }
     @{ Id = "Anthropic.ClaudeCode"; Name = "Claude Code CLI" }
-    @{ Id = "guepardo.dotagents"; Name = "dotagents" }
     @{ Id = "Oven-sh.Bun"; Name = "Bun" }
     @{ Id = "astral-sh.uv"; Name = "uv" }
     @{ Id = "CoreyButler.NVMforWindows"; Name = "NVM for Windows" }
@@ -166,6 +166,8 @@ $webPackages = @(
     @{ Id = "Oracle.MySQL"; Name = "MySQL Server" }
 )
 $desktopPackages = @(
+    @{ Id = "Microsoft.OneDrive"; Name = "OneDrive Sync GUI (autostart)" }
+    @{ Id = "guepardo.zapfast"; Name = "ZapFast" }
     @{ Id = "OpenAI.ChatGPT"; Name = "ChatGPT" }
     @{ Id = "Anthropic.Claude"; Name = "Claude Desktop" }
     @{ Id = "T3Tools.T3Code"; Name = "T3 Code" }
@@ -233,6 +235,10 @@ $toInstall = @($toInstall | Where-Object {
     if ($seenPackages.ContainsKey($_.Id)) { $false }
     else { $seenPackages[$_.Id] = $true; $true }
 })
+
+if ('dev' -in $selectedProfiles -or 'desktop' -in $selectedProfiles) {
+    $toInstall += @{ Id = 'guepardo.dotagents'; Name = 'dotagents (install + sync)' }
+}
 
 if ('desktop' -in $selectedProfiles) {
     Write-Log 'AI Quota Pulse is a GNOME extension and is unavailable on native Windows.' -Level WARN
@@ -306,7 +312,7 @@ function Install-Dotagents {
         if ($LASTEXITCODE -ne 0) { throw 'MSYS2 runtime upgrade failed; rerun the installer.' }
         & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; pacman -Syu --noconfirm && pacman -S --noconfirm --needed util-linux git'
         if ($LASTEXITCODE -ne 0) { throw 'MSYS2 dotagents dependencies failed.' }
-        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; export HOME="$(cygpath -u "$2")"; cd "$(cygpath -u "$1")" && bash ./install.sh' -- $destination $env:USERPROFILE
+        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; export HOME="$(cygpath -u "$2")"; cd "$(cygpath -u "$1")" && bash ./install.sh && bash ./bin/sync' -- $destination $env:USERPROFILE
         if ($LASTEXITCODE -ne 0) { throw 'dotagents failed. Enable Windows Developer Mode or run elevated to allow symlinks.' }
     } finally { $env:MSYS = $previousMsys }
 }
@@ -362,6 +368,69 @@ function Install-SlothNote {
     } finally { Pop-Location }
 }
 
+function Install-VitePlus {
+    if (Get-Command vp -ErrorAction SilentlyContinue) { return }
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString() + '.ps1')
+    $savedHome = $env:VP_HOME; $savedNode = $env:VP_NODE_MANAGER; $savedPm = $env:VP_PM_MANAGER
+    try {
+        $env:VP_HOME = Join-Path $env:USERPROFILE '.vite-plus'
+        $env:VP_NODE_MANAGER = 'no'; $env:VP_PM_MANAGER = 'no'
+        Invoke-WebRequest 'https://vite.plus/ps1' -OutFile $temporary -TimeoutSec 300
+        $powershellExe = (Get-Process -Id $PID).Path
+        & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $temporary
+        if ($LASTEXITCODE -ne 0) { throw "Vite+ global installer failed: $LASTEXITCODE" }
+        Update-ProcessEnvironment
+        $bin = Join-Path $env:USERPROFILE '.vite-plus/bin'
+        $env:Path = "$bin;$env:Path"
+        if (-not (Get-Command vp -ErrorAction SilentlyContinue)) { throw 'vp unavailable after Vite+ installation.' }
+        & vp --version
+        if ($LASTEXITCODE -ne 0) { throw 'vp verification failed.' }
+    } finally {
+        $env:VP_HOME = $savedHome; $env:VP_NODE_MANAGER = $savedNode; $env:VP_PM_MANAGER = $savedPm
+        Remove-Item $temporary -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Enable-OneDriveAutostart {
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'Microsoft/OneDrive/OneDrive.exe'),
+        (Join-Path $env:ProgramFiles 'Microsoft OneDrive/OneDrive.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft OneDrive/OneDrive.exe')
+    )
+    $executable = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $executable) { throw 'OneDrive.exe unavailable after installation.' }
+    $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+    New-Item -Path $runKey -Force | Out-Null
+    New-ItemProperty -Path $runKey -Name 'OneDrive' -Value ('"' + $executable + '" /background') -PropertyType String -Force | Out-Null
+    Write-Log 'OneDrive GUI enabled at sign-in. Open OneDrive to authenticate and choose folders.'
+}
+
+function Install-ZapFast {
+    if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs/ZapFast/ZapFast.exe')) { return }
+    $release = Invoke-RestMethod 'https://api.github.com/repos/crmne/zapfast/releases/latest' -TimeoutSec 60
+    $architecture = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { 'aarch64' } else { 'x86_64' }
+    $asset = $release.assets | Where-Object { $_.name -match "-$architecture-pc-windows-msvc\.msi$" } | Select-Object -First 1
+    $sums = $release.assets | Where-Object { $_.name -eq 'checksums.txt' } | Select-Object -First 1
+    if (-not $asset -or -not $sums) { throw 'Compatible ZapFast installer/checksums unavailable.' }
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+    New-Item -ItemType Directory $temporary | Out-Null
+    try {
+        $msi = Join-Path $temporary 'ZapFast.msi'
+        $checksums = Join-Path $temporary 'checksums.txt'
+        Invoke-WebRequest $asset.browser_download_url -OutFile $msi -TimeoutSec 600
+        Invoke-WebRequest $sums.browser_download_url -OutFile $checksums -TimeoutSec 60
+        $expected = $null
+        foreach ($line in Get-Content $checksums) {
+            if ($line -match '^([a-fA-F0-9]{64})\s+\*?(.+)$' -and $Matches[2] -eq $asset.name) { $expected = $Matches[1]; break }
+        }
+        if (-not $expected -or (Get-FileHash $msi -Algorithm SHA256).Hash -ne $expected) { throw 'ZapFast SHA256 verification failed.' }
+        $process = Start-Process msiexec.exe -ArgumentList @('/i', ('"' + $msi + '"'), '/qn', '/norestart') -Wait -PassThru
+        $result = Get-InstallResult $process.ExitCode
+        if ($result -eq 'failed') { throw "ZapFast installation failed: $($process.ExitCode)" }
+        if ($result -eq 'reboot-required') { $script:rebootRequired = $true }
+    } finally { Remove-Item $temporary -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 Write-Section "Installing Applications via winget"
 $failed = @()
 function Get-InstallResult {
@@ -387,9 +456,14 @@ foreach ($pkg in $toInstall) {
     Write-Log -Message "[$packageIndex/$($toInstall.Count)] Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
     
     $exitCode = 1
-    if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note')) {
+    if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note', 'guepardo.zapfast', 'guepardo.vite-plus')) {
         try {
-            if ($pkg.Id -eq 'guepardo.dotagents') { Install-Dotagents } else { Install-SlothNote }
+            switch ($pkg.Id) {
+                'guepardo.dotagents' { Install-Dotagents }
+                'guepardo.sloth-note' { Install-SlothNote }
+                'guepardo.zapfast' { Install-ZapFast }
+                'guepardo.vite-plus' { Install-VitePlus }
+            }
             $exitCode = 0
         } catch { Write-Log "Failed to install $($pkg.Name): $_" -Level WARN; $exitCode = 1 }
     } elseif ($pkg.Id -eq "Composer.Composer") {
@@ -418,6 +492,7 @@ foreach ($pkg in $toInstall) {
         try {
             & winget @argsList 2>&1 | Tee-Object -FilePath $logFile -Append
             $exitCode = $LASTEXITCODE
+            if ($pkg.Id -eq 'Microsoft.OneDrive' -and (Get-InstallResult $exitCode) -ne 'failed') { Enable-OneDriveAutostart }
         } catch {
             Write-Log -Message "Failed to run winget for $($pkg.Name): $_" -Level 'WARN'
             $exitCode = 1

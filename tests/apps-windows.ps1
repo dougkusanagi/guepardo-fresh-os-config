@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../install.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'Invalid installer syntax' }
-foreach ($name in @('Get-InstallResult', 'Get-GuepardoCheckout', 'Install-SlothNote')) {
+foreach ($name in @('Get-InstallResult', 'Get-GuepardoCheckout', 'Install-SlothNote', 'Install-ZapFast')) {
     $function = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
     Invoke-Expression $function.Extent.Text
 }
@@ -39,6 +39,31 @@ try {
     $rejected = $false
     try { Install-SlothNote } catch { $rejected = $true }
     if (-not $rejected) { throw 'Sloth Note installer failure was swallowed' }
+    # ZapFast must verify the MSI checksum before executing it.
+    function Invoke-RestMethod {
+        return @{ assets = @(
+            @{ name='zapfast-v1.0-x86_64-pc-windows-msvc.msi'; browser_download_url='https://example.test/zapfast.msi' },
+            @{ name='checksums.txt'; browser_download_url='https://example.test/checksums.txt' }
+        ) }
+    }
+    $script:badChecksum = $false
+    function Invoke-WebRequest {
+        param($Uri, $OutFile, $TimeoutSec)
+        if ($Uri -like '*.msi') { Set-Content $OutFile 'mock MSI'; $script:lastMsi = $OutFile }
+        else {
+            $hash = if ($script:badChecksum) { '0' * 64 } else { (Get-FileHash $script:lastMsi -Algorithm SHA256).Hash }
+            Set-Content $OutFile "$hash  zapfast-v1.0-x86_64-pc-windows-msvc.msi"
+        }
+    }
+    $script:installerCode = 0
+    $before = $script:starts
+    Install-ZapFast
+    if ($script:starts -ne $before + 1) { throw 'Verified ZapFast MSI not executed' }
+    $script:badChecksum = $true
+    $before = $script:starts
+    $rejected = $false
+    try { Install-ZapFast } catch { $rejected = $true }
+    if (-not $rejected -or $script:starts -ne $before) { throw 'Unverified ZapFast MSI executed' }
     Write-Host 'Windows application installer checks passed'
 } finally {
     $env:LOCALAPPDATA = $previousLocal

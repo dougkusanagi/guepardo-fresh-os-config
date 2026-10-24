@@ -531,6 +531,7 @@ run_local_static_checks() {
   log "Validating project structure..."
   run_quiet bash tests/project-structure.sh
   run_quiet bash tests/apps-and-gnome.sh
+  run_quiet bash tests/desktop-apps.sh
   success "Project structure validated"
 
   log "Validating developer tool coverage..."

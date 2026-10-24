@@ -86,4 +86,23 @@ GUEPARDO_SUDO_CALLS="$fake_root/sudo-calls" GUEPARDO_ROOT="$fake_root" GUEPARDO_
   PATH="$fake_root/fake-bin:$PATH" bash "$ROOT_DIR/scripts/run-profile.sh" ubuntu cli
 [[ "$(grep -c '^-n -v$' "$fake_root/sudo-calls")" == 2 ]] || fail 'Nested shell sudo could ask for a password'
 rm -rf "$fake_root"
+
+# Dotagents must run only once, after the selected desktop apps, in both executors.
+for executor in go bash; do
+  if [[ "$executor" == go ]]; then
+    output="$(go run ./cmd/guepardo --distro=ubuntu --profiles=dev,desktop --plan)"
+  else
+    output="$(bash scripts/fallback.sh --distro=ubuntu --profiles=dev,desktop --plan)"
+  fi
+  [[ "$(printf '%s' "$output" | grep -c 'Would install dotagents')" == 1 ]] || fail "Duplicate dotagents in $executor"
+  OUTPUT="$output" python3 - <<'PYCHECK'
+import os
+s=os.environ['OUTPUT']
+assert s.index('ChatGPT') < s.index('Would install dotagents')
+assert s.index('Claude') < s.index('Would install dotagents')
+assert 'Vite+' in s and 'OneDrive' in s and 'zapfast' in s
+assert 'flatpak: com.ktechpit.whatsie' not in s
+PYCHECK
+done
+
 printf 'Profile selection checks passed\n'

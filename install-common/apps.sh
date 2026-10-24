@@ -26,7 +26,8 @@ install_dotagents() {
   if [[ "$DISTRO" == ubuntu ]]; then apt_install git; else dnf_install git; fi
   install_source_checkout dougkusanagi/dotagents "$destination" || return 1
   mkdir -p "$TARGET_HOME/.codex" "$TARGET_HOME/.claude"
-  run_quiet bash "$destination/install.sh"
+  run_quiet bash "$destination/install.sh" || return 1
+  run_quiet bash "$destination/bin/sync"
 }
 
 install_release_appimage() {
@@ -74,8 +75,7 @@ install_sloth_note() {
   fi
   install_node_lts || return 1
   if ! command_exists bun; then install_remote_script https://bun.sh/install || return 1; fi
-  if ! command_exists cargo; then install_remote_script https://sh.rustup.rs sh -y || return 1; fi
-  export PATH="$TARGET_HOME/.cargo/bin:$PATH"
+  ensure_cargo || return 1
   local destination="$TARGET_HOME/.local/share/guepardo/sources/sloth-noter"
   install_source_checkout dougkusanagi/sloth-noter "$destination" || return 1
   (cd "$destination" && run_quiet bun install --frozen-lockfile && run_quiet bun run desktop:build --no-bundle) || return 1
@@ -110,7 +110,8 @@ install_ai_desktop_apps() {
     install_web_app claude Claude https://claude.ai
     warn 'Claude Desktop upstream supports Debian/Ubuntu; installed Claude web app on Fedora/Nobara.'
   fi
-  install_web_app chatgpt ChatGPT https://chatgpt.com
+  install_web_app chatgpt ChatGPT https://chatgpt.com || return 1
+  install_onedrive_gui
 }
 
 install_web_app() {
@@ -125,4 +126,86 @@ Exec=google-chrome --app=$url
 Terminal=false
 Categories=Office;Network;
 DESKTOP
+}
+
+ensure_cargo() {
+  export PATH="$TARGET_HOME/.cargo/bin:$PATH"
+  if ! command_exists cargo || ! command_exists rustc; then
+    install_remote_script https://sh.rustup.rs sh -y --profile minimal || return 1
+  fi
+  command_exists cargo && command_exists rustc || { error 'Cargo/Rust unavailable after installation.'; return 1; }
+  run_quiet cargo --version || return 1
+  run_quiet rustc --version
+}
+
+install_vite_plus() {
+  if command_exists vp; then log 'Vite+ (vp) is already installed.'; return; fi
+  if [[ "$DRY_RUN" == true ]]; then log '[DRY-RUN] Would install global Vite+ CLI (vp)'; return; fi
+  # Use the upstream standalone global CLI, not the project-local npm package.
+  VP_HOME="$TARGET_HOME/.vite-plus" VP_NODE_MANAGER=no VP_PM_MANAGER=no \
+    install_remote_script https://vite.plus bash || return 1
+  export PATH="$TARGET_HOME/.vite-plus/bin:$PATH"
+  add_line_if_missing 'export PATH="$HOME/.vite-plus/bin:$PATH"' "$TARGET_HOME/.bashrc"
+  command_exists vp || { error 'Vite+ installer did not provide vp.'; return 1; }
+  run_quiet vp --version
+}
+
+install_onedrive_gui() {
+  if [[ "$DRY_RUN" == true ]]; then
+    log '[DRY-RUN] Would install OneDrive sync client + OneDriveGUI and enable GUI autostart (sign-in required)'
+    return
+  fi
+  if [[ "$DISTRO" == ubuntu ]]; then
+    local version_id repo key_dir
+    version_id="$(. /etc/os-release; printf '%s' "${UBUNTU_VERSION_ID:-$VERSION_ID}")"
+    [[ "$version_id" =~ ^[0-9]+\.[0-9]+$ ]] || { error 'Cannot detect Ubuntu version for OneDrive repository.'; return 1; }
+    repo="https://download.opensuse.org/repositories/home:/npreining:/debian-ubuntu-onedrive/xUbuntu_$version_id"
+    key_dir="$(mktemp -d)"
+    if ! download_file "$repo/Release.key" "$key_dir/key.asc" \
+      || ! gpg --batch --yes --dearmor -o "$key_dir/key.gpg" "$key_dir/key.asc"; then
+      rm -rf "$key_dir"; error "OneDrive repository unavailable for Ubuntu $version_id."; return 1
+    fi
+    sudo install -Dm644 "$key_dir/key.gpg" /usr/share/keyrings/obs-onedrive.gpg || { rm -rf "$key_dir"; return 1; }
+    rm -rf "$key_dir"
+    printf 'deb [signed-by=/usr/share/keyrings/obs-onedrive.gpg] %s/ ./\n' "$repo" | sudo tee /etc/apt/sources.list.d/onedrive.list >/dev/null || return 1
+    apt_update --force || return 1
+    apt_install python3 || return 1
+    run_quiet sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 install --no-install-recommends --no-install-suggests -y onedrive || return 1
+  else
+    dnf_install onedrive python3 || return 1
+    run_quiet sudo dnf upgrade -y onedrive || return 1
+  fi
+  local installed_version
+  installed_version="$(onedrive --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  [[ -n "$installed_version" && "$(printf '%s\n' 2.5.11 "$installed_version" | sort -V | head -1)" == 2.5.11 ]] || {
+    error 'OneDriveGUI requires OneDrive client >= 2.5.11.'; return 1;
+  }
+  install_release_appimage bpozdena/OneDriveGUI onedrive-gui '^OneDriveGUI-.*-x86_64\.AppImage$' || return 1
+  python3 "$ROOT_DIR/scripts/configure-desktop.py" onedrive-gui "$TARGET_HOME" || return 1
+  install_user_autostart_entry OneDriveGUI "\"$TARGET_HOME/.local/bin/onedrive-gui\"" onedrive 'OneDrive synchronization GUI' || return 1
+  warn 'Open OneDriveGUI to sign in and choose folders. Enable auto-sync for each desired account in its profile settings.'
+}
+
+install_zapfast() {
+  install_release_appimage crmne/zapfast zapfast '^zapfast-.*-x86_64\.AppImage$' || return 1
+  # Migrate only after the replacement is installed. Keep the old app's data.
+  if [[ "$DRY_RUN" == true ]]; then
+    log '[DRY-RUN] Would remove the obsolete Whatsie Flatpak, preserving its user data'
+  elif command_exists flatpak && flatpak info --system com.ktechpit.whatsie >/dev/null 2>&1; then
+    run_quiet sudo flatpak uninstall -y --system com.ktechpit.whatsie || return 1
+  fi
+  if [[ "$DRY_RUN" != true ]] && command_exists flatpak && flatpak info --user com.ktechpit.whatsie >/dev/null 2>&1; then
+    run_quiet flatpak uninstall -y --user com.ktechpit.whatsie || return 1
+  fi
+}
+
+configure_flameshot_notifications() {
+  if [[ "$DRY_RUN" == true ]]; then log '[DRY-RUN] Would disable Flameshot desktop and abort notifications'; return; fi
+  python3 "$ROOT_DIR/scripts/configure-desktop.py" flameshot "$TARGET_HOME" || return 1
+  if [[ "${RUNNING_GNOME:-false}" == true ]]; then
+    local app_id
+    for app_id in org-flameshot-flameshot flameshot; do
+      gsettings set "org.gnome.desktop.notifications.application:/org/gnome/desktop/notifications/application/$app_id/" enable false || return 1
+    done
+  fi
 }

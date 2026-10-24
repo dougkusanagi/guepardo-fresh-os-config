@@ -9,7 +9,7 @@ flatpak_install_app "it.mijorus.gearlever"
 flatpak_install_app "md.obsidian.Obsidian"
 flatpak_install_app "io.github.zen_browser.zen"
 flatpak_install_app "io.missioncenter.MissionCenter"
-flatpak_install_app "com.ktechpit.whatsie"
+install_zapfast
 flatpak_install_app "com.github.dynobo.normcap"
 install_lm_studio
 install_opencode_desktop

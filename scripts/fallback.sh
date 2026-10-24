@@ -230,6 +230,9 @@ if [[ -n "$theme" ]]; then
   supported="$(sed -n '/^SUPPORTED_THEMES=(/,/^)/p' "$ROOT_DIR/install-common/lib.sh" | sed -n 's/^  "\(.*\)"/\1/p')"
   printf '%s\n' "$supported" | grep -Fxq "$theme" || { echo "Unknown theme: $theme" >&2; exit 1; }
 fi
+export GUEPARDO_DEFER_DOTAGENTS=false
+if [[ ",$profiles," == *',desktop,'* ]]; then export GUEPARDO_DEFER_DOTAGENTS=true; fi
+
 valid_ipv4() {
   local value="$1" octet
   [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1

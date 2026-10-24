@@ -481,6 +481,8 @@ func run() error {
 			return nil
 		}
 	}
+	// Desktop finishes with dotagents after Claude and ChatGPT.
+	os.Setenv("GUEPARDO_DEFER_DOTAGENTS", fmt.Sprint(hasProfile(profiles, "desktop")))
 	colorEnabled := isTerminal(os.Stdout) && os.Getenv("NO_COLOR") == ""
 	fmt.Println(color("1;36", "\n  GUEPARDO  /  fresh OS config", colorEnabled))
 	fmt.Printf("  Sistema: %s   Perfis: %d   Downloads: até %d em paralelo\n\n", distro, len(profiles), opts.jobs)

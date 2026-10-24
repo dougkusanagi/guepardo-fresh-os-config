@@ -42,11 +42,6 @@ if [[ -n "${GUEPARDO_BIN:-}" ]]; then
   exit $?
 fi
 
-go_version="$(go version 2>/dev/null || true)"
-if [[ "$go_version" =~ go1\.([0-9]+) ]] && (( BASH_REMATCH[1] >= 22 )); then
-  (cd "$ROOT_DIR" && go run ./cmd/guepardo --root="$ROOT_DIR" "$@")
-  exit $?
-fi
 
 case "$(uname -m)" in
   x86_64|amd64) architecture="amd64" ;;
@@ -58,6 +53,10 @@ if [[ -z "$TMP_DIR" ]]; then
   TMP_DIR="$(mktemp -d)"
 fi
 release="https://github.com/$REPOSITORY/releases/latest/download"
+# A pinned README/tag must keep using its own executable after newer releases.
+if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+  release="https://github.com/$REPOSITORY/releases/download/$REF"
+fi
 asset="guepardo-linux-$architecture"
 if bootstrap_download "$release/SOURCE_SHA256" "$TMP_DIR/SOURCE_SHA256" 2>/dev/null \
   && bootstrap_download "$release/SHA256SUMS" "$TMP_DIR/SHA256SUMS" 2>/dev/null; then
@@ -76,10 +75,16 @@ if bootstrap_download "$release/SOURCE_SHA256" "$TMP_DIR/SOURCE_SHA256" 2>/dev/n
     fi
   fi
 fi
-# A fresh desktop must not silently replace the interactive Go UI with Bash.
-if [[ $# -eq 0 && "${GUEPARDO_BASH_FALLBACK:-0}" != 1 ]]; then
+# Prefer the published, verified executable even when Go is already installed.
+go_version="$(go version 2>/dev/null || true)"
+if [[ "$go_version" =~ go1\.([0-9]+) ]] && (( BASH_REMATCH[1] >= 22 )); then
+  (cd "$ROOT_DIR" && go run ./cmd/guepardo --root="$ROOT_DIR" "$@")
+  exit $?
+fi
+
+if [[ "${GUEPARDO_BASH_FALLBACK:-0}" != 1 ]]; then
   bash "$ROOT_DIR/scripts/bootstrap-go.sh" "$ROOT_DIR" "$@"
   exit $?
 fi
-echo "Sem binário Go compatível com esta configuração; usando o executor Bash (sem TUI Go)." >&2
+echo "Executor Bash solicitado explicitamente (sem TUI Go)." >&2
 bash "$ROOT_DIR/scripts/fallback.sh" "$@"

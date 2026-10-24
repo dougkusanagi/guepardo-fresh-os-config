@@ -9,10 +9,10 @@ O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.
 
 ```bash
-bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/master/install.sh -o "$installer"; bash "$installer"'
+bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.0/install.sh -o "$installer"; GUEPARDO_REF=v0.2.0 bash "$installer"'
 ```
 
-O comando usa `master`; mudanças em outra branch só chegam a ele após a integração. O fluxo de publicação gera binários Linux com checksums e identificação das fontes a cada push em `master`. Sem release compatível e sem Go instalado, o modo sem argumentos baixa uma toolchain Go temporária verificada por SHA256 para abrir a mesma TUI. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
+O comando usa a release `v0.2.0`, com fontes e executável correspondentes. O instalador prefere o binário publicado, verifica SHA256 e a impressão das fontes antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
 
 Para instalação sem o menu, acrescente `--profiles=cli,dev,web --yes` à chamada final `bash "$installer"`. `--mode=full --yes` seleciona também desktop e jogos; no WSL use `--mode=wsl --yes`. Não execute o instalador inteiro com `sudo`.
 
@@ -23,9 +23,9 @@ Se a instalação parar, consulte o erro e o log e repita o mesmo comando depois
 | Perfil | Instala | Requer interface gráfica |
 | --- | --- | --- |
 | `cli` | Git, gh, ripgrep, fzf, eza, dust, lazygit, yazi e utilitários | Não |
-| `dev` | Node 24 LTS, npm, Bun, uv, Podman, Codex CLI, Claude Code CLI e dotagents | Não |
+| `dev` | Node 24 LTS, npm, Bun, uv, Vite+ (vp), Podman, Codex CLI, Claude Code CLI e dotagents | Não |
 | `web` | PHP, Composer e MySQL/MariaDB | Não |
-| `desktop` | Chrome, ChatGPT, Claude, T3 Code, Sloth Note, editores, Flatpak e ajustes GNOME | Sim |
+| `desktop` | Chrome, ChatGPT, Claude, T3 Code, Sloth Note, OneDrive com GUI/autostart, ZapFast, editores, Flatpak e ajustes GNOME | Sim |
 | `games` | Steam, Lutris, Heroic, Discord e ferramentas de jogos | Sim |
 | `fonts` | Fontes incluídas no repositório | Não |
 | `network` | IPv4 estático via NetworkManager | Não; use com cuidado em acesso remoto |
@@ -57,9 +57,11 @@ O perfil `dev` mantém Node 22/24 existente quando npm está disponível; caso c
 
 ### Apps de IA e múltiplos monitores
 
-`dev` instala Codex CLI, Claude Code CLI e dotagents nos dois sistemas. O checkout do dotagents fica separado dos diretórios de regras e memórias existentes; o instalador upstream preserva regras anteriores com backups. No Windows, instala MSYS2 e util-linux para executar o sincronizador Bash com locks e links reais; links exigem modo de desenvolvedor ou terminal elevado.
+`dev` instala Codex CLI, Claude Code CLI, Vite+ global (`vp`) e dotagents nos dois sistemas. Com `desktop` selecionado, dotagents é instalado apenas no fim do desktop, depois de Claude e ChatGPT, e executa `bin/sync` explicitamente. Em `dev` sem desktop, roda depois das CLIs, sem puxar apps gráficos. O checkout do dotagents fica separado dos diretórios de regras e memórias existentes; o instalador upstream preserva regras anteriores com backups. No Windows, instala MSYS2 e util-linux para executar o sincronizador Bash com locks e links reais; links exigem modo de desenvolvedor ou terminal elevado.
 
-`desktop` inclui Chrome, ChatGPT, Claude Desktop, T3 Code e Sloth Note. No Linux, ChatGPT é um atalho de aplicativo web no Chrome. Claude Desktop usa o repositório APT oficial no Ubuntu; Fedora/Nobara recebem o aplicativo web Claude, pois não há pacote oficial RPM. T3 Code usa AppImage no Linux e Winget no Windows. O Sloth Note usa a release pública quando disponível; sem artefato, compila o código-fonte e instala o executável e um atalho. Essa compilação instala Bun, Node, Rust e dependências Tauri (MSVC no Windows) e pode demorar. Erros são reportados; não são tratados como instalação concluída.
+`desktop` inclui Chrome, ChatGPT, Claude Desktop, T3 Code e Sloth Note. No Linux, ChatGPT é um atalho de aplicativo web no Chrome. Claude Desktop usa o repositório APT oficial no Ubuntu; Fedora/Nobara recebem o aplicativo web Claude, pois não há pacote oficial RPM. T3 Code usa AppImage no Linux e Winget no Windows. O Sloth Note usa a release pública quando disponível; sem artefato, compila o código-fonte e instala o executável e um atalho. Essa compilação instala e verifica Cargo/rustc antes do build, além de Bun, Node e dependências Tauri (MSVC no Windows) e pode demorar. Erros são reportados; não são tratados como instalação concluída.
+
+O perfil `desktop` troca o Whatsie pelo ZapFast, removendo o Flatpak antigo apenas depois de instalar o substituto e preservando seus dados. Instala OneDriveGUI + cliente OneDrive no Linux e OneDrive oficial no Windows, com inicialização automática. No Ubuntu, o cliente usa o repositório OBS recomendado pelo upstream para a versão detectada; Fedora/Nobara usam DNF. OneDriveGUI requer cliente >= 2.5.11. Abra a GUI para autenticar, escolher pastas e ativar auto-sync nos perfis desejados; o instalador não inicia sincronização de uma conta sem configuração. Desativa também as notificações de captura/cancelamento do Flameshot no arquivo de preferências e as notificações do aplicativo no GNOME.
 
 No GNOME, `desktop` instala AI Quota Pulse e Multi Monitor Bar compatíveis com a versão do Shell. Configura Dash to Dock com `multi-monitor=true` e a barra superior nos monitores secundários, com relógio, calendário, indicadores e controles do sistema. As extensões ficam gravadas no disco e habilitadas nas preferências persistentes, inclusive para o primeiro login Wayland após a instalação. A dock anterior só é desativada depois que a substituta é instalada. Se não houver versão compatível da extensão, a instalação informa o erro.
 
@@ -71,15 +73,21 @@ O programa chama `sudo -v` uma vez antes da primeira etapa privilegiada. Enquant
 
 ### Servidor sem Go instalado
 
-Publique uma release com os quatro arquivos de `./scripts/build-release.sh`: `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` verifica os checksums e usa o binário somente se a impressão dos arquivos de origem corresponder ao checkout baixado. Sem Go 1.22 ou superior, procura uma release compatível e, se não encontrar, usa o executor Bash com os mesmos perfis, logs e renovação de `sudo`. Um checksum incorreto encerra o processo sem executar o binário. O comando remoto do branch `master` usa os arquivos desse branch; publique a release correspondente ao promover uma versão para `master`.
+A release `v0.2.0` fornece `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` prefere esses executáveis mesmo quando Go já está instalado, verifica checksums e só usa o binário se a impressão das fontes corresponder ao checkout baixado. Sem correspondência, usa Go local ou prepara Go temporário; o executor Bash fica disponível apenas com `GUEPARDO_BASH_FALLBACK=1` quando não houver Go local/release correspondente. Um checksum incorreto encerra o processo sem executar o binário. O workflow continua gerando releases de cada atualização em `master`; fixe `GUEPARDO_REF` na tag ou commit que quiser executar.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/master/install.sh) --profiles=cli --yes
+GUEPARDO_REF=v0.2.0 bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.0/install.sh) --profiles=cli --yes
 ```
 
 Você também pode fornecer um binário já compilado com `GUEPARDO_BIN=/caminho/guepardo ./install.sh --profiles=cli`.
 
 ## Windows
+
+Para executar a mesma release no Windows:
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.0/install.ps1')))
+```
 
 O instalador PowerShell aceita os mesmos grupos principais:
 

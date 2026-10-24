@@ -69,12 +69,15 @@ Assert-True ($gamesOutput -like "*Steam*") "Games profile contains Steam"
 Assert-True ($gamesOutput -notlike "*PHP (PHP.PHP.8.4)*") "Games profile excludes web tools"
 
 
-foreach ($app in @('ChatGPT', 'Codex CLI', 'Claude Desktop', 'Claude Code CLI', 'T3 Code', 'Sloth Note', 'dotagents')) {
+foreach ($app in @('ChatGPT', 'Codex CLI', 'Claude Desktop', 'Claude Code CLI', 'T3 Code', 'Sloth Note', 'dotagents', 'Vite+', 'OneDrive Sync GUI', 'ZapFast')) {
     Assert-True ($dryRunFullOutput -like "*$app*") "$app is included in full installation"
 }
 Assert-True ($dryRunFullOutput -like '*unavailable on native Windows*') 'GNOME-only app is explicitly reported'
 Assert-True ($dryRunOutput -like '*Codex CLI*' -and $dryRunOutput -like '*dotagents*') 'Dev profile includes agent tools'
 Assert-True ($dryRunOutput -notlike '*Sloth Note*' -and $dryRunOutput -notlike '*Claude Desktop*') 'Dev excludes desktop tools'
+
+Assert-True ($dryRunFullOutput.LastIndexOf('dotagents (install + sync)') -gt $dryRunFullOutput.IndexOf('ChatGPT (')) 'dotagents runs after ChatGPT'
+Assert-True ($dryRunFullOutput.LastIndexOf('dotagents (install + sync)') -gt $dryRunFullOutput.IndexOf('Claude Desktop (')) 'dotagents runs after Claude Desktop'
 
 # Test 4: Logs generation
 $statePath = [Environment]::GetFolderPath('LocalApplicationData')
