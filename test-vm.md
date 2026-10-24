@@ -254,3 +254,13 @@ No Windows descartável, valide `-Profiles dev,desktop` incluindo a compilação
 - Sem Rust instalado, compile Sloth Note: confirme que Cargo/rustc ficam disponíveis antes do build e que falhas no bootstrap interrompem a compilação.
 - Em dev+desktop, confira no log que dotagents roda uma única vez após Claude/ChatGPT, executando install.sh e bin/sync. Em dev sem desktop, deve sincronizar após as CLIs.
 - Abra novo terminal e execute `vp --version` no Linux e Windows.
+
+
+### Rede ativa e ambiente detectado (v0.2.1)
+
+- Em Linux nativo, confirme ausência de aba WSL e de atalhos Tab/W para trocar ambiente. Dentro do WSL, somente CLI/dev/web devem aparecer.
+- Com apenas Wi-Fi conectado, selecione Rede e confirme que a interface é detectada sem pedir seu nome técnico.
+- Com Wi-Fi e cabo conectados, confirme a lista numerada com nome e tipo e escolha cada uma em execuções separadas.
+- Confira sugestões de IP/CIDR, gateway e DNS; confirme ou edite os valores. A detecção não deve alterar a rede antes da instalação.
+- Em uma rede descartável, aplique IP fixo ao Wi-Fi: o perfil e suas credenciais devem permanecer, IPv6 e a conexão de cabo não devem mudar. Confirme conectividade e persistência após reiniciar.
+- Troque a conexão da interface após a seleção: a aplicação deve parar com erro em vez de modificar a nova rede.

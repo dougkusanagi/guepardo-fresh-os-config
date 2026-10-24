@@ -9,10 +9,10 @@ O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.
 
 ```bash
-bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.0/install.sh -o "$installer"; GUEPARDO_REF=v0.2.0 bash "$installer"'
+bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.1/install.sh -o "$installer"; GUEPARDO_REF=v0.2.1 bash "$installer"'
 ```
 
-O comando usa a release `v0.2.0`, com fontes e executável correspondentes. O instalador prefere o binário publicado, verifica SHA256 e a impressão das fontes antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
+O comando usa a release `v0.2.1`, com fontes e executável correspondentes. O instalador prefere o binário publicado, verifica SHA256 e a impressão das fontes antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
 
 Para instalação sem o menu, acrescente `--profiles=cli,dev,web --yes` à chamada final `bash "$installer"`. `--mode=full --yes` seleciona também desktop e jogos; no WSL use `--mode=wsl --yes`. Não execute o instalador inteiro com `sudo`.
 
@@ -45,7 +45,11 @@ No checkout local (Go 1.22 ou superior é opcional):
 ./install.sh --profiles=network --network-interface=enp1s0 --network-address=192.168.1.77/24 --network-gateway=192.168.1.1 --plan
 ```
 
-Sem argumentos, um terminal interativo abre o menu de módulos. Use **Tab** ou **W** para alternar entre **Linux** e **WSL**. Linux começa sem módulos marcados; WSL mostra apenas `cli,dev,web`, inicialmente selecionados, e permite desmarcar os módulos que não quiser. Desktop, jogos, fontes e rede aparecem apenas no menu Linux. Ao voltar para Linux, sua seleção anterior é recuperada. Dentro do WSL, esse ambiente é detectado automaticamente. Essa opção configura os apps na distribuição atual; execute dentro do Ubuntu no WSL para configurar esse ambiente. Use ↑/↓ e Espaço ou pressione os números `1` a `8` no Linux ou `1` a `4` no WSL para marcar várias opções; Enter continua e `Q` cancela. O menu Go destaca o módulo em foco e mostra sua descrição, adapta o espaçamento à altura do terminal e respeita `NO_COLOR`. A opção **Todos** marca os sete perfis no Linux, inclusive rede; no WSL, marca somente CLI, desenvolvimento e stack web. Ao marcar rede, o instalador solicita os dados IPv4 antes de alterar a conexão. Para automação, informe `--profiles` e `--yes`; `--profiles=all` equivale aos sete perfis. `--plan` detalha as ações previstas; `--dry-run` simula as etapas sem `sudo`. `--jobs=N` limita a concorrência de instaladores de download direto; `apt`, `dnf` e Flatpak são executados em sequência. O índice de pacotes é reutilizado entre perfis e atualizado novamente quando um repositório muda. O padrão é `--jobs=4`.
+Sem argumentos, um terminal interativo abre o menu de módulos para o ambiente detectado. No Linux nativo, mostra somente Linux e os sete perfis, inicialmente desmarcados; dentro do WSL, mostra somente WSL com `cli,dev,web`, inicialmente selecionados. Não há abas ou atalhos para trocar de ambiente: o instalador configura a distribuição em execução. Use ↑/↓ e Espaço ou os números `1` a `8` no Linux e `1` a `4` no WSL para selecionar; Enter continua e Q cancela. O menu adapta o espaçamento à altura do terminal e respeita `NO_COLOR`. Todos inclui os sete perfis no Linux (inclusive rede) e apenas CLI/dev/web no WSL.
+
+Ao selecionar rede, o instalador detecta as conexões Wi-Fi e cabo ativas do NetworkManager. Uma única rede é selecionada automaticamente; com várias, mostra uma lista numerada como `1) Casa (Wi-Fi)` e `2) Rede escritório (cabo)`. VPNs, bridges de containers e interfaces desconectadas não aparecem. IP/CIDR, gateway e DNS atuais são sugeridos: Enter confirma cada valor, ou digite o novo IP desejado. Sem NetworkManager ou sem rede ativa detectável, permanece disponível a entrada manual da interface. O backend modifica o perfil ativo por UUID, preservando tipo e credenciais Wi-Fi, sem desabilitar as outras redes nem alterar IPv6. Se a conexão mudar entre a seleção e a aplicação, interrompe para evitar configurar outra rede.
+
+Para automação, use `--profiles` e `--yes` com os argumentos `--network-*`; `--profiles=all` seleciona os sete perfis. `--mode=wsl` continua disponível explicitamente, sem trocar o ambiente real. `--plan` detalha as ações sem mudanças; `--dry-run` simula sem sudo. `--jobs=N` limita downloads diretos concorrentes; APT, DNF e Flatpak continuam em sequência. O padrão é `--jobs=4`.
 
 Atalhos legados: `--mode=full`, `basic`, `games` e `wsl`. `full` equivale a `cli,dev,web,desktop,games,fonts`; `basic` e `wsl` equivalem a `cli,dev,web`. Consulte `--list-profiles` e `--list-themes`.
 
@@ -73,10 +77,10 @@ O programa chama `sudo -v` uma vez antes da primeira etapa privilegiada. Enquant
 
 ### Servidor sem Go instalado
 
-A release `v0.2.0` fornece `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` prefere esses executáveis mesmo quando Go já está instalado, verifica checksums e só usa o binário se a impressão das fontes corresponder ao checkout baixado. Sem correspondência, usa Go local ou prepara Go temporário; o executor Bash fica disponível apenas com `GUEPARDO_BASH_FALLBACK=1` quando não houver Go local/release correspondente. Um checksum incorreto encerra o processo sem executar o binário. O workflow continua gerando releases de cada atualização em `master`; fixe `GUEPARDO_REF` na tag ou commit que quiser executar.
+A release `v0.2.1` fornece `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` prefere esses executáveis mesmo quando Go já está instalado, verifica checksums e só usa o binário se a impressão das fontes corresponder ao checkout baixado. Sem correspondência, usa Go local ou prepara Go temporário; o executor Bash fica disponível apenas com `GUEPARDO_BASH_FALLBACK=1` quando não houver Go local/release correspondente. Um checksum incorreto encerra o processo sem executar o binário. O workflow continua gerando releases de cada atualização em `master`; fixe `GUEPARDO_REF` na tag ou commit que quiser executar.
 
 ```bash
-GUEPARDO_REF=v0.2.0 bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.0/install.sh) --profiles=cli --yes
+GUEPARDO_REF=v0.2.1 bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.1/install.sh) --profiles=cli --yes
 ```
 
 Você também pode fornecer um binário já compilado com `GUEPARDO_BIN=/caminho/guepardo ./install.sh --profiles=cli`.
@@ -86,7 +90,7 @@ Você também pode fornecer um binário já compilado com `GUEPARDO_BIN=/caminho
 Para executar a mesma release no Windows:
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.0/install.ps1')))
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.1/install.ps1')))
 ```
 
 O instalador PowerShell aceita os mesmos grupos principais:

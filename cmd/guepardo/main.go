@@ -53,6 +53,7 @@ type options struct {
 	root             string
 	theme            string
 	networkInterface string
+	networkUUID      string
 	networkAddress   string
 	networkGateway   string
 	networkDNS       string
@@ -159,44 +160,65 @@ func promptProfiles() (string, error) {
 	defer term.Restore(int(os.Stdin.Fd()), state)
 	fmt.Fprint(os.Stdout, "\x1b[?1049h\x1b[?25l")
 	defer fmt.Fprint(os.Stdout, "\x1b[?25h\x1b[?1049l")
-	picker := newProfilePicker()
+	picker := newProfilePickerForEnvironment(isWSLEnvironment())
 	if width, height, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
 		if width < 40 || height < 20 {
 			return "", errors.New("amplie o terminal para pelo menos 40 colunas e 20 linhas para abrir o menu")
 		}
 		picker.width, picker.height = width, height
 	}
-	if isWSLEnvironment() {
-		picker.switchEnvironment()
-	}
 	return selectProfilesWithPicker(os.Stdin, crlfWriter{os.Stdout}, os.Getenv("NO_COLOR") == "", picker)
 }
 
 func promptNetworkSettings(opts *options, input io.Reader, output io.Writer) error {
+	networks, err := detectActiveNetworks()
+	if err != nil {
+		fmt.Fprintln(output, "  Não foi possível consultar o NetworkManager; informe a interface manualmente.")
+	}
+	return promptNetworkSettingsWithNetworks(opts, input, output, networks)
+}
+
+func promptNetworkSettingsWithNetworks(opts *options, input io.Reader, output io.Writer, networks []activeNetwork) error {
 	reader := bufio.NewReader(input)
+	fmt.Fprintln(output, "\n  Configuração da rede IPv4")
+	selected, err := promptDetectedNetwork(opts, reader, output, networks)
+	if err != nil {
+		return err
+	}
+	defaults := [5]string{"", "", "", "1.1.1.1"}
+	if selected != nil {
+		opts.networkUUID = selected.UUID
+		defaults[1], defaults[2] = selected.Address, selected.Gateway
+		if selected.DNS != "" {
+			defaults[3] = selected.DNS
+		}
+	}
 	fields := []struct {
 		value *string
 		label string
 	}{
 		{&opts.networkInterface, "Interface de rede (ex.: enp1s0)"},
-		{&opts.networkAddress, "Endereço IPv4/CIDR (ex.: 192.168.1.77/24)"},
-		{&opts.networkGateway, "Gateway IPv4 (ex.: 192.168.1.1)"},
-		{&opts.networkDNS, "DNS IPv4 [1.1.1.1]"},
+		{&opts.networkAddress, "Endereço IPv4/CIDR"},
+		{&opts.networkGateway, "Gateway IPv4"},
+		{&opts.networkDNS, "DNS IPv4"},
 	}
-	fmt.Fprintln(output, "\n  Configuração da rede IPv4")
-	for _, field := range fields {
+	for i, field := range fields {
 		if *field.value != "" {
 			continue
 		}
-		fmt.Fprintf(output, "  %s: ", field.label)
+		label := field.label
+		if defaults[i] != "" {
+			label += " [" + defaults[i] + "]"
+		}
+		fmt.Fprintf(output, "  %s: ", label)
 		value, err := reader.ReadString('\n')
 		if err != nil {
 			return fmt.Errorf("não consegui ler %s: %w", field.label, err)
 		}
 		*field.value = strings.TrimSpace(value)
-	}
-	if opts.networkDNS == "" {
-		opts.networkDNS = "1.1.1.1"
+		if *field.value == "" {
+			*field.value = defaults[i]
+		}
 	}
 	return nil
 }
@@ -289,13 +311,13 @@ func sudoSession(ctx context.Context, cancel context.CancelFunc, log io.Writer) 
 	return func() { once.Do(func() { close(stop); <-done }) }, failures, nil
 }
 
-func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun bool, jobs int, indexMarker string, network [4]string, interactive bool, output io.Writer, log io.Writer) error {
+func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun bool, jobs int, indexMarker string, network [5]string, interactive bool, output io.Writer, log io.Writer) error {
 	cmd := exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts", "run-profile.sh"), distro, profile)
 	configureProcessCancellation(cmd)
 	cmd.Dir = root
 	cmd.Stdin = os.Stdin
 	cmd.Env = append(os.Environ(), "GUEPARDO_ROOT="+root, "GUEPARDO_SUDO_NONINTERACTIVE=1", "GUEPARDO_DRY_RUN="+fmt.Sprint(dryRun), "GUEPARDO_JOBS="+fmt.Sprint(jobs), "GUEPARDO_INDEX_MARKER="+indexMarker, "SELECTED_THEME="+theme,
-		"STATIC_NETWORK_INTERFACE="+network[0], "STATIC_NETWORK_ADDRESS="+network[1], "STATIC_NETWORK_GATEWAY="+network[2], "STATIC_NETWORK_DNS="+network[3])
+		"STATIC_NETWORK_INTERFACE="+network[0], "STATIC_NETWORK_ADDRESS="+network[1], "STATIC_NETWORK_GATEWAY="+network[2], "STATIC_NETWORK_DNS="+network[3], "STATIC_NETWORK_UUID="+network[4])
 	if !interactive {
 		cmd.Stdout = io.MultiWriter(output, log)
 		cmd.Stderr = io.MultiWriter(output, log)
@@ -499,7 +521,7 @@ func run() error {
 	}
 	if opts.plan {
 		fmt.Println("\n  Ações previstas (sem alterações):")
-		network := [4]string{opts.networkInterface, opts.networkAddress, opts.networkGateway, opts.networkDNS}
+		network := [5]string{opts.networkInterface, opts.networkAddress, opts.networkGateway, opts.networkDNS, opts.networkUUID}
 		for _, profile := range profiles {
 			fmt.Printf("\n  ▸ %s\n", profile)
 			if err := runProfile(context.Background(), root, distro, profile, opts.theme, true, opts.jobs, "", network, false, os.Stdout, io.Discard); err != nil {
@@ -561,7 +583,7 @@ func run() error {
 	for i, profile := range profiles {
 		fmt.Printf("\n%s\n", color("1;34", fmt.Sprintf("  [%d/%d] %s", i+1, len(profiles), profileLabels[profile]), colorEnabled))
 		stepStart := time.Now()
-		network := [4]string{opts.networkInterface, opts.networkAddress, opts.networkGateway, opts.networkDNS}
+		network := [5]string{opts.networkInterface, opts.networkAddress, opts.networkGateway, opts.networkDNS, opts.networkUUID}
 		if err := runProfile(ctx, root, distro, profile, opts.theme, opts.dryRun, opts.jobs, indexMarker, network, interactive, os.Stdout, file); err != nil {
 			select {
 			case authErr := <-sudoFailures:

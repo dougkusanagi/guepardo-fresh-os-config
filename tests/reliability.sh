@@ -8,25 +8,17 @@ mkdir -p "$HOME" "$sandbox/bin"
 source "$ROOT_DIR/install-common/lib.sh"
 fail() { printf 'ERROR %s\n' "$*" >&2; exit 1; }
 
-# The Bash fallback must offer the same WSL preset and preserve Linux choices.
+# Both menus detect the actual environment and must never switch it on W/Tab.
 picker_function="$(sed -n '/^select_profiles_interactive() {/,/^for arg in /p' "$ROOT_DIR/scripts/fallback.sh" | sed '$d')"
-for keys in w $'\t'; do
-  picker_output="$(printf '%s\n' "$keys" | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
-  [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash WSL preset did not select terminal tools'
-  [[ "$picker_output" == *'Tab / W trocar'* ]] || fail 'Bash picker does not explain environment switching'
-done
-picker_output="$(printf '4ww\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
-[[ "$picker_output" == *'RESULT:desktop'* ]] || fail 'Returning from WSL lost the Linux selection'
-picker_output="$(printf 'w2ww\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
-[[ "$picker_output" == *'RESULT:cli,web'* ]] || fail 'Returning to WSL lost the customized selection'
-picker_output="$(printf '\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
+picker_output="$(printf 'w\t4\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
+[[ "$picker_output" == *'RESULT:desktop'* && "$picker_output" != *WSL* && "$picker_output" != *trocar* ]] || fail 'Native Linux still offers WSL'
+picker_output="$(printf 'w\t\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
 [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash picker did not detect WSL'
-for hidden in Desktop Jogos Fontes 'Rede IPv4' '1–8'; do
+for hidden in Desktop Jogos Fontes 'Rede IPv4' '1–8' Linux trocar; do
   [[ "$picker_output" != *"$hidden"* ]] || fail "Bash WSL picker still shows $hidden"
 done
 picker_output="$(printf '584a\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
 [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash WSL Todos selected unsupported modules'
-
 
 # Failed transfers must preserve an existing download and remove partial data.
 curl() {

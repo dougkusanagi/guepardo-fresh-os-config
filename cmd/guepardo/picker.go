@@ -12,14 +12,12 @@ import (
 var pickerNames = []string{"CLI e servidor", "Desenvolvimento", "Stack web", "Desktop", "Jogos", "Fontes", "Rede IPv4", "Todos"}
 
 type profilePicker struct {
-	selected       map[string]bool
-	active         int
-	message        string
-	wsl            bool
-	linuxSelection map[string]bool
-	wslSelection   map[string]bool
-	width          int
-	height         int
+	selected map[string]bool
+	active   int
+	message  string
+	wsl      bool
+	width    int
+	height   int
 }
 
 // Raw terminal mode disables output processing, so line feeds need a carriage return.
@@ -36,6 +34,15 @@ func (w crlfWriter) Write(data []byte) (int, error) {
 
 func newProfilePicker() *profilePicker {
 	return &profilePicker{selected: make(map[string]bool), width: 80, height: 32}
+}
+
+func newProfilePickerForEnvironment(wsl bool) *profilePicker {
+	p := newProfilePicker()
+	p.wsl = wsl
+	if wsl {
+		p.selected = map[string]bool{"cli": true, "dev": true, "web": true}
+	}
+	return p
 }
 
 func (p *profilePicker) availableProfiles() []string {
@@ -87,23 +94,6 @@ func (p *profilePicker) profiles() string {
 	return strings.Join(selected, ",")
 }
 
-// Switching environments applies a recommendation, while preserving the Linux selection.
-func (p *profilePicker) switchEnvironment() {
-	if !p.wsl {
-		p.linuxSelection = p.selected
-		if p.wslSelection == nil {
-			p.wslSelection = map[string]bool{"cli": true, "dev": true, "web": true}
-		}
-		p.selected = p.wslSelection
-	} else {
-		p.wslSelection = p.selected
-		p.selected = p.linuxSelection
-	}
-	p.wsl = !p.wsl
-	p.active = 0
-	p.message = ""
-}
-
 func fitPickerText(value string, width int) string {
 	if width < 1 {
 		return ""
@@ -132,19 +122,11 @@ func (p *profilePicker) render(w io.Writer, colored bool) {
 	}
 	fmt.Fprintln(w, "   "+paint("1;38;2;167;139;250", "guepardo")+paint("38;2;148;163;184", subtitle))
 	fmt.Fprintln(w)
-	linux, wsl := "  Linux  ", "  WSL  "
+	environment := "Linux"
 	if p.wsl {
-		wsl = paint("1;38;2;17;24;39;48;2;167;139;250", wsl)
-		linux = paint("38;2;148;163;184", linux)
-	} else {
-		linux = paint("1;38;2;17;24;39;48;2;167;139;250", linux)
-		wsl = paint("38;2;148;163;184", wsl)
+		environment = "WSL"
 	}
-	modeHint := "    Tab / W trocar"
-	if width < 40 {
-		modeHint = "    Tab/W"
-	}
-	fmt.Fprintln(w, "   "+linux+"  "+wsl+paint("38;2;148;163;184", modeHint))
+	fmt.Fprintln(w, "   "+paint("1;38;2;167;139;250", environment))
 	if p.wsl {
 		line("Ferramentas para o Ubuntu dentro do Windows.")
 	} else {
@@ -230,8 +212,6 @@ func selectProfilesWithPicker(input io.Reader, output io.Writer, colored bool, p
 				return selection, nil
 			}
 			p.message = "Marque ao menos um perfil para continuar."
-		case key == '\t' || key == 'w' || key == 'W':
-			p.switchEnvironment()
 		case key == ' ':
 			p.toggle(p.active)
 		case key >= '1' && key < '1'+byte(len(p.names())):
@@ -253,8 +233,6 @@ func selectProfilesWithPicker(input io.Reader, output io.Writer, colored bool, p
 					switch direction {
 					case 'A':
 						p.active = (p.active + len(p.names()) - 1) % len(p.names())
-					case 'C', 'D':
-						p.switchEnvironment()
 					case 'B':
 						p.active = (p.active + 1) % len(p.names())
 					}

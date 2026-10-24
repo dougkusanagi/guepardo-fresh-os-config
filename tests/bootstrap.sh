@@ -63,8 +63,8 @@ bash "$repo/install.sh" --list-profiles >/dev/null
 GUEPARDO_TEST_GO_VERSION='go version go1.27.0 linux/amd64' bash "$repo/install.sh" --list-profiles >/dev/null
 [[ "$(cat "$sandbox/calls")" == binary*'--list-profiles' ]] || fail 'Release must take priority over locally installed Go'
 : > "$sandbox/urls"
-GUEPARDO_REF=v0.2.0 bash "$repo/install.sh" --list-profiles >/dev/null
-[[ "$(cat "$sandbox/urls")" == *'/releases/download/v0.2.0/'* ]] || fail 'Pinned sources must use the same release tag'
+GUEPARDO_REF=v0.2.1 bash "$repo/install.sh" --list-profiles >/dev/null
+[[ "$(cat "$sandbox/urls")" == *'/releases/download/v0.2.1/'* ]] || fail 'Pinned sources must use the same release tag'
 
 
 # A newer release must never orchestrate older scripts from another branch.
@@ -136,7 +136,7 @@ SH
 chmod +x "$sandbox/readme-bin/"*
 readme_command="$(sed -n '/^bash -c /{p;q;}' "$ROOT_DIR/README.md")"
 [[ -n "$readme_command" ]] || fail 'README is missing its recommended command'
-[[ "$readme_command" == *'/v0.2.0/install.sh'* && "$readme_command" == *'GUEPARDO_REF=v0.2.0'* ]] || fail 'README must pin matching release script and sources'
+[[ "$readme_command" == *'/v0.2.1/install.sh'* && "$readme_command" == *'GUEPARDO_REF=v0.2.1'* ]] || fail 'README must pin matching release script and sources'
 for environment in linux wsl interop; do
   distro_name='' interop=''
   [[ "$environment" == wsl ]] && distro_name=Ubuntu
