@@ -530,7 +530,14 @@ run_local_static_checks() {
 
   log "Validating project structure..."
   run_quiet bash tests/project-structure.sh
+  run_quiet bash tests/apps-and-gnome.sh
+  run_quiet bash tests/desktop-apps.sh
+  run_quiet bash tests/network.sh
   success "Project structure validated"
+
+  log "Validating portable media library notes..."
+  run_quiet bash tests/media-agents.sh
+  success "Portable media library notes validated"
 
   log "Validating developer tool coverage..."
   run_quiet bash tests/dev-tools.sh
@@ -543,6 +550,7 @@ run_local_static_checks() {
   log "Testing clean-install reliability and remote bootstrap..."
   run_quiet bash tests/reliability.sh
   run_quiet bash tests/bootstrap.sh
+  run_quiet bash tests/bootstrap-go.sh
   success "Clean-install reliability validated"
 
   log "Testing Go profiles and sudo refresh..."
@@ -554,6 +562,8 @@ run_local_static_checks() {
     log "Testing Windows installer behaviour..."
     run_quiet pwsh -NoLogo -NoProfile -File tests/test-windows.ps1
     run_quiet pwsh -NoLogo -NoProfile -File tests/windows-reliability.ps1
+    run_quiet pwsh -NoLogo -NoProfile -File tests/apps-windows.ps1
+    run_quiet pwsh -NoLogo -NoProfile -File tests/jellyfin-suite.ps1
     success "Windows behaviour validated"
   else
     warn "PowerShell not found; run tests/test-windows.ps1 and tests/windows-reliability.ps1 on Windows or with pwsh."

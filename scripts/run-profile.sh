@@ -75,7 +75,11 @@ case "$PROFILE" in
     source "$INSTALL_ROOT/desktop/00-core.sh"
     source "$INSTALL_ROOT/desktop/05-warp.sh"
     source "$INSTALL_ROOT/desktop/10-apps.sh"
+    install_ai_desktop_apps
+    if [[ "$DISTRO" == ubuntu ]]; then apt_install python3; else dnf_install python3; fi
+    configure_flameshot_notifications
     if [[ "$RUNNING_GNOME" == "true" ]]; then
+      if [[ "$DISTRO" == ubuntu ]]; then apt_install python3; else dnf_install python3; fi
       source "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh"
       if [[ -n "$SELECTED_THEME" ]]; then
         apply_selected_theme "$SELECTED_THEME"
@@ -83,6 +87,7 @@ case "$PROFILE" in
     elif [[ -n "$SELECTED_THEME" ]]; then
       warn "GNOME is not active; skipping theme $SELECTED_THEME"
     fi
+    install_dotagents
     ;;
   games)
     source "$INSTALL_ROOT/games/00-core.sh"

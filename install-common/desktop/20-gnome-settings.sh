@@ -3,7 +3,7 @@
 section "GNOME Tweaks"
 
 if [[ "$DRY_RUN" == "true" ]]; then
-  log "[DRY-RUN] Would configure GNOME settings"
+  log "[DRY-RUN] Would configure GNOME settings, persistent Dash to Dock (multi-monitor), Multi Monitor Bar and AI Quota Pulse"
   return
 fi
 
@@ -51,45 +51,12 @@ set_screenshot_portal_permission() {
   warn "Could not configure screenshot portal permission for $app_id; no flatpak or user DBus busctl available"
 }
 
+# shellcheck source=install-common/gnome-extensions.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/gnome-extensions.sh"
+
 enable_gnome_extension() {
-  local uuid="$1"
-  local current
-
-  current="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null)" || current="@as []"
-  if [[ "$current" == *"$uuid"* ]]; then
-    return
-  fi
-
-  if command_exists busctl && [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
-    if busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Extensions InstallRemoteExtension s "$uuid" &>/dev/null; then
-      GNOME_SETTINGS_MODIFIED=true
-      return
-    fi
-  fi
-
-  if command_exists busctl; then
-    busctl --user call org.gnome.Shell.Extensions /org/gnome/Shell/Extensions org.gnome.Shell.Extensions.EnableExtension s "$uuid" &>/dev/null || true
-  elif command_exists dbus-send; then
-    dbus-send --session --dest=org.gnome.Shell.Extensions /org/gnome/Shell/Extensions org.gnome.Shell.Extensions.EnableExtension string:"$uuid" &>/dev/null || true
-  fi
-
-  if command_exists gnome-extensions; then
-    gnome-extensions enable "$uuid" 2>/dev/null || true
-  fi
-
-  current="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null)" || current="@as []"
-  if [[ "$current" != *"$uuid"* ]]; then
-    local new_ext
-    if [[ "$current" == "@as []" || "$current" == "[]" ]]; then
-      new_ext="['$uuid']"
-    else
-      new_ext="${current%]}"
-      new_ext="${new_ext%, }"
-      new_ext="${new_ext}, '$uuid']"
-    fi
-    gsettings set org.gnome.shell enabled-extensions "$new_ext" 2>/dev/null || true
-    GNOME_SETTINGS_MODIFIED=true
-  fi
+  install_ego_extension "$1" || return 1
+  persist_gnome_extension "$1"
 }
 
 disable_gnome_extension() {
@@ -197,13 +164,21 @@ fi
 log "Enabling Dash to Dock..."
 sudo glib-compile-schemas /usr/share/glib-2.0/schemas/ 2>/dev/null || true
 
-# Disable Ubuntu Dock first to avoid singleton conflict
-disable_gnome_extension ubuntu-dock@ubuntu.com
+# Preserve the working Ubuntu dock if downloading a compatible replacement fails.
+if enable_gnome_extension dash-to-dock@micxgx.gmail.com; then
+  disable_gnome_extension ubuntu-dock@ubuntu.com
+else
+  warn "Dash to Dock installation failed; preserving the existing dock."
+  return 1
+fi
 
-# Install/enable Dash to Dock
-enable_gnome_extension dash-to-dock@micxgx.gmail.com
+configure_multimonitor_panels || return 1
+install_ai_quota_pulse || return 1
 
 log "Configuring Dash to Dock..."
+dock_schemas="${XDG_DATA_HOME:-$TARGET_HOME/.local/share}/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com/schemas"
+export GSETTINGS_SCHEMA_DIR="$dock_schemas"
+set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock multi-monitor true
 set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock show-apps-at-top true
 set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 28
 set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock extend-height true
@@ -215,6 +190,7 @@ set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock show-trash fa
 set_gsettings_if_different org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true
 
 # Keep ubuntu-dock settings as fallback in case dash-to-dock fails to load
+set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock multi-monitor true
 set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock show-apps-at-top true
 set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock dash-max-icon-size 28
 set_gsettings_if_different org.gnome.shell.extensions.ubuntu-dock extend-height true

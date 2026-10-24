@@ -228,3 +228,39 @@ sudo snap restart multipass.multipassd
 ```
 
 Depois do teste, restaure o setup do Valet se voce ainda precisar dele.
+
+
+## Regressão de extensões e dois monitores
+
+Em Ubuntu e Fedora GNOME, conecte dois monitores no modo estendido. Execute `./install.sh --profiles=desktop --yes` como usuário normal. Confirme que não há pedidos interativos do site de extensões. Encerre a sessão (Wayland) e entre novamente.
+
+- Dash to Dock aparece nos dois monitores e permanece após mais um logout/login.
+- Multi Monitor Bar mostra relógio, calendário e controles do sistema no secundário; abra o menu de energia nesse monitor. Verifique os indicadores de tray instalados.
+- Desconecte e reconecte o monitor secundário; as barras retornam.
+- AI Quota Pulse aparece e abre preferências; a autenticação de contas é feita pelo usuário.
+- Chrome, ChatGPT, Claude, T3 Code e Sloth Note abrem pelos atalhos. No Fedora, Claude e ChatGPT são apps web; no Ubuntu, Claude usa pacote oficial.
+- Em uma instalação sem Go e sem release correspondente, rode `./install.sh` e confirme a mesma TUI. Cancele sem iniciar a instalação.
+- Simule falha no download da Dash to Dock em uma sessão com Ubuntu Dock funcional: a dock anterior deve continuar habilitada e o erro deve ser reportado.
+
+No Windows descartável, valide `-Profiles dev,desktop` incluindo a compilação do Sloth Note sem release, os links de regras dotagents via MSYS2 e o atalho do Sloth Note. Confira que falhas de dependências aparecem no resumo e causam saída 1. Estes cenários gráficos não são cobertos pelos mocks de CI.
+
+
+### Apps adicionados na release v0.2.0
+
+- Sem Go no PATH, execute o comando do README fixado em v0.2.0: confirme download do executável da mesma tag, SHA256 válido e abertura da TUI, sem compilação local.
+- No Flameshot, faça uma captura e cancele outra; confirme ausência de notificações, mantendo o tray e o atalho Print.
+- Confira ZapFast instalado e Whatsie removido, com dados do Whatsie preservados.
+- Abra OneDriveGUI, autentique uma conta e escolha as pastas. Habilite auto-sync no perfil, encerre a sessão e entre novamente: a GUI deve abrir e sincronizar. No Windows, valide o OneDrive oficial no login.
+- Sem Rust instalado, compile Sloth Note: confirme que Cargo/rustc ficam disponíveis antes do build e que falhas no bootstrap interrompem a compilação.
+- Em dev+desktop, confira no log que dotagents roda uma única vez após Claude/ChatGPT, executando install.sh e bin/sync. Em dev sem desktop, deve sincronizar após as CLIs.
+- Abra novo terminal e execute `vp --version` no Linux e Windows.
+
+
+### Rede ativa e ambiente detectado (v0.2.1)
+
+- Em Linux nativo, confirme ausência de aba WSL e de atalhos Tab/W para trocar ambiente. Dentro do WSL, somente CLI/dev/web devem aparecer.
+- Com apenas Wi-Fi conectado, selecione Rede e confirme que a interface é detectada sem pedir seu nome técnico.
+- Com Wi-Fi e cabo conectados, confirme a lista numerada com nome e tipo e escolha cada uma em execuções separadas.
+- Confira sugestões de IP/CIDR, gateway e DNS; confirme ou edite os valores. A detecção não deve alterar a rede antes da instalação.
+- Em uma rede descartável, aplique IP fixo ao Wi-Fi: o perfil e suas credenciais devem permanecer, IPv6 e a conexão de cabo não devem mudar. Confirme conectividade e persistência após reiniciar.
+- Troque a conexão da interface após a seleção: a aplicação deve parar com erro em vez de modificar a nova rede.

@@ -12,7 +12,7 @@
 #>
 [CmdletBinding()]
 param (
-    [ValidateSet('full', 'basic', 'games', 'server', 'desktop', 'wsl')]
+    [ValidateSet('full', 'basic', 'games', 'server', 'desktop', 'wsl', 'jellyfin')]
     [string]$Mode = 'full',
 
     [string]$Profiles,
@@ -29,14 +29,14 @@ param (
 $ErrorActionPreference = 'Stop'
 
 if ($ListProfiles) {
-    Write-Host "cli, dev, web, desktop, games"
+    Write-Host "cli, dev, web, desktop, games, jellyfin, wsl2"
     exit 0
 }
 
 if ($Help) {
     Write-Host @"
 Usage:
-  .\install.ps1 [-Profiles cli,dev,web,desktop,games] [-Plan] [-DryRun]
+  .\install.ps1 [-Profiles cli,dev,web,desktop,games,jellyfin,wsl2] [-Plan] [-DryRun]
   .\install.ps1 [-Mode <full|basic|games|server|desktop|wsl>]
 
 Options:
@@ -150,12 +150,22 @@ $cliPackages = @(
     @{ Id = "bootandy.dust"; Name = "dust" }
     @{ Id = "JesseDuffield.lazygit"; Name = "lazygit" }
     @{ Id = "sxyazi.yazi"; Name = "yazi" }
+    @{ Id = "GnuPG.Gpg4win"; Name = "GnuPG" }
 )
 $devPackages = @(
+    @{ Id = "guepardo.vite-plus"; Name = "Vite+ global CLI (vp)" }
+    @{ Id = "OpenAI.Codex"; Name = "Codex CLI" }
+    @{ Id = "Anthropic.ClaudeCode"; Name = "Claude Code CLI" }
     @{ Id = "Oven-sh.Bun"; Name = "Bun" }
     @{ Id = "astral-sh.uv"; Name = "uv" }
     @{ Id = "CoreyButler.NVMforWindows"; Name = "NVM for Windows" }
     @{ Id = "Google.AntigravityCLI"; Name = "Antigravity CLI"; Force = $true }
+    @{ Id = "SST.opencode"; Name = "OpenCode CLI" }
+    @{ Id = "GitHub.GitHubDesktop"; Name = "GitHub Desktop" }
+    @{ Id = "Termius.Termius"; Name = "Termius" }
+    @{ Id = "GodotEngine.GodotEngine"; Name = "Godot Engine" }
+    @{ Id = "Comfy.ComfyUI-Desktop"; Name = "ComfyUI Desktop" }
+    @{ Id = "ElementLabs.Bionic"; Name = "Bionic" }
 )
 $webPackages = @(
     @{ Id = "PHP.PHP.8.4"; Name = "PHP" }
@@ -163,6 +173,12 @@ $webPackages = @(
     @{ Id = "Oracle.MySQL"; Name = "MySQL Server" }
 )
 $desktopPackages = @(
+    @{ Id = "Microsoft.OneDrive"; Name = "OneDrive Sync GUI (autostart)" }
+    @{ Id = "guepardo.zapfast"; Name = "ZapFast" }
+    @{ Id = "OpenAI.ChatGPT"; Name = "ChatGPT" }
+    @{ Id = "Anthropic.Claude"; Name = "Claude Desktop" }
+    @{ Id = "T3Tools.T3Code"; Name = "T3 Code" }
+    @{ Id = "guepardo.sloth-note"; Name = "Sloth Note" }
     @{ Id = "Warp.Warp"; Name = "Warp Terminal" }
     @{ Id = "Microsoft.VisualStudioCode"; Name = "Visual Studio Code" }
     @{ Id = "ZedIndustries.Zed"; Name = "Zed Editor" }
@@ -173,12 +189,17 @@ $desktopPackages = @(
     @{ Id = "OBSProject.OBSStudio"; Name = "OBS Studio" }
     @{ Id = "ElementLabs.LMStudio"; Name = "LM Studio" }
     @{ Id = "RARLab.WinRAR"; Name = "WinRAR"; Force = $true }
-    @{ Id = "Jellyfin.Server"; Name = "Jellyfin Server" }
     @{ Id = "Zen-Team.Zen-Browser"; Name = "Zen Browser" }
     @{ Id = "dynobo.NormCap"; Name = "NormCap" }
     @{ Id = "RedHat.Podman-Desktop"; Name = "Podman Desktop" }
     @{ Id = "VideoLAN.VLC"; Name = "VLC Media Player" }
-    @{ Id = "CodecGuide.K-LiteCodecPack.Standard"; Name = "K-Lite Codec Pack Standard" }
+    @{ Id = "CodecGuide.K-LiteCodecPack.Mega"; Name = "K-Lite Codec Pack Mega" }
+    @{ Id = "RevoUninstaller.RevoUninstaller"; Name = "Revo Uninstaller" }
+    @{ Id = "7zip.7zip"; Name = "7-Zip" }
+    @{ Id = "Microsoft.PowerToys"; Name = "PowerToys" }
+    @{ Id = "Telegram.TelegramDesktop"; Name = "Telegram Desktop" }
+    @{ Id = "Gyan.FFmpeg"; Name = "FFmpeg" }
+    @{ Id = "Canva.Affinity"; Name = "Affinity" }
 )
 $gamingPackages = @(
     @{ Id = "Valve.Steam"; Name = "Steam" }
@@ -188,6 +209,11 @@ $gamingPackages = @(
     @{ Id = "qBittorrent.qBittorrent"; Name = "qBittorrent" }
     @{ Id = "Stremio.Stremio"; Name = "Stremio" }
     @{ Id = "HeroicGamesLauncher.HeroicGamesLauncher"; Name = "Heroic Games Launcher" }
+    @{ Id = "Playnite.Playnite"; Name = "Playnite" }
+    @{ Id = "Guru3D.Afterburner"; Name = "MSI Afterburner (RTSS)" }
+)
+$jellyfinPackages = @(
+    @{ Id = "Jellyfin.Server"; Name = "Jellyfin Server" }
 )
 
 if ($Profiles -and $PSBoundParameters.ContainsKey('Mode')) {
@@ -198,13 +224,14 @@ if (-not $Profiles) {
         'full'    { 'cli,dev,web,desktop,games' }
         'basic'   { 'cli,dev,web' }
         'server'  { 'cli' }
-        'wsl'     { 'cli,dev,web' }
+        'wsl'     { 'cli,dev,web,wsl2' }
+        'jellyfin' { 'jellyfin' }
         'desktop' { 'desktop' }
         'games'   { 'games' }
     }
 }
 $selectedProfiles = @($Profiles.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
-$validProfiles = @('cli', 'dev', 'web', 'desktop', 'games')
+$validProfiles = @('cli', 'dev', 'web', 'desktop', 'games', 'jellyfin', 'wsl2')
 foreach ($profileName in $selectedProfiles) {
     if ($profileName -notin $validProfiles) { throw "Unknown profile: $profileName" }
 }
@@ -216,6 +243,8 @@ $groups = @{
     web = $webPackages
     desktop = $desktopPackages
     games = $gamingPackages
+    jellyfin = $jellyfinPackages
+    wsl2 = @()
 }
 $toInstall = @()
 foreach ($profileName in $validProfiles) {
@@ -226,6 +255,24 @@ $toInstall = @($toInstall | Where-Object {
     if ($seenPackages.ContainsKey($_.Id)) { $false }
     else { $seenPackages[$_.Id] = $true; $true }
 })
+
+if ('dev' -in $selectedProfiles -or 'desktop' -in $selectedProfiles) {
+    $toInstall += @{ Id = 'guepardo.dotagents'; Name = 'dotagents (install + sync)' }
+}
+
+if ('dev' -in $selectedProfiles) {
+    $toInstall += @{ Id = 'guepardo.node-lts'; Name = 'Node.js LTS via NVM for Windows' }
+}
+if ('jellyfin' -in $selectedProfiles) {
+    $toInstall += @{ Id = 'guepardo.jellyfin-config'; Name = 'Jellyfin theme and plugins' }
+}
+if ('wsl2' -in $selectedProfiles) {
+    $toInstall += @{ Id = 'guepardo.wsl2'; Name = 'WSL 2 + Ubuntu (UAC prompt)' }
+}
+
+if ('desktop' -in $selectedProfiles) {
+    Write-Log 'AI Quota Pulse is a GNOME extension and is unavailable on native Windows.' -Level WARN
+}
 
 if ($Plan -or $DryRun) {
     Write-Log "Installation plan for profiles: $($selectedProfiles -join ', ')" -Level "INFO"
@@ -258,6 +305,229 @@ function Update-ProcessEnvironment {
     $env:Path = "$machinePath;$userPath"
 }
 
+function Install-RequiredWingetPackage {
+    param ([string]$Id, [string[]]$ExtraArgs = @())
+    & winget install -e --id $Id --source winget --silent --disable-interactivity --no-upgrade --accept-package-agreements --accept-source-agreements @ExtraArgs | Out-Host
+    if ((Get-InstallResult $LASTEXITCODE) -eq 'failed') { throw "Dependency failed: $Id ($LASTEXITCODE)" }
+    Update-ProcessEnvironment
+}
+
+function Get-GuepardoCheckout {
+    param ([string]$Repo, [string]$Name)
+    Install-RequiredWingetPackage 'Git.Git'
+    $destination = Join-Path $env:LOCALAPPDATA "Guepardo/Sources/$Name"
+    if (Test-Path (Join-Path $destination '.git')) {
+        $origin = & git -C $destination remote get-url origin
+        if ($LASTEXITCODE -ne 0 -or $origin -ne "https://github.com/$Repo.git") { throw "Unexpected repository: $destination" }
+        & git -C $destination pull --ff-only | Out-Host
+    } elseif (Test-Path $destination) { throw "Preserving existing directory: $destination" }
+    else { & git clone --depth=1 "https://github.com/$Repo.git" $destination | Out-Host }
+    if ($LASTEXITCODE -ne 0) { throw "Checkout failed: $Repo" }
+    return $destination
+}
+
+function Install-Dotagents {
+    $destination = Get-GuepardoCheckout 'dougkusanagi/dotagents' 'dotagents'
+    # Upstream uses flock and real symlinks; use MSYS2's util-linux runtime.
+    Install-RequiredWingetPackage 'MSYS2.MSYS2'
+    $bash = Join-Path $env:SystemDrive 'msys64/usr/bin/bash.exe'
+    if (-not (Test-Path $bash)) { throw 'MSYS2 Bash not found at the default installation path.' }
+    New-Item -ItemType Directory (Join-Path $env:USERPROFILE '.codex') -Force | Out-Null
+    New-Item -ItemType Directory (Join-Path $env:USERPROFILE '.claude') -Force | Out-Null
+    $previousMsys = $env:MSYS
+    try {
+        $env:MSYS = 'winsymlinks:nativestrict'
+        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; pacman -Syu --noconfirm'
+        # Relaunch after the runtime upgrade before installing dependencies.
+        if ($LASTEXITCODE -ne 0) { throw 'MSYS2 runtime upgrade failed; rerun the installer.' }
+        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; pacman -Syu --noconfirm && pacman -S --noconfirm --needed util-linux git'
+        if ($LASTEXITCODE -ne 0) { throw 'MSYS2 dotagents dependencies failed.' }
+        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; export HOME="$(cygpath -u "$2")"; cd "$(cygpath -u "$1")" && bash ./install.sh && bash ./bin/sync' -- $destination $env:USERPROFILE
+        if ($LASTEXITCODE -ne 0) { throw 'dotagents failed. Enable Windows Developer Mode or run elevated to allow symlinks.' }
+    } finally { $env:MSYS = $previousMsys }
+}
+
+function Install-NodeLts {
+    Update-ProcessEnvironment
+    $node = Get-Command node.exe -ErrorAction SilentlyContinue
+    if ($node -and (Get-Command npm.cmd -ErrorAction SilentlyContinue) -and ((& $node.Source --version) -match '^v(22|24)\.')) { return }
+    $nvm = (Get-Command nvm.exe -ErrorAction SilentlyContinue).Source
+    if (-not $nvm) {
+        $nvmHome = @($env:NVM_HOME, [Environment]::GetEnvironmentVariable('NVM_HOME', 'User'), [Environment]::GetEnvironmentVariable('NVM_HOME', 'Machine')) | Where-Object { $_ } | Select-Object -First 1
+        if ($nvmHome -and (Test-Path (Join-Path $nvmHome 'nvm.exe'))) { $nvm = Join-Path $nvmHome 'nvm.exe' }
+    }
+    if (-not $nvm) { throw 'NVM for Windows not found after installation; restart the terminal and rerun.' }
+    & $nvm install lts
+    if ($LASTEXITCODE -ne 0) { throw "nvm install lts failed: $LASTEXITCODE" }
+    & $nvm use lts
+    if ($LASTEXITCODE -ne 0) { throw "nvm use lts failed: $LASTEXITCODE" }
+    Update-ProcessEnvironment
+    if (-not (Get-Command node.exe -ErrorAction SilentlyContinue) -or -not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
+        throw 'NVM finished without exposing node.exe and npm.cmd in PATH.'
+    }
+}
+
+function Install-Wsl {
+    # Returns an installer exit code: 0 configured, 3010 restart required.
+    $wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+    if (-not (Test-Path -LiteralPath $wsl)) { throw 'wsl.exe not found. Use Windows 10 build 19041 or Windows 11.' }
+    $adminScript = @'
+$ErrorActionPreference = 'Stop'
+$wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+$restartNeeded = $false
+foreach ($featureName in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
+    if ((Enable-WindowsOptionalFeature -Online -FeatureName $featureName -All -NoRestart).RestartNeeded) { $restartNeeded = $true }
+}
+if ($restartNeeded) { exit 3010 }
+$distros = @(& $wsl --list --quiet 2>$null | ForEach-Object { ([string]$_).Replace([string][char]0, '').Trim() } | Where-Object { $_ })
+if ($LASTEXITCODE -ne 0) { $distros = @() }
+if ($distros -notcontains 'Ubuntu') {
+    & $wsl --install --distribution Ubuntu --no-launch
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+& $wsl --update
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $wsl --set-default-version 2
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $wsl --set-version Ubuntu 2
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $wsl --set-default Ubuntu
+exit $LASTEXITCODE
+'@
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($adminScript))
+    $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ' + $encoded
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    $powershellExe = (Get-Process -Id $PID).Path
+    $process = if ($isAdmin) { Start-Process $powershellExe -ArgumentList $arguments -Wait -PassThru }
+               else { Start-Process $powershellExe -ArgumentList $arguments -Verb RunAs -Wait -PassThru }
+    if ($process.ExitCode -eq 0) { Write-Log 'WSL 2 and Ubuntu configured. Open `wsl -d Ubuntu` to create your Linux user.' -Level OK }
+    return $process.ExitCode
+}
+
+function Install-JellyfinConfiguration {
+    $module = if ($PSScriptRoot) { Join-Path $PSScriptRoot 'modules/jellyfin.ps1' } else { $null }
+    if (-not $module -or -not (Test-Path -LiteralPath $module)) {
+        throw 'modules/jellyfin.ps1 not found; run install.ps1 from a repository checkout.'
+    }
+    $powershellExe = (Get-Process -Id $PID).Path
+    & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $module -SkipInstall
+    if ($LASTEXITCODE -ne 0) { throw "Jellyfin configuration failed: $LASTEXITCODE" }
+}
+
+function Install-SlothNote {
+    if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs/Sloth Note/sloth-note.exe')) { return }
+    $release = $null
+    try { $release = Invoke-RestMethod 'https://api.github.com/repos/dougkusanagi/sloth-noter/releases/latest' -TimeoutSec 60 }
+    catch {
+        if ([int]$_.Exception.Response.StatusCode -ne 404) { throw }
+    }
+    $asset = $release.assets | Where-Object { $_.name -match 'x64.*setup\.exe$|x64.*-setup\.exe$' } | Select-Object -First 1
+    if ($asset) {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString() + '.exe')
+        try {
+            Invoke-WebRequest $asset.browser_download_url -OutFile $temp -TimeoutSec 600
+            $process = Start-Process $temp -ArgumentList '/S' -Wait -PassThru
+            if ((Get-InstallResult $process.ExitCode) -eq 'failed') { throw "Sloth Note installer failed: $($process.ExitCode)" }
+        } finally { Remove-Item $temp -Force -ErrorAction SilentlyContinue }
+        return
+    }
+    Write-Log 'No public Sloth Note installer; building source with Bun/Rust/MSVC (may take several minutes).' -Level WARN
+    Install-RequiredWingetPackage 'Oven-sh.Bun'
+    Install-RequiredWingetPackage 'OpenJS.NodeJS.LTS'
+    Install-RequiredWingetPackage 'Rustlang.Rustup'
+    Install-RequiredWingetPackage 'Microsoft.VisualStudio.2022.BuildTools' @('--override', '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended')
+    $destination = Get-GuepardoCheckout 'dougkusanagi/sloth-noter' 'sloth-noter'
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    $vsPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if (-not $vsPath) { throw 'MSVC C++ build tools unavailable; restart Windows and rerun.' }
+    $devCmd = Join-Path $vsPath 'Common7/Tools/VsDevCmd.bat'
+    $devEnvironment = & cmd.exe /s /c "`"`"$devCmd`" -arch=x64 >nul && set`""
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to initialize MSVC environment.' }
+    foreach ($line in $devEnvironment) {
+        if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') }
+    }
+    $env:Path = (Join-Path $env:USERPROFILE '.cargo/bin') + ';' + $env:Path
+    & rustup default stable
+    if ($LASTEXITCODE -ne 0) { throw 'Rust toolchain setup failed.' }
+    Push-Location $destination
+    try {
+        & bun install --frozen-lockfile
+        if ($LASTEXITCODE -ne 0) { throw 'Sloth Note dependency installation failed.' }
+        & bun run desktop:build --no-bundle
+        if ($LASTEXITCODE -ne 0) { throw 'Sloth Note compilation failed.' }
+        $appDir = Join-Path $env:LOCALAPPDATA 'Programs/Sloth Note'
+        New-Item -ItemType Directory $appDir -Force | Out-Null
+        Copy-Item 'src-tauri/target/release/sloth-note.exe' $appDir -Force
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'Sloth Note.lnk'))
+        $shortcut.TargetPath = Join-Path $appDir 'sloth-note.exe'
+        $shortcut.Save()
+    } finally { Pop-Location }
+}
+
+function Install-VitePlus {
+    if (Get-Command vp -ErrorAction SilentlyContinue) { return }
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString() + '.ps1')
+    $savedHome = $env:VP_HOME; $savedNode = $env:VP_NODE_MANAGER; $savedPm = $env:VP_PM_MANAGER
+    try {
+        $env:VP_HOME = Join-Path $env:USERPROFILE '.vite-plus'
+        $env:VP_NODE_MANAGER = 'no'; $env:VP_PM_MANAGER = 'no'
+        Invoke-WebRequest 'https://vite.plus/ps1' -OutFile $temporary -TimeoutSec 300
+        $powershellExe = (Get-Process -Id $PID).Path
+        & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $temporary
+        if ($LASTEXITCODE -ne 0) { throw "Vite+ global installer failed: $LASTEXITCODE" }
+        Update-ProcessEnvironment
+        $bin = Join-Path $env:USERPROFILE '.vite-plus/bin'
+        $env:Path = "$bin;$env:Path"
+        if (-not (Get-Command vp -ErrorAction SilentlyContinue)) { throw 'vp unavailable after Vite+ installation.' }
+        & vp --version
+        if ($LASTEXITCODE -ne 0) { throw 'vp verification failed.' }
+    } finally {
+        $env:VP_HOME = $savedHome; $env:VP_NODE_MANAGER = $savedNode; $env:VP_PM_MANAGER = $savedPm
+        Remove-Item $temporary -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Enable-OneDriveAutostart {
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'Microsoft/OneDrive/OneDrive.exe'),
+        (Join-Path $env:ProgramFiles 'Microsoft OneDrive/OneDrive.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft OneDrive/OneDrive.exe')
+    )
+    $executable = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $executable) { throw 'OneDrive.exe unavailable after installation.' }
+    $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+    New-Item -Path $runKey -Force | Out-Null
+    New-ItemProperty -Path $runKey -Name 'OneDrive' -Value ('"' + $executable + '" /background') -PropertyType String -Force | Out-Null
+    Write-Log 'OneDrive GUI enabled at sign-in. Open OneDrive to authenticate and choose folders.'
+}
+
+function Install-ZapFast {
+    if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs/ZapFast/ZapFast.exe')) { return }
+    $release = Invoke-RestMethod 'https://api.github.com/repos/crmne/zapfast/releases/latest' -TimeoutSec 60
+    $architecture = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { 'aarch64' } else { 'x86_64' }
+    $asset = $release.assets | Where-Object { $_.name -match "-$architecture-pc-windows-msvc\.msi$" } | Select-Object -First 1
+    $sums = $release.assets | Where-Object { $_.name -eq 'checksums.txt' } | Select-Object -First 1
+    if (-not $asset -or -not $sums) { throw 'Compatible ZapFast installer/checksums unavailable.' }
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+    New-Item -ItemType Directory $temporary | Out-Null
+    try {
+        $msi = Join-Path $temporary 'ZapFast.msi'
+        $checksums = Join-Path $temporary 'checksums.txt'
+        Invoke-WebRequest $asset.browser_download_url -OutFile $msi -TimeoutSec 600
+        Invoke-WebRequest $sums.browser_download_url -OutFile $checksums -TimeoutSec 60
+        $expected = $null
+        foreach ($line in Get-Content $checksums) {
+            if ($line -match '^([a-fA-F0-9]{64})\s+\*?(.+)$' -and $Matches[2] -eq $asset.name) { $expected = $Matches[1]; break }
+        }
+        if (-not $expected -or (Get-FileHash $msi -Algorithm SHA256).Hash -ne $expected) { throw 'ZapFast SHA256 verification failed.' }
+        $process = Start-Process msiexec.exe -ArgumentList @('/i', ('"' + $msi + '"'), '/qn', '/norestart') -Wait -PassThru
+        $result = Get-InstallResult $process.ExitCode
+        if ($result -eq 'failed') { throw "ZapFast installation failed: $($process.ExitCode)" }
+        if ($result -eq 'reboot-required') { $script:rebootRequired = $true }
+    } finally { Remove-Item $temporary -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 Write-Section "Installing Applications via winget"
 $failed = @()
 function Get-InstallResult {
@@ -283,7 +553,20 @@ foreach ($pkg in $toInstall) {
     Write-Log -Message "[$packageIndex/$($toInstall.Count)] Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
     
     $exitCode = 1
-    if ($pkg.Id -eq "Composer.Composer") {
+    if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note', 'guepardo.zapfast', 'guepardo.vite-plus', 'guepardo.node-lts', 'guepardo.jellyfin-config', 'guepardo.wsl2')) {
+        try {
+            $exitCode = 0
+            switch ($pkg.Id) {
+                'guepardo.dotagents' { Install-Dotagents }
+                'guepardo.sloth-note' { Install-SlothNote }
+                'guepardo.zapfast' { Install-ZapFast }
+                'guepardo.vite-plus' { Install-VitePlus }
+                'guepardo.node-lts' { Install-NodeLts }
+                'guepardo.jellyfin-config' { Install-JellyfinConfiguration }
+                'guepardo.wsl2' { $exitCode = [int](Install-Wsl | Select-Object -Last 1) }
+            }
+        } catch { Write-Log "Failed to install $($pkg.Name): $_" -Level WARN; $exitCode = 1 }
+    } elseif ($pkg.Id -eq "Composer.Composer") {
         # Refresh environment variables first to make sure PHP is in PATH
         Update-ProcessEnvironment
         
@@ -309,6 +592,7 @@ foreach ($pkg in $toInstall) {
         try {
             & winget @argsList 2>&1 | Tee-Object -FilePath $logFile -Append
             $exitCode = $LASTEXITCODE
+            if ($pkg.Id -eq 'Microsoft.OneDrive' -and (Get-InstallResult $exitCode) -ne 'failed') { Enable-OneDriveAutostart }
         } catch {
             Write-Log -Message "Failed to run winget for $($pkg.Name): $_" -Level 'WARN'
             $exitCode = 1

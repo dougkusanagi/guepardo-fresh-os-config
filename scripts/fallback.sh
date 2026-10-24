@@ -7,6 +7,7 @@ distro="auto"
 jobs=4
 theme=""
 network_interface=""
+network_uuid=""
 network_address=""
 network_gateway=""
 network_dns=""
@@ -27,7 +28,6 @@ select_profiles_interactive() {
   local -a keys=(cli dev web desktop games fonts network)
   local -a checked=(0 0 0 0 0 0 0)
   local active=0 key sequence direction i count all mark cursor wsl=0 total=7
-  local -a linux_checked=(0 0 0 0 0 0 0) wsl_checked=(1 1 1 0 0 0 0)
   local accent='' muted='' reset='' focused='' selected_color=''
   if [[ -z "${NO_COLOR:-}" ]]; then
     accent=$'\e[1;38;2;167;139;250m'; muted=$'\e[38;2;148;163;184m'; reset=$'\e[0m'
@@ -42,10 +42,10 @@ select_profiles_interactive() {
   while true; do
     printf '\033[H\033[2J\n   %sguepardo%s  /  prepare seu próximo ambiente\n\n' "$accent" "$reset"
     if ((wsl)); then
-      printf '   %sLinux%s     %s[ WSL ]%s     Tab / W trocar\n' "$muted" "$reset" "$accent" "$reset"
+      printf '   %sWSL%s\n' "$accent" "$reset"
       printf '   Ferramentas para o Ubuntu dentro do Windows.\n\n'
     else
-      printf '   %s[ Linux ]%s     %sWSL%s     Tab / W trocar\n' "$accent" "$reset" "$muted" "$reset"
+      printf '   %sLinux%s\n' "$accent" "$reset"
       printf '   Escolha o que quer ter pronto neste computador.\n\n'
     fi
     total=7
@@ -86,13 +86,6 @@ select_profiles_interactive() {
       '')
         if ((count>0)); then break; fi
         ;;
-      [wW]|$'\t')
-        if ((wsl)); then
-          wsl_checked=("${checked[@]}"); checked=("${linux_checked[@]}"); wsl=0
-        else
-          linux_checked=("${checked[@]}"); checked=("${wsl_checked[@]}"); wsl=1
-        fi
-        active=0 ;;
       ' ')
         if ((active==total)); then
           for ((i=0; i<total; i++)); do checked[i]=$((1-all)); done
@@ -230,6 +223,9 @@ if [[ -n "$theme" ]]; then
   supported="$(sed -n '/^SUPPORTED_THEMES=(/,/^)/p' "$ROOT_DIR/install-common/lib.sh" | sed -n 's/^  "\(.*\)"/\1/p')"
   printf '%s\n' "$supported" | grep -Fxq "$theme" || { echo "Unknown theme: $theme" >&2; exit 1; }
 fi
+export GUEPARDO_DEFER_DOTAGENTS=false
+if [[ ",$profiles," == *',desktop,'* ]]; then export GUEPARDO_DEFER_DOTAGENTS=true; fi
+
 valid_ipv4() {
   local value="$1" octet
   [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
@@ -242,11 +238,8 @@ valid_ipv4() {
 }
 if [[ ",$profiles," == *',network,'* && "$plan" == false && "$dry_run" == false && "$doctor" == false ]]; then
   if [[ -t 0 && "$yes" == false ]]; then
-    [[ -n "$network_interface" ]] || read -r -p 'Interface de rede (ex.: enp1s0): ' network_interface
-    [[ -n "$network_address" ]] || read -r -p 'Endereço IPv4/CIDR (ex.: 192.168.1.77/24): ' network_address
-    [[ -n "$network_gateway" ]] || read -r -p 'Gateway IPv4 (ex.: 192.168.1.1): ' network_gateway
-    [[ -n "$network_dns" ]] || read -r -p 'DNS IPv4 [1.1.1.1]: ' network_dns
-    network_dns="${network_dns:-1.1.1.1}"
+    source "$ROOT_DIR/scripts/network-prompt.sh"
+    prompt_network_settings || exit 1
   fi
   [[ -n "$network_interface" && -n "$network_address" && -n "$network_gateway" ]] || {
     echo 'network requires --network-interface, --network-address and --network-gateway.' >&2
@@ -274,7 +267,7 @@ if $plan; then
   for candidate in "${selected[@]}"; do
     printf '\n[%s] %s\n' "$distro" "$candidate"
     GUEPARDO_ROOT="$ROOT_DIR" GUEPARDO_DRY_RUN=true GUEPARDO_SUDO_NONINTERACTIVE=1 GUEPARDO_JOBS="$jobs" SELECTED_THEME="$theme" \
-      STATIC_NETWORK_INTERFACE="$network_interface" STATIC_NETWORK_ADDRESS="$network_address" STATIC_NETWORK_GATEWAY="$network_gateway" STATIC_NETWORK_DNS="$network_dns" \
+      STATIC_NETWORK_INTERFACE="$network_interface" STATIC_NETWORK_ADDRESS="$network_address" STATIC_NETWORK_GATEWAY="$network_gateway" STATIC_NETWORK_DNS="$network_dns" STATIC_NETWORK_UUID="$network_uuid" \
       bash "$ROOT_DIR/scripts/run-profile.sh" "$distro" "$candidate"
   done
   exit 0
@@ -326,7 +319,7 @@ fi
 for candidate in "${selected[@]}"; do
   printf '\n[%s] %s\n' "$distro" "$candidate"
   if GUEPARDO_ROOT="$ROOT_DIR" GUEPARDO_DRY_RUN="$dry_run" GUEPARDO_SUDO_NONINTERACTIVE=1 GUEPARDO_JOBS="$jobs" GUEPARDO_INDEX_MARKER="$index_cache_dir/updated" SELECTED_THEME="$theme" \
-    STATIC_NETWORK_INTERFACE="$network_interface" STATIC_NETWORK_ADDRESS="$network_address" STATIC_NETWORK_GATEWAY="$network_gateway" STATIC_NETWORK_DNS="$network_dns" \
+    STATIC_NETWORK_INTERFACE="$network_interface" STATIC_NETWORK_ADDRESS="$network_address" STATIC_NETWORK_GATEWAY="$network_gateway" STATIC_NETWORK_DNS="$network_dns" STATIC_NETWORK_UUID="$network_uuid" \
       bash "$ROOT_DIR/scripts/run-profile.sh" "$distro" "$candidate" 2>&1 | tee -a "$log_file"; then
     :
   else

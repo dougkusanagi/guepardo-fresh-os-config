@@ -279,55 +279,26 @@ command_exists() {
 }
 
 configure_static_ipv4_network() {
-  local interface="$STATIC_NETWORK_INTERFACE"
-  local connection="$STATIC_NETWORK_CONNECTION"
-  local previous_connections=()
-  local active_connection active_device
-
+  local interface="$STATIC_NETWORK_INTERFACE" uuid current_uuid
   section "Network"
-  log "Configuring static IPv4 for $interface..."
-
-  if [[ "$DRY_RUN" == "true" ]]; then
+  if [[ "$DRY_RUN" == true ]]; then
     log "[DRY-RUN] Would configure $interface with $STATIC_NETWORK_ADDRESS, gateway $STATIC_NETWORK_GATEWAY, DNS $STATIC_NETWORK_DNS"
     return
   fi
-
-  if ! command_exists nmcli; then
-    warn "NetworkManager nmcli is not available; skipping static IPv4 configuration"
-    return
-  fi
-
-  if ! nmcli -t -f DEVICE device status | grep -Fxq "$interface"; then
-    warn "Network interface $interface was not found; skipping static IPv4 configuration"
-    return
-  fi
-
-  while IFS=: read -r active_connection active_device; do
-    if [[ "$active_device" == "$interface" && "$active_connection" != "$connection" ]]; then
-      previous_connections+=("$active_connection")
-    fi
-  done < <(nmcli -t -f NAME,DEVICE connection show --active)
-
-  if nmcli -t -f NAME connection show | grep -Fxq "$connection"; then
-    run_quiet nmcli connection modify "$connection" connection.interface-name "$interface"
-  else
-    run_quiet nmcli connection add type ethernet ifname "$interface" con-name "$connection"
-  fi
-
-  run_quiet nmcli connection modify "$connection" \
+  command_exists nmcli || { error 'NetworkManager nmcli is required for static IPv4.'; return 1; }
+  current_uuid="$(nmcli -g GENERAL.CON-UUID device show "$interface")" || return 1
+  [[ -n "$current_uuid" && "$current_uuid" != -- ]] || { error "No active connection on $interface."; return 1; }
+  uuid="${STATIC_NETWORK_UUID:-$current_uuid}"
+  [[ "$current_uuid" == "$uuid" ]] || { error "The active connection on $interface changed; rerun to choose the network again."; return 1; }
+  # Modify the chosen existing profile by UUID: Wi-Fi credentials and type survive.
+  run_quiet sudo nmcli connection modify uuid "$uuid" \
     connection.autoconnect yes \
     ipv4.method manual \
     ipv4.addresses "$STATIC_NETWORK_ADDRESS" \
     ipv4.gateway "$STATIC_NETWORK_GATEWAY" \
     ipv4.dns "$STATIC_NETWORK_DNS" \
-    ipv4.ignore-auto-dns yes \
-    ipv6.ignore-auto-dns yes
-
-  for active_connection in "${previous_connections[@]}"; do
-    nmcli connection modify "$active_connection" connection.autoconnect no >/dev/null 2>&1 || true
-  done
-
-  run_quiet nmcli connection up "$connection"
+    ipv4.ignore-auto-dns yes || return 1
+  run_quiet sudo nmcli connection up uuid "$uuid" ifname "$interface" || return 1
   success "Static IPv4 configured on $interface"
 }
 
@@ -470,6 +441,8 @@ download_file() {
 
 install_remote_script() (
   local url="$1" shell_name="${2:-bash}" tmpdir
+  shift
+  if (($#)); then shift; fi
   tmpdir="$(mktemp -d)" || return 1
   trap 'rm -rf "$tmpdir"' EXIT
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -477,7 +450,7 @@ install_remote_script() (
     return 0
   fi
   download_file "$url" "$tmpdir/install.sh" || return 1
-  run_quiet "$shell_name" "$tmpdir/install.sh" || return 1
+  run_quiet "$shell_name" "$tmpdir/install.sh" "$@" || return 1
 )
 
 configure_user_path() {
@@ -957,3 +930,6 @@ finish_installation() {
     warn "Reboot the computer before using Samba/Nautilus Share. Logoff/login is not enough."
   fi
 }
+
+# shellcheck source=install-common/apps.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/apps.sh"

@@ -8,25 +8,17 @@ mkdir -p "$HOME" "$sandbox/bin"
 source "$ROOT_DIR/install-common/lib.sh"
 fail() { printf 'ERROR %s\n' "$*" >&2; exit 1; }
 
-# The Bash fallback must offer the same WSL preset and preserve Linux choices.
+# Both menus detect the actual environment and must never switch it on W/Tab.
 picker_function="$(sed -n '/^select_profiles_interactive() {/,/^for arg in /p' "$ROOT_DIR/scripts/fallback.sh" | sed '$d')"
-for keys in w $'\t'; do
-  picker_output="$(printf '%s\n' "$keys" | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
-  [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash WSL preset did not select terminal tools'
-  [[ "$picker_output" == *'Tab / W trocar'* ]] || fail 'Bash picker does not explain environment switching'
-done
-picker_output="$(printf '4ww\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
-[[ "$picker_output" == *'RESULT:desktop'* ]] || fail 'Returning from WSL lost the Linux selection'
-picker_output="$(printf 'w2ww\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
-[[ "$picker_output" == *'RESULT:cli,web'* ]] || fail 'Returning to WSL lost the customized selection'
-picker_output="$(printf '\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
+picker_output="$(printf 'w\t4\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
+[[ "$picker_output" == *'RESULT:desktop'* && "$picker_output" != *WSL* && "$picker_output" != *trocar* ]] || fail 'Native Linux still offers WSL'
+picker_output="$(printf 'w\t\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
 [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash picker did not detect WSL'
-for hidden in Desktop Jogos Fontes 'Rede IPv4' '1–8'; do
+for hidden in Desktop Jogos Fontes 'Rede IPv4' '1–8' Linux trocar; do
   [[ "$picker_output" != *"$hidden"* ]] || fail "Bash WSL picker still shows $hidden"
 done
 picker_output="$(printf '584a\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
 [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash WSL Todos selected unsupported modules'
-
 
 # Failed transfers must preserve an existing download and remove partial data.
 curl() {
@@ -71,7 +63,7 @@ if install_composer >/dev/null 2>&1; then fail 'Composer checksum mismatch was a
 [[ ! -e "$sandbox/executed" ]] || fail 'Unverified Composer installer was executed'
 
 # Package-manager failure must be returned even when called as an if condition.
-source "$ROOT_DIR/install-ubuntu/lib.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-ubuntu/lib.sh"
 apt_package_installed() { return 1; }
 run_quiet() { return 42; }
 if apt_install missing >/dev/null 2>&1; then fail 'APT failure was reported as success'; fi
@@ -147,6 +139,40 @@ fc-cache() { :; }
 run_quiet() { "$@"; }
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh" >/dev/null
 [[ "$(cat "$HOME/.local/share/fonts/guepardo-fresh-os-config/My Font.ttf")" == 'new font' ]] || fail 'Interrupted font copy was not repaired'
+
+# Fonts can come from an explicit directory outside the public checkout.
+custom_fonts="$sandbox/custom-fonts"
+mkdir -p "$custom_fonts"
+printf 'private font' > "$custom_fonts/Private.otf"
+ROOT_DIR="$sandbox/no-fonts-here"
+GUEPARDO_FONTS_DIR="$custom_fonts"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh" >/dev/null
+[[ "$(cat "$HOME/.local/share/fonts/guepardo-fresh-os-config/Private.otf")" == 'private font' ]] || fail 'GUEPARDO_FONTS_DIR fonts were not installed'
+unset GUEPARDO_FONTS_DIR
+
+# Without any font source and no access to the private repository, fail loudly.
+git() { return 1; }
+gh() { return 1; }
+if (source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh") >/dev/null 2>&1; then
+  fail 'Missing private fonts repository was reported as success'
+fi
+unset -f git gh
+
+# GPU drivers: only NVIDIA hardware triggers the driver install, and it asks for a reboot.
+(
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-ubuntu/lib.sh"
+  DRY_RUN=false; REQUIRES_REBOOT=false; calls="$sandbox/gpu-calls"
+  apt_install_optional() { :; }
+  apt_install() { :; }
+  command_exists() { [[ "$1" == lspci ]]; }
+  run_quiet() { printf '%s\n' "$*" >> "$calls"; }
+  lspci() { printf '00:02.0 VGA compatible controller: Intel Corporation UHD\n'; }
+  install_gpu_drivers >/dev/null 2>&1
+  [[ ! -e "$calls" && "$REQUIRES_REBOOT" == false ]] || fail 'Driver installed without an NVIDIA GPU'
+  lspci() { printf '01:00.0 VGA compatible controller: NVIDIA Corporation GA104\n'; }
+  install_gpu_drivers >/dev/null 2>&1
+  grep -Fq 'ubuntu-drivers install' "$calls" && [[ "$REQUIRES_REBOOT" == true ]] || fail 'NVIDIA driver was not installed'
+)
 
 # Verified Node installation repairs an incomplete directory and is reused.
 node_archive="$sandbox/node-v24.1.0-linux-x64.tar.xz"

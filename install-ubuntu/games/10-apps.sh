@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
 section "Games"
-apt_install_optional steam-devices joystick jstest-gtk gamemode mangohud goverlay
+apt_install_optional steam-devices joystick jstest-gtk gamemode mangohud gamescope goverlay
 install_steam
+install_gpu_drivers
 install_lutris
 install_qbittorrent
 install_discord

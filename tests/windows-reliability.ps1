@@ -50,3 +50,6 @@ exit $LASTEXITCODE
 } finally {
     Remove-Item $sandbox -Recurse -Force
 }
+# GitHub Actions invokes scripts via -Command and propagates LASTEXITCODE.
+# The last child deliberately fails; successful assertions must reset that result.
+exit 0

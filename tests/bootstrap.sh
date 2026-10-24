@@ -8,6 +8,9 @@ repo="$sandbox/repo"
 mkdir -p "$repo"/{scripts,cmd,install-common,install-ubuntu,install-fedora} "$sandbox/bin" "$sandbox/release"
 cp "$ROOT_DIR/install.sh" "$repo/install.sh"
 cp "$ROOT_DIR/scripts/source-digest.sh" "$repo/scripts/source-digest.sh"
+cp "$ROOT_DIR/scripts/install-media-agents.sh" "$repo/scripts/install-media-agents.sh"
+mkdir -p "$repo/templates/media-library"
+cp "$ROOT_DIR/templates/media-library/AGENTS.md" "$repo/templates/media-library/AGENTS.md"
 printf 'module bootstrap.test\n' > "$repo/go.mod"
 touch "$repo/go.sum" "$repo/install-common/lib.sh"
 cat > "$repo/scripts/fallback.sh" <<'SH'
@@ -15,9 +18,13 @@ cat > "$repo/scripts/fallback.sh" <<'SH'
 printf 'fallback %s\n' "$*" >> "$GUEPARDO_TEST_CALLS"
 SH
 chmod +x "$repo/scripts/fallback.sh"
+cat > "$repo/scripts/bootstrap-go.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'bootstrap-go %s\n' "$*" >> "$GUEPARDO_TEST_CALLS"
+SH
 cat > "$sandbox/bin/go" <<'SH'
 #!/usr/bin/env bash
-echo 'go version go1.18.0 linux/amd64'
+if [[ "${1:-}" == version ]]; then echo "${GUEPARDO_TEST_GO_VERSION:-go version go1.18.0 linux/amd64}"; else exit 98; fi
 SH
 cat > "$sandbox/bin/curl" <<'SH'
 #!/usr/bin/env bash
@@ -55,13 +62,27 @@ refresh_release() {
 refresh_release
 bash "$repo/install.sh" --list-profiles >/dev/null
 [[ "$(cat "$sandbox/calls")" == binary*'--list-profiles' ]] || fail 'Compatible binary was not used'
+: > "$sandbox/calls"
+GUEPARDO_TEST_GO_VERSION='go version go1.27.0 linux/amd64' bash "$repo/install.sh" --list-profiles >/dev/null
+[[ "$(cat "$sandbox/calls")" == binary*'--list-profiles' ]] || fail 'Release must take priority over locally installed Go'
+: > "$sandbox/urls"
+GUEPARDO_REF=v0.2.1 bash "$repo/install.sh" --list-profiles >/dev/null
+[[ "$(cat "$sandbox/urls")" == *'/releases/download/v0.2.1/'* ]] || fail 'Pinned sources must use the same release tag'
+
 
 # A newer release must never orchestrate older scripts from another branch.
 printf 'different source\n' > "$sandbox/release/SOURCE_SHA256"
 (cd "$sandbox/release" && sha256sum "$asset" SOURCE_SHA256 > SHA256SUMS)
 : > "$sandbox/calls"
 bash "$repo/install.sh" --list-profiles >/dev/null 2>&1
-[[ "$(cat "$sandbox/calls")" == 'fallback --list-profiles' ]] || fail 'Source mismatch did not use fallback'
+[[ "$(cat "$sandbox/calls")" == "bootstrap-go $repo --list-profiles" ]] || fail 'Source mismatch must bootstrap Go instead of silently using Bash'
+: > "$sandbox/calls"
+bash "$repo/install.sh" >/dev/null 2>&1
+[[ "$(cat "$sandbox/calls")" == "bootstrap-go $repo" ]] || fail 'Fresh interactive invocation lost the Go TUI'
+: > "$sandbox/calls"
+GUEPARDO_BASH_FALLBACK=1 bash "$repo/install.sh" >/dev/null 2>&1
+[[ "$(cat "$sandbox/calls")" == 'fallback ' ]] || fail 'Explicit Bash fallback was ignored'
+
 
 # Neither corrupted artifacts nor missing checksums can execute a binary.
 refresh_release
@@ -88,6 +109,13 @@ export GUEPARDO_REF=feature/test
 bash "$sandbox/remote/install.sh" --plan >/dev/null 2>&1
 [[ "$(cat "$sandbox/calls")" == *'--root='*'/repository --plan' ]] || fail 'Remote archive did not preserve the root and arguments'
 [[ "$(cat "$sandbox/urls")" == *'/tar.gz/feature/test'* ]] || fail 'Remote branch ref was not used'
+# The media helper must work with the downloaded repository too.
+mkdir -p "$sandbox/media library"
+: > "$sandbox/calls"
+bash "$sandbox/remote/install.sh" --media-agents "$sandbox/media library" >/dev/null 2>&1
+cmp "$ROOT_DIR/templates/media-library/AGENTS.md" "$sandbox/media library/AGENTS.md" || fail 'Remote helper did not copy notes'
+[[ ! -s "$sandbox/calls" ]] || fail 'Remote media helper invoked app installer'
+
 # Execute the exact README one-liner with downloads/sudo mocked: a fresh WSL
 # must never receive the desktop/games full preset, and the temp file is removed.
 mkdir -p "$sandbox/readme-bin"
@@ -118,7 +146,7 @@ SH
 chmod +x "$sandbox/readme-bin/"*
 readme_command="$(sed -n '/^bash -c /{p;q;}' "$ROOT_DIR/README.md")"
 [[ -n "$readme_command" ]] || fail 'README is missing its recommended command'
-[[ "$readme_command" == *'/master/install.sh'* ]] || fail 'README must download production master'
+[[ "$readme_command" == *'/v0.2.1/install.sh'* && "$readme_command" == *'GUEPARDO_REF=v0.2.1'* ]] || fail 'README must pin matching release script and sources'
 for environment in linux wsl interop; do
   distro_name='' interop=''
   [[ "$environment" == wsl ]] && distro_name=Ubuntu
@@ -126,8 +154,7 @@ for environment in linux wsl interop; do
   WSL_DISTRO_NAME="$distro_name" WSL_INTEROP="$interop" \
     GUEPARDO_TEST_README_ARGS="$sandbox/readme-args" GUEPARDO_TEST_DOWNLOAD_PATH="$sandbox/readme-download" \
     PATH="$sandbox/readme-bin:$PATH" bash -c "$readme_command"
-  expected='--mode=wsl --yes'
-  [[ "$environment" == linux ]] && expected='--mode=full --yes'
+  expected='' # The recommended command opens the picker; it detects WSL itself.
   [[ "$(cat "$sandbox/readme-args")" == "$expected" ]] || fail "README selected the wrong preset for $environment"
   [[ ! -e "$(cat "$sandbox/readme-download")" ]] || fail 'README download was not cleaned up'
 done

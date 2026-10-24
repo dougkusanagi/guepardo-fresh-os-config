@@ -6,6 +6,32 @@ REF="${GUEPARDO_REF:-master}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMP_DIR=""
 
+show_helpers() {
+  cat <<'EOF'
+Helpers disponíveis:
+  ./install.sh --media-agents "/caminho/da/biblioteca"
+      Copia as notas AGENTS.md de Jellyfin/qBittorrent para a biblioteca.
+      Preserva arquivos existentes; não altera vídeos nem torrents.
+  ./install.sh --helpers
+      Mostra esta ajuda sem instalar apps.
+EOF
+}
+
+case "${1:-}" in
+  --helpers)
+    [[ "$#" == 1 ]] || { echo 'Use --helpers sem outros argumentos.' >&2; exit 1; }
+    show_helpers
+    exit 0
+    ;;
+  --media-agents)
+    [[ "$#" == 2 && -n "$2" ]] || { echo 'Uso: ./install.sh --media-agents "/caminho/da/biblioteca"' >&2; exit 1; }
+    ;;
+  --help|-h) show_helpers ;;
+esac
+if [[ "$#" == 0 ]]; then
+  echo 'Dica: ./install.sh --helpers mostra os helpers, incluindo notas para bibliotecas Jellyfin/qBittorrent.'
+fi
+
 cleanup_bootstrap() {
   if [[ -n "$TMP_DIR" ]]; then
     rm -rf "$TMP_DIR"
@@ -37,16 +63,16 @@ if [[ ! -f "$ROOT_DIR/go.mod" || ! -d "$ROOT_DIR/install-common" ]]; then
   [[ -f "$ROOT_DIR/go.mod" ]] || { echo "Could not download repository ref $REF" >&2; exit 1; }
 fi
 
+if [[ "${1:-}" == --media-agents ]]; then
+  bash "$ROOT_DIR/scripts/install-media-agents.sh" "$2"
+  exit $?
+fi
+
 if [[ -n "${GUEPARDO_BIN:-}" ]]; then
   "$GUEPARDO_BIN" --root="$ROOT_DIR" "$@"
   exit $?
 fi
 
-go_version="$(go version 2>/dev/null || true)"
-if [[ "$go_version" =~ go1\.([0-9]+) ]] && (( BASH_REMATCH[1] >= 22 )); then
-  (cd "$ROOT_DIR" && go run ./cmd/guepardo --root="$ROOT_DIR" "$@")
-  exit $?
-fi
 
 case "$(uname -m)" in
   x86_64|amd64) architecture="amd64" ;;
@@ -58,6 +84,10 @@ if [[ -z "$TMP_DIR" ]]; then
   TMP_DIR="$(mktemp -d)"
 fi
 release="https://github.com/$REPOSITORY/releases/latest/download"
+# A pinned README/tag must keep using its own executable after newer releases.
+if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+  release="https://github.com/$REPOSITORY/releases/download/$REF"
+fi
 asset="guepardo-linux-$architecture"
 if bootstrap_download "$release/SOURCE_SHA256" "$TMP_DIR/SOURCE_SHA256" 2>/dev/null \
   && bootstrap_download "$release/SHA256SUMS" "$TMP_DIR/SHA256SUMS" 2>/dev/null; then
@@ -76,5 +106,16 @@ if bootstrap_download "$release/SOURCE_SHA256" "$TMP_DIR/SOURCE_SHA256" 2>/dev/n
     fi
   fi
 fi
-echo "Sem binário Go compatível com esta configuração; usando o executor Bash." >&2
+# Prefer the published, verified executable even when Go is already installed.
+go_version="$(go version 2>/dev/null || true)"
+if [[ "$go_version" =~ go1\.([0-9]+) ]] && (( BASH_REMATCH[1] >= 22 )); then
+  (cd "$ROOT_DIR" && go run ./cmd/guepardo --root="$ROOT_DIR" "$@")
+  exit $?
+fi
+
+if [[ "${GUEPARDO_BASH_FALLBACK:-0}" != 1 ]]; then
+  bash "$ROOT_DIR/scripts/bootstrap-go.sh" "$ROOT_DIR" "$@"
+  exit $?
+fi
+echo "Executor Bash solicitado explicitamente (sem TUI Go)." >&2
 bash "$ROOT_DIR/scripts/fallback.sh" "$@"

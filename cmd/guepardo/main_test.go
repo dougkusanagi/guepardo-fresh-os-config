@@ -73,7 +73,7 @@ func TestProfilePickerCancel(t *testing.T) {
 
 func TestPromptNetworkSettings(t *testing.T) {
 	opts := options{}
-	if err := promptNetworkSettings(&opts, strings.NewReader("enp1s0\n192.168.1.77/24\n192.168.1.1\n\n"), io.Discard); err != nil {
+	if err := promptNetworkSettingsWithNetworks(&opts, strings.NewReader("enp1s0\n192.168.1.77/24\n192.168.1.1\n\n"), io.Discard, nil); err != nil {
 		t.Fatal(err)
 	}
 	if opts.networkInterface != "enp1s0" || opts.networkAddress != "192.168.1.77/24" || opts.networkGateway != "192.168.1.1" || opts.networkDNS != "1.1.1.1" {
@@ -135,7 +135,7 @@ func TestRunProfileReportsFailureAndKeepsDiagnostics(t *testing.T) {
 	}
 	for _, interactive := range []bool{false, true} {
 		var output, log bytes.Buffer
-		err := runProfile(context.Background(), root, "ubuntu", "dev", "", false, 1, "", [4]string{}, interactive, &output, &log)
+		err := runProfile(context.Background(), root, "ubuntu", "dev", "", false, 1, "", [5]string{}, interactive, &output, &log)
 		if err == nil || !strings.Contains(output.String(), "package download failed") || !strings.Contains(log.String(), "package download failed") {
 			t.Fatalf("interactive=%v: error=%v output=%q log=%q", interactive, err, output.String(), log.String())
 		}
@@ -162,7 +162,7 @@ wait
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- runProfile(ctx, root, "ubuntu", "cli", "", false, 1, "", [4]string{}, false, io.Discard, io.Discard)
+		done <- runProfile(ctx, root, "ubuntu", "cli", "", false, 1, "", [5]string{}, false, io.Discard, io.Discard)
 	}()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -188,22 +188,24 @@ wait
 	}
 }
 
-func TestPickerEnvironmentSwitch(t *testing.T) {
-	for _, tc := range []struct{ keys, want string }{
-		{"w\r", "cli,dev,web"},
-		{"\t\r", "cli,dev,web"},
-		{"\x1b[C\r", "cli,dev,web"},
-		{"w2\r", "cli,web"},
-		{"w2ww\r", "cli,web"},
-		{"4ww\r", "desktop"},
-		{"w8\r", "cli,dev,web"},
-		{"w44\r", "cli,dev,web"},
-		{"w4a\r", "cli,dev,web"},
-		{"w\x1b[A \x1b[B \r", "cli"},
-	} {
-		got, err := selectProfiles(strings.NewReader(tc.keys), io.Discard, false)
-		if err != nil || got != tc.want {
-			t.Fatalf("keys=%q: got=%q err=%v, want=%q", tc.keys, got, err, tc.want)
+func TestPickerEnvironmentIsFixed(t *testing.T) {
+	for _, wsl := range []bool{false, true} {
+		p := newProfilePickerForEnvironment(wsl)
+		var out bytes.Buffer
+		p.render(&out, false)
+		if !wsl && strings.Contains(out.String(), "WSL") {
+			t.Fatal("Linux still shows WSL")
+		}
+		if strings.Contains(out.String(), "trocar") || strings.Contains(out.String(), "Tab/W") {
+			t.Fatal("environment switch still shown")
+		}
+		got, err := selectProfilesWithPicker(strings.NewReader("w\t\x1b[C1\r"), io.Discard, false, p)
+		want := "cli"
+		if wsl {
+			want = "dev,web"
+		}
+		if err != nil || got != want || p.wsl != wsl {
+			t.Fatalf("environment changed: got=%s err=%v", got, err)
 		}
 	}
 }
@@ -216,13 +218,12 @@ func TestPickerWSLDetection(t *testing.T) {
 }
 
 func TestPickerPresentation(t *testing.T) {
-	p := newProfilePicker()
+	p := newProfilePickerForEnvironment(true)
 	p.width, p.height = 60, 24
-	p.switchEnvironment()
 	var output bytes.Buffer
 	p.render(&output, false)
 	text := output.String()
-	for _, want := range []string{"guepardo", "Linux", "WSL", "Tab / W trocar", "3 módulos selecionados"} {
+	for _, want := range []string{"guepardo", "WSL", "3 módulos selecionados"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in %q", want, text)
 		}
@@ -259,8 +260,7 @@ func TestPickerFitsTerminal(t *testing.T) {
 }
 
 func TestWSLPickerHidesUnsupportedModules(t *testing.T) {
-	p := newProfilePicker()
-	p.switchEnvironment()
+	p := newProfilePickerForEnvironment(true)
 	p.active = 3
 	var output bytes.Buffer
 	p.render(&output, false)
@@ -278,7 +278,7 @@ func TestWSLPickerHidesUnsupportedModules(t *testing.T) {
 		t.Fatalf("unsupported profile leaked: %s", got)
 	}
 	p.toggle(7)
-	p.switchEnvironment()
+	p = newProfilePickerForEnvironment(false)
 	p.toggle(7)
 	if !p.allSelected() {
 		t.Fatal("Linux Todos no longer selects all profiles")

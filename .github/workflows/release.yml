@@ -1,0 +1,26 @@
+name: Publish Linux installer
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: production-installer-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - run: go test ./...
+      - run: ./test.sh --mode=static --distro=ubuntu
+      - run: ./test.sh --mode=static --distro=fedora
+      - run: ./scripts/build-release.sh
+      - name: Publish matching source and binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "installer-${GITHUB_SHA}" dist/guepardo-linux-amd64 dist/guepardo-linux-arm64 dist/SOURCE_SHA256 dist/SHA256SUMS --target "$GITHUB_SHA" --title "Installer ${GITHUB_SHA:0:12}" --generate-notes --latest
