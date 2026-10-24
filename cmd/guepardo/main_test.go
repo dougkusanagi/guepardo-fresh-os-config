@@ -274,3 +274,29 @@ func TestWSLPickerHidesUnsupportedModules(t *testing.T) {
 		t.Fatal("Linux Todos no longer selects all profiles")
 	}
 }
+
+func TestConfirmInstallation(t *testing.T) {
+	for _, tc := range []struct {
+		name, input string
+		want        bool
+	}{
+		{"enter starts", "\n", true},
+		{"whitespace starts", "  \n", true},
+		{"yes", "s\n", true},
+		{"uppercase yes", " S \n", true},
+		{"no cancels", "n\n", false},
+		{"invalid cancels", "maybe\n", false},
+		{"EOF cancels", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var output bytes.Buffer
+			got, err := confirmInstallation(strings.NewReader(tc.input), &output)
+			if err != nil || got != tc.want {
+				t.Fatalf("confirmation = %v, %v; want %v", got, err, tc.want)
+			}
+			if !strings.Contains(output.String(), "[S/n]") {
+				t.Fatal(output.String())
+			}
+		})
+	}
+}

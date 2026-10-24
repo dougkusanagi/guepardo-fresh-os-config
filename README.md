@@ -6,7 +6,7 @@ O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 
 ## Ubuntu ou WSL Ubuntu novo: um comando
 
-Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.
+Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. Na confirmação `[S/n]`, Enter inicia a instalação e `n` cancela. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.
 
 ```bash
 bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://github.com/dougkusanagi/guepardo-fresh-os-config/releases/latest/download/install.sh -o "$installer"; bash "$installer"'

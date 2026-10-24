@@ -276,8 +276,9 @@ if [[ ! -t 0 && "$yes" == false && "$dry_run" == false ]]; then
   exit 1
 fi
 if [[ -t 0 && "$yes" == false && "$dry_run" == false ]]; then
-  read -r -p 'Start installation? [s/N]: ' answer
-  [[ "${answer,,}" == s ]] || exit 0
+  read -r -p 'Iniciar instalação? [S/n]: ' answer || exit 0
+  answer="${answer//[[:space:]]/}"
+  [[ -z "$answer" || "${answer,,}" == s ]] || exit 0
 fi
 
 keepalive_pid=""

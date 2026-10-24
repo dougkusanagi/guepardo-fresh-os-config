@@ -170,6 +170,19 @@ func promptProfiles() (string, error) {
 	return selectProfilesWithPicker(os.Stdin, crlfWriter{os.Stdout}, os.Getenv("NO_COLOR") == "", picker)
 }
 
+func confirmInstallation(input io.Reader, output io.Writer) (bool, error) {
+	fmt.Fprint(output, "\nIniciar instalação? [S/n]: ")
+	answer, err := bufio.NewReader(input).ReadString('\n')
+	if errors.Is(err, io.EOF) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "" || answer == "s", nil
+}
+
 func resolveRoot(explicit string) (string, error) {
 	if explicit != "" {
 		return filepath.Abs(explicit)
@@ -487,12 +500,11 @@ func run() error {
 		return errors.New("em modo não interativo use --yes para autorizar a instalação")
 	}
 	if interactive && !opts.yes && !opts.dryRun {
-		fmt.Print("\nIniciar instalação? [s/N]: ")
-		answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
+		confirmed, err := confirmInstallation(os.Stdin, os.Stdout)
+		if err != nil {
 			return err
 		}
-		if strings.ToLower(strings.TrimSpace(answer)) != "s" {
+		if !confirmed {
 			fmt.Println("Cancelado.")
 			return nil
 		}
