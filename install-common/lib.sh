@@ -717,7 +717,7 @@ install_yazi() {
 }
 
 install_lm_studio() {
-  if flatpak run it.mijorus.gearlever --list-installed 2>/dev/null | grep -Fqi "LM Studio"; then
+  if flatpak run --no-documents-portal it.mijorus.gearlever --list-installed 2>/dev/null | grep -Eqi "LM[ -]Studio"; then
     log "LM Studio is already integrated with Gear Lever."
     return
   fi
@@ -752,9 +752,10 @@ install_lm_studio() {
   sudo rm -rf /opt/lm-studio
   sudo rm -f /usr/local/bin/lm-studio /usr/local/share/applications/lm-studio.desktop
   mkdir -p "$(dirname "$package_file")"
-  download_file "$url" "$package_file"
-  chmod 0755 "$package_file"
-  run_quiet flatpak run it.mijorus.gearlever --integrate --replace --yes "$package_file"
+  download_file "$url" "$package_file" || return 1
+  chmod 0755 "$package_file" || return 1
+  # Gear Lever already has host filesystem access; CLI integration needs no document portal.
+  run_quiet flatpak run --no-documents-portal it.mijorus.gearlever --integrate --replace --yes "$package_file" || return 1
   success "LM Studio integrated with Gear Lever"
 }
 

@@ -54,4 +54,37 @@ grep -Fq autostart_enabled=True "$TARGET_HOME/.config/onedrive-gui/gui_settings"
   [[ "$(sed -n '1p' "$sandbox/agents-calls")" == *'/dotagents/install.sh' ]]
   [[ "$(sed -n '2p' "$sandbox/agents-calls")" == *'/dotagents/bin/sync' ]]
 )
+# A missing document portal must not block Gear Lever's CLI or cause reinstallations.
+(
+  sudo() { :; }
+  download_file() { printf '%s\n' "$*" >> "$sandbox/lm-downloads"; printf 'AppImage' > "$2"; }
+  run_quiet() { "$@"; }
+  flatpak() {
+    if [[ "$1" == info ]]; then return 0; fi
+    if [[ "$1" != run || "$2" != --no-documents-portal ]]; then
+      echo "bwrap: Can't find source path /run/user/1000/doc/by-app/it.mijorus.gearlever" >&2
+      return 1
+    fi
+    [[ "$3" == it.mijorus.gearlever ]] || return 1
+    case "$4" in
+      --list-installed) printf '%s\n' "${lm_installed:-}" ;;
+      --integrate)
+        [[ "$5" == --replace && "$6" == --yes && "$7" == "$TARGET_HOME/Downloads/LM_Studio.AppImage" && -x "$7" ]] || return 1
+        printf '%s\n' "$*" >> "$sandbox/lm-integrations"
+        return "${lm_integrate_status:-0}" ;;
+      *) return 1 ;;
+    esac
+  }
+  for lm_installed in 'LM-Studio [0.4.26+4]' 'LM Studio [0.4.26+4]'; do
+    install_lm_studio >/dev/null
+  done
+  [[ ! -f "$sandbox/lm-downloads" && ! -f "$sandbox/lm-integrations" ]]
+  lm_installed=''
+  install_lm_studio > "$sandbox/lm-output"
+  [[ -f "$sandbox/lm-downloads" && -f "$sandbox/lm-integrations" ]]
+  grep -Fq 'LM Studio integrated' "$sandbox/lm-output"
+  lm_integrate_status=1
+  if install_lm_studio > "$sandbox/lm-output"; then echo 'Gear Lever failure swallowed' >&2; exit 1; fi
+  ! grep -Fq 'LM Studio integrated' "$sandbox/lm-output"
+)
 echo 'Desktop application configuration checks passed'
