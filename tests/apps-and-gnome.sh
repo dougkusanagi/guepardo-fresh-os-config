@@ -72,11 +72,52 @@ if source "$sandbox/dock.sh" >/dev/null; then echo 'Failed dock reported success
 [[ ! -e "$sandbox/disabled-working-dock" ]]
 # Web launchers quote HOME paths containing spaces and use installed Chrome.
 TARGET_HOME="$sandbox/home with spaces"
+export XDG_DATA_DIRS="$sandbox/system"
 install_web_app chatgpt ChatGPT https://chatgpt.com
-grep -Fq 'Exec=google-chrome --app=https://chatgpt.com' "$TARGET_HOME/.local/share/applications/chatgpt.desktop"
+grep -Fq 'Exec=google-chrome --app=https://chatgpt.com --class=chatgpt' "$TARGET_HOME/.local/share/applications/chatgpt.desktop"
 # Existing non-Git directories must survive dotagents setup untouched.
 mkdir -p "$sandbox/existing"
 echo preserve > "$sandbox/existing/memory"
 if install_source_checkout dougkusanagi/dotagents "$sandbox/existing" >/dev/null; then exit 1; fi
 [[ "$(cat "$sandbox/existing/memory")" == preserve ]]
+# Local notch sources take priority without pulling over uncommitted work.
+# Old remote sources must not overwrite an installed notch.
+(
+  TARGET_HOME="$sandbox/notch-home"
+  source_dir="$TARGET_HOME/dev/ai-quota-pulse-gnome"
+  uuid=ai-usage@guepardosys
+  mkdir -p "$source_dir/$uuid/ui"
+  printf '{"shell-version":["50"]}' > "$source_dir/$uuid/metadata.json"
+  touch "$source_dir/$uuid/ui/notch.js"
+  unset GUEPARDO_AI_QUOTA_SOURCE
+  apt_install() { :; }
+  gnome-shell() { echo 'GNOME Shell 50.1'; }
+  install_source_checkout() { echo pulled >> "$sandbox/notch-calls"; }
+  run_quiet() { printf '%s\n' "$*" >> "$sandbox/notch-calls"; }
+  persist_gnome_extension() { echo enabled >> "$sandbox/notch-calls"; }
+  install_ai_quota_pulse
+  grep -Fq "make -C $source_dir install EXTENSIONS_DIR=$TARGET_HOME/.local/share/gnome-shell/extensions" "$sandbox/notch-calls"
+  ! grep -q pulled "$sandbox/notch-calls"
+  [[ "$(tail -1 "$sandbox/notch-calls")" == enabled ]]
+  export GUEPARDO_AI_QUOTA_SOURCE="$source_dir"
+  install_ai_quota_pulse
+  export GUEPARDO_AI_QUOTA_SOURCE="$sandbox/missing-source"
+  : > "$sandbox/notch-calls"
+  if install_ai_quota_pulse; then echo 'Missing explicit source accepted' >&2; exit 1; fi
+  [[ ! -s "$sandbox/notch-calls" ]]
+  unset GUEPARDO_AI_QUOTA_SOURCE
+  rm "$source_dir/$uuid/ui/notch.js"
+  if install_ai_quota_pulse; then echo 'Legacy source accepted' >&2; exit 1; fi
+  [[ ! -s "$sandbox/notch-calls" ]]
+  rm -rf "$source_dir"
+  install_source_checkout() {
+    mkdir -p "$2/$uuid/ui"
+    printf '{"shell-version":["50"]}' > "$2/$uuid/metadata.json"
+  }
+  if install_ai_quota_pulse; then echo 'Legacy remote source accepted' >&2; exit 1; fi
+  [[ ! -s "$sandbox/notch-calls" ]]
+  touch "$TARGET_HOME/.local/share/guepardo/sources/ai-quota-pulse-gnome/$uuid/ui/notch.js"
+  install_ai_quota_pulse
+  [[ "$(tail -1 "$sandbox/notch-calls")" == enabled ]]
+)
 echo 'Application and GNOME persistence checks passed'

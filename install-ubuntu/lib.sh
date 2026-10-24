@@ -303,26 +303,43 @@ install_steam() {
   success "Steam installed"
 }
 
+# Newest proprietary NVIDIA branch Ubuntu offers (e.g. 615), skipping the
+# -open and -server variants; empty when none is listed.
+latest_nvidia_driver_branch() {
+  ubuntu-drivers list 2>/dev/null | grep -oE '^nvidia-driver-[0-9]+,' | grep -oE '[0-9]+' | sort -n | tail -n 1 || true
+}
+
 install_gpu_drivers() {
   # Vulkan/Mesa userspace (including 32-bit for Proton) plus, on NVIDIA
-  # hardware, the driver recommended by Ubuntu's own detection.
+  # hardware, the newest proprietary driver branch Ubuntu offers.
   apt_install_optional pciutils mesa-vulkan-drivers libvulkan1 mesa-vulkan-drivers:i386 libvulkan1:i386
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would install the recommended NVIDIA driver via ubuntu-drivers when an NVIDIA GPU is detected"
+    log "[DRY-RUN] Would install the newest NVIDIA driver via ubuntu-drivers when an NVIDIA GPU is detected"
     return
   fi
   if ! command_exists lspci || ! lspci 2>/dev/null | grep -Ei 'vga|3d|display' | grep -qi nvidia; then
     log "No NVIDIA GPU detected; keeping the open-source graphics stack."
     return
   fi
-  if command_exists nvidia-smi && nvidia-smi >/dev/null 2>&1; then
-    log "NVIDIA driver is already working."
-    return
-  fi
 
   apt_install ubuntu-drivers-common
-  run_quiet sudo ubuntu-drivers install
+  local latest current=""
+  latest="$(latest_nvidia_driver_branch)"
+  if command_exists nvidia-smi && nvidia-smi >/dev/null 2>&1; then
+    current="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n 1 | cut -d. -f1)"
+    if [[ -z "$latest" || ( -n "$current" && "$current" -ge "$latest" ) ]]; then
+      log "NVIDIA driver ${current:-?} is already working and up to date."
+      return
+    fi
+  fi
+
+  if [[ -n "$latest" ]]; then
+    log "Installing NVIDIA driver $latest${current:+ (replacing $current)}."
+    run_quiet sudo ubuntu-drivers install "nvidia:$latest"
+  else
+    run_quiet sudo ubuntu-drivers install
+  fi
   REQUIRES_REBOOT="true"
   warn "NVIDIA driver installed. Reboot to load it; with Secure Boot enabled, enroll the MOK key when prompted."
   success "NVIDIA driver installed"

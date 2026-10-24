@@ -60,12 +60,23 @@ configure_multimonitor_panels() {
 
 install_ai_quota_pulse() {
   local destination="$TARGET_HOME/.local/share/guepardo/sources/ai-quota-pulse-gnome" uuid=ai-usage@guepardosys shell_version
+  local local_source="${GUEPARDO_AI_QUOTA_SOURCE:-$TARGET_HOME/dev/ai-quota-pulse-gnome}"
   if [[ "$DISTRO" == ubuntu ]]; then
     apt_install git make libglib2.0-bin gir1.2-soup-3.0 gir1.2-secret-1 python3
   else
     dnf_install git make glib2 libsoup3 libsecret python3
   fi
-  install_source_checkout dougkusanagi/ai-quota-pulse-gnome "$destination" || return 1
+  if [[ -d "$local_source/$uuid" ]]; then
+    destination="$local_source"
+    log "Installing AI Quota Pulse notch from $destination"
+  elif [[ -n "${GUEPARDO_AI_QUOTA_SOURCE:-}" ]]; then
+    error "AI Quota Pulse source not found: $local_source"; return 1
+  else
+    install_source_checkout dougkusanagi/ai-quota-pulse-gnome "$destination" || return 1
+  fi
+  [[ -f "$destination/$uuid/ui/notch.js" ]] || {
+    error "AI Quota Pulse source has no notch. Update the source or set GUEPARDO_AI_QUOTA_SOURCE to the notch checkout; keeping the installed extension."; return 1;
+  }
   shell_version="$(gnome-shell --version | grep -oE '[0-9]+' | head -1)"
   jq -e --arg version "$shell_version" '."shell-version" | index($version) != null' "$destination/$uuid/metadata.json" >/dev/null || {
     error "AI Quota Pulse does not support GNOME $shell_version"; return 1;

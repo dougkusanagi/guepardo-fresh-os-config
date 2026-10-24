@@ -141,12 +141,33 @@ if install_node_lts >/dev/null 2>&1; then fail 'Node checksum mismatch was accep
   apt_install() { :; }
   command_exists() { [[ "$1" == lspci ]]; }
   run_quiet() { printf '%s\n' "$*" >> "$calls"; }
+  ubuntu-drivers() { :; }
   lspci() { printf '00:02.0 VGA compatible controller: Intel Corporation UHD\n'; }
   install_gpu_drivers >/dev/null 2>&1
   [[ ! -e "$calls" && "$REQUIRES_REBOOT" == false ]] || fail 'Driver installed without an NVIDIA GPU'
   lspci() { printf '01:00.0 VGA compatible controller: NVIDIA Corporation GA104\n'; }
   install_gpu_drivers >/dev/null 2>&1
-  grep -Fq 'ubuntu-drivers install' "$calls" && [[ "$REQUIRES_REBOOT" == true ]] || fail 'NVIDIA driver was not installed'
+  grep -Fxq 'sudo ubuntu-drivers install' "$calls" && [[ "$REQUIRES_REBOOT" == true ]] || fail 'NVIDIA driver was not installed'
+
+  # The newest proprietary branch wins over older, -open and -server ones.
+  ubuntu-drivers() {
+    printf '%s\n' 'nvidia-driver-595-open, (kernel modules provided by x)' 'nvidia-driver-615, (kernel modules provided by x)' \
+      'nvidia-driver-620-server, (kernel modules provided by x)' 'nvidia-driver-595, (kernel modules provided by x)'
+  }
+  [[ "$(latest_nvidia_driver_branch)" == 615 ]] || fail 'Wrong newest NVIDIA branch'
+  : > "$calls"; REQUIRES_REBOOT=false
+  install_gpu_drivers >/dev/null 2>&1
+  grep -Fxq 'sudo ubuntu-drivers install nvidia:615' "$calls" || fail 'Newest NVIDIA driver was not installed'
+
+  # A working older driver is upgraded; a current one is kept.
+  command_exists() { [[ "$1" == lspci || "$1" == nvidia-smi ]]; }
+  nvidia-smi() { [[ "$*" == *driver_version* ]] && printf '%s\n' "$driver_version"; return 0; }
+  driver_version=595.99.02; : > "$calls"; REQUIRES_REBOOT=false
+  install_gpu_drivers >/dev/null 2>&1
+  grep -Fxq 'sudo ubuntu-drivers install nvidia:615' "$calls" && [[ "$REQUIRES_REBOOT" == true ]] || fail 'Older NVIDIA driver was not upgraded'
+  driver_version=615.71.09; : > "$calls"; REQUIRES_REBOOT=false
+  install_gpu_drivers >/dev/null 2>&1
+  [[ ! -s "$calls" && "$REQUIRES_REBOOT" == false ]] || fail 'Current NVIDIA driver was reinstalled'
 )
 
 # Verified Node installation repairs an incomplete directory and is reused.

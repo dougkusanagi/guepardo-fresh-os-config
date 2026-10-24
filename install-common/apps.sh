@@ -31,30 +31,35 @@ install_dotagents() {
 }
 
 install_release_appimage() {
-  local repo="$1" name="$2" pattern="$3" url destination
-  if [[ -x "$TARGET_HOME/.local/bin/$name" ]]; then log "$name is already installed."; return; fi
+  local repo="$1" name="$2" pattern="$3" url destination existing extracted
   if [[ "$DRY_RUN" == true ]]; then
     log "[DRY-RUN] Would install $name AppImage from $repo"
     return
   fi
-  url="$(github_latest_asset_url "$repo" "$pattern")" || {
-    error "No compatible public release for $name ($repo)."; return 1;
-  }
+  if existing="$(python3 "$ROOT_DIR/scripts/app-launcher.py" find "$TARGET_HOME" "$name")"; then
+    log "$name desktop entry already installed: $existing"
+    return
+  fi
   destination="$TARGET_HOME/.local/share/guepardo/apps/$name.AppImage"
-  download_file "$url" "$destination" || return 1
-  chmod +x "$destination"
+  if [[ ! -x "$destination" ]]; then
+    url="$(github_latest_asset_url "$repo" "$pattern")" || {
+      error "No compatible public release for $name ($repo)."; return 1;
+    }
+    download_file "$url" "$destination" || return 1
+    chmod +x "$destination"
+  fi
   mkdir -p "$TARGET_HOME/.local/bin" "$TARGET_HOME/.local/share/applications"
-  # Extraction avoids depending on FUSE 2 on recent distros.
+  # Read the upstream identity and icon rather than inventing another app.
+  extracted="$(mktemp -d)"
+  if ! (cd "$extracted" && "$destination" --appimage-extract >/dev/null) \
+    || ! python3 "$ROOT_DIR/scripts/app-launcher.py" integrate "$TARGET_HOME" "$name" "$extracted/squashfs-root"; then
+    rm -rf "$extracted"
+    error "Could not integrate $name AppImage desktop entry."
+    return 1
+  fi
+  rm -rf "$extracted"
   printf '#!/bin/sh\nAPPIMAGE_EXTRACT_AND_RUN=1 exec "%s" "$@"\n' "$destination" > "$TARGET_HOME/.local/bin/$name"
   chmod +x "$TARGET_HOME/.local/bin/$name"
-  cat > "$TARGET_HOME/.local/share/applications/$name.desktop" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=$name
-Exec="$TARGET_HOME/.local/bin/$name" %U
-Terminal=false
-Categories=Development;Utility;
-DESKTOP
 }
 
 install_sloth_note() {
@@ -121,12 +126,19 @@ install_claude_desktop() {
 install_web_app() {
   local id="$1" name="$2" url="$3"
   if [[ "$DRY_RUN" == true ]]; then log "[DRY-RUN] Would install $name Chrome web app ($url)"; return; fi
+  local existing
+  if existing="$(python3 "$ROOT_DIR/scripts/app-launcher.py" find "$TARGET_HOME" "$id")"; then
+    log "$name desktop entry already installed: $existing"
+    return
+  fi
   mkdir -p "$TARGET_HOME/.local/share/applications"
   cat > "$TARGET_HOME/.local/share/applications/$id.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=$name
-Exec=google-chrome --app=$url
+Exec=google-chrome --app=$url --class=$id
+Icon=google-chrome
+StartupWMClass=$id
 Terminal=false
 Categories=Office;Network;
 DESKTOP
