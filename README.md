@@ -9,10 +9,10 @@ O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.
 
 ```bash
-bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.1/install.sh -o "$installer"; GUEPARDO_REF=v0.2.1 bash "$installer"'
+bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.2/install.sh -o "$installer"; GUEPARDO_REF=v0.2.2 bash "$installer"'
 ```
 
-O comando usa a release `v0.2.1`, com fontes e executável correspondentes. O instalador prefere o binário publicado, verifica SHA256 e a impressão das fontes antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
+O comando usa a release `v0.2.2`, com fontes e executável correspondentes. O instalador prefere o binário publicado, verifica SHA256 e a impressão das fontes antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
 
 Para instalação sem o menu, acrescente `--profiles=cli,dev,web --yes` à chamada final `bash "$installer"`. `--mode=full --yes` seleciona também desktop e jogos; no WSL use `--mode=wsl --yes`. Não execute o instalador inteiro com `sudo`.
 
@@ -89,10 +89,10 @@ O programa chama `sudo -v` uma vez antes da primeira etapa privilegiada. Enquant
 
 ### Servidor sem Go instalado
 
-A release `v0.2.1` fornece `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` prefere esses executáveis mesmo quando Go já está instalado, verifica checksums e só usa o binário se a impressão das fontes corresponder ao checkout baixado. Sem correspondência, usa Go local ou prepara Go temporário; o executor Bash fica disponível apenas com `GUEPARDO_BASH_FALLBACK=1` quando não houver Go local/release correspondente. Um checksum incorreto encerra o processo sem executar o binário. O workflow continua gerando releases de cada atualização em `master`; fixe `GUEPARDO_REF` na tag ou commit que quiser executar.
+A release `v0.2.2` fornece `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` prefere esses executáveis mesmo quando Go já está instalado, verifica checksums e só usa o binário se a impressão das fontes corresponder ao checkout baixado. Sem correspondência, usa Go local ou prepara Go temporário; o executor Bash fica disponível apenas com `GUEPARDO_BASH_FALLBACK=1` quando não houver Go local/release correspondente. Um checksum incorreto encerra o processo sem executar o binário. O workflow continua gerando releases de cada atualização em `master`; fixe `GUEPARDO_REF` na tag ou commit que quiser executar.
 
 ```bash
-GUEPARDO_REF=v0.2.1 bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.1/install.sh) --profiles=cli --yes
+GUEPARDO_REF=v0.2.2 bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.2/install.sh) --profiles=cli --yes
 ```
 
 Você também pode fornecer um binário já compilado com `GUEPARDO_BIN=/caminho/guepardo ./install.sh --profiles=cli`.
@@ -102,7 +102,7 @@ Você também pode fornecer um binário já compilado com `GUEPARDO_BIN=/caminho
 Para executar a mesma release no Windows:
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.1/install.ps1')))
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.2/install.ps1')))
 ```
 
 O instalador PowerShell aceita os mesmos grupos principais:

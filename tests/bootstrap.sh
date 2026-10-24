@@ -146,7 +146,7 @@ SH
 chmod +x "$sandbox/readme-bin/"*
 readme_command="$(sed -n '/^bash -c /{p;q;}' "$ROOT_DIR/README.md")"
 [[ -n "$readme_command" ]] || fail 'README is missing its recommended command'
-[[ "$readme_command" == *'/v0.2.1/install.sh'* && "$readme_command" == *'GUEPARDO_REF=v0.2.1'* ]] || fail 'README must pin matching release script and sources'
+[[ "$readme_command" == *'/v0.2.2/install.sh'* && "$readme_command" == *'GUEPARDO_REF=v0.2.2'* ]] || fail 'README must pin matching release script and sources'
 for environment in linux wsl interop; do
   distro_name='' interop=''
   [[ "$environment" == wsl ]] && distro_name=Ubuntu
