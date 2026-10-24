@@ -16,7 +16,7 @@ O endereço `releases/latest/download/install.sh` sempre instala a última relea
 
 Para instalação sem o menu, acrescente `--profiles=cli,dev,web --yes` à chamada final `bash "$installer"`. `--mode=full --yes` seleciona também desktop e jogos; no WSL use `--mode=wsl --yes`. Não execute o instalador inteiro com `sudo`.
 
-Se a instalação parar, consulte o erro e o log e repita o mesmo comando depois de resolver a causa. O instalador reaproveita os apps que detecta como instalados e refaz etapas incompletas. Abra um novo terminal ao terminar; reinicie quando a instalação do desktop solicitar.
+Se um aplicativo falhar, a instalação registra a pendência e continua com os demais aplicativos independentes. Se um perfil falhar, os próximos perfis ainda são processados. Ao final, mostra as pendências e retorna erro quando houver falhas; consulte o log, resolva a causa e repita o mesmo comando. Cancelamento e perda de autenticação do sudo interrompem a execução. O instalador reaproveita os apps que detecta como instalados e refaz etapas incompletas. Abra um novo terminal ao terminar; reinicie quando a instalação do desktop solicitar.
 
 ## Perfis
 

@@ -94,8 +94,14 @@ DESKTOP
 
 install_ai_desktop_apps() {
   configure_user_path
-  install_release_appimage pingdotgg/t3code t3-code '^T3-Code-.*-x86_64\.AppImage$' || return 1
-  install_sloth_note || return 1
+  run_app "T3 Code" install_release_appimage pingdotgg/t3code t3-code '^T3-Code-.*-x86_64\.AppImage$'
+  run_app "Sloth Note" install_sloth_note
+  run_app "Claude Desktop" install_claude_desktop
+  run_app "ChatGPT" install_web_app chatgpt ChatGPT https://chatgpt.com
+  run_app "OneDriveGUI" install_onedrive_gui
+}
+
+install_claude_desktop() {
   if [[ "$DISTRO" == ubuntu ]]; then
     if [[ "$DRY_RUN" == true ]]; then
       log '[DRY-RUN] Would install Claude Desktop from the official Anthropic APT repository'
@@ -110,8 +116,6 @@ install_ai_desktop_apps() {
     install_web_app claude Claude https://claude.ai
     warn 'Claude Desktop upstream supports Debian/Ubuntu; installed Claude web app on Fedora/Nobara.'
   fi
-  install_web_app chatgpt ChatGPT https://chatgpt.com || return 1
-  install_onedrive_gui
 }
 
 install_web_app() {

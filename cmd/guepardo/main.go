@@ -263,7 +263,11 @@ func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun
 	configureProcessCancellation(cmd)
 	cmd.Dir = root
 	cmd.Stdin = os.Stdin
-	cmd.Env = append(os.Environ(), "GUEPARDO_ROOT="+root, "GUEPARDO_SUDO_NONINTERACTIVE=1", "GUEPARDO_DRY_RUN="+fmt.Sprint(dryRun), "GUEPARDO_JOBS="+fmt.Sprint(jobs), "GUEPARDO_INDEX_MARKER="+indexMarker, "SELECTED_THEME="+theme,
+	failurePath := ""
+	if indexMarker != "" {
+		failurePath = indexMarker + ".failures"
+	}
+	cmd.Env = append(os.Environ(), "GUEPARDO_ROOT="+root, "GUEPARDO_SUDO_NONINTERACTIVE=1", "GUEPARDO_DRY_RUN="+fmt.Sprint(dryRun), "GUEPARDO_JOBS="+fmt.Sprint(jobs), "GUEPARDO_INDEX_MARKER="+indexMarker, "GUEPARDO_FAILURES_FILE="+failurePath, "SELECTED_THEME="+theme,
 		"STATIC_NETWORK_INTERFACE="+network[0], "STATIC_NETWORK_ADDRESS="+network[1], "STATIC_NETWORK_GATEWAY="+network[2], "STATIC_NETWORK_DNS="+network[3], "STATIC_NETWORK_UUID="+network[4])
 	if !interactive {
 		cmd.Stdout = io.MultiWriter(output, log)
@@ -526,9 +530,11 @@ func run() error {
 		sudoFailures = failures
 	}
 	start := time.Now()
+	var failedProfiles []string
 	for i, profile := range profiles {
 		fmt.Printf("\n%s\n", color("1;34", fmt.Sprintf("  [%d/%d] %s", i+1, len(profiles), profileLabels[profile]), colorEnabled))
 		stepStart := time.Now()
+		pendingBefore, _ := os.ReadFile(indexMarker + ".failures")
 		network := [5]string{opts.networkInterface, opts.networkAddress, opts.networkGateway, opts.networkDNS, opts.networkUUID}
 		if err := runProfile(ctx, root, distro, profile, opts.theme, opts.dryRun, opts.jobs, indexMarker, network, interactive, os.Stdout, file); err != nil {
 			select {
@@ -536,9 +542,38 @@ func run() error {
 				return fmt.Errorf("perfil %s interrompido: %w (log: %s)", profile, authErr, path)
 			default:
 			}
-			return fmt.Errorf("perfil %s falhou após %s: %w (log: %s). Corrija o erro e repita o mesmo comando; apps já instalados serão reaproveitados", profile, time.Since(stepStart).Round(time.Second), err, path)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			failure := fmt.Sprintf("perfil %s: %v", profile, err)
+			failedProfiles = append(failedProfiles, failure)
+			fmt.Fprintf(os.Stdout, "  WARN %s; continuando com os próximos perfis.\n", failure)
+			fmt.Fprintln(file, failure)
+			continue
 		}
-		fmt.Printf("  ✓ %s concluído em %s\n", profile, time.Since(stepStart).Round(time.Second))
+		pendingAfter, _ := os.ReadFile(indexMarker + ".failures")
+		if len(pendingAfter) > len(pendingBefore) {
+			fmt.Printf("  WARN %s finalizado com pendências em %s\n", profile, time.Since(stepStart).Round(time.Second))
+		} else {
+			fmt.Printf("  ✓ %s concluído em %s\n", profile, time.Since(stepStart).Round(time.Second))
+		}
+	}
+	if appFailures, err := os.ReadFile(indexMarker + ".failures"); err == nil {
+		for _, failure := range strings.Split(strings.TrimSpace(string(appFailures)), "\n") {
+			if failure != "" {
+				failedProfiles = append(failedProfiles, failure)
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if len(failedProfiles) > 0 {
+		fmt.Println("\n  Instalação finalizada com pendências:")
+		for _, failure := range failedProfiles {
+			fmt.Printf("  - %s\n", failure)
+			fmt.Fprintln(file, "Pendente:", failure)
+		}
+		return fmt.Errorf("%d pendência(s); os demais itens foram processados (log: %s). Corrija e repita o mesmo comando", len(failedProfiles), path)
 	}
 	fmt.Printf("\n%s %s  •  %s\n", color("1;32", "  Instalação concluída", colorEnabled), time.Since(start).Round(time.Second), path)
 	return nil

@@ -316,13 +316,19 @@ if ! $dry_run && [[ "${selected[*]}" != fonts ]]; then
 fi
 for candidate in "${selected[@]}"; do
   printf '\n[%s] %s\n' "$distro" "$candidate"
-  if GUEPARDO_ROOT="$ROOT_DIR" GUEPARDO_DRY_RUN="$dry_run" GUEPARDO_SUDO_NONINTERACTIVE=1 GUEPARDO_JOBS="$jobs" GUEPARDO_INDEX_MARKER="$index_cache_dir/updated" SELECTED_THEME="$theme" \
+  if GUEPARDO_ROOT="$ROOT_DIR" GUEPARDO_DRY_RUN="$dry_run" GUEPARDO_SUDO_NONINTERACTIVE=1 GUEPARDO_JOBS="$jobs" GUEPARDO_INDEX_MARKER="$index_cache_dir/updated" GUEPARDO_FAILURES_FILE="$index_cache_dir/failures" SELECTED_THEME="$theme" \
     STATIC_NETWORK_INTERFACE="$network_interface" STATIC_NETWORK_ADDRESS="$network_address" STATIC_NETWORK_GATEWAY="$network_gateway" STATIC_NETWORK_DNS="$network_dns" STATIC_NETWORK_UUID="$network_uuid" \
       bash "$ROOT_DIR/scripts/run-profile.sh" "$distro" "$candidate" 2>&1 | tee -a "$log_file"; then
     :
   else
-    printf '\nERROR Profile %s failed. Log: %s\nRepeat the same command after fixing the error; installed apps are reused.\n' "$candidate" "$log_file" >&2
-    exit 1
+    printf 'Profile %s failed\n' "$candidate" >> "$index_cache_dir/failures"
+    printf '\nWARN Profile %s failed; continuing. Log: %s\n' "$candidate" "$log_file" >&2
   fi
 done
+if [[ -s "$index_cache_dir/failures" ]]; then
+  printf '\nInstallation finished with pending items:\n'
+  cat "$index_cache_dir/failures" | tee -a "$log_file"
+  printf 'Fix the errors and rerun the same command. Log: %s\n' "$log_file"
+  exit 1
+fi
 printf '\nInstallation complete. Log: %s\n' "$log_file"

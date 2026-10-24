@@ -177,6 +177,24 @@ desktop_install_enabled() {
   [[ "${INSTALL_MODE:-}" != "wsl" ]]
 }
 
+# Run each independent app with errexit intact, outside a conditional context.
+# Waiting in the parent lets us record its failure and continue with other apps.
+run_app() {
+  local label="$1" status=0 app_pid
+  shift
+  ( set -Eeuo pipefail; "$@" ) <&0 &
+  app_pid=$!
+  wait "$app_pid" || status=$?
+  if ((status != 0)); then
+    if ((status == 130 || status == 143)); then return "$status"; fi
+    warn "$label failed (exit $status); continuing with the remaining applications."
+    if [[ -n "${GUEPARDO_FAILURES_FILE:-}" ]]; then
+      printf '%s\n' "$label (exit $status)" >> "$GUEPARDO_FAILURES_FILE"
+    fi
+  fi
+  return 0
+}
+
 run_quiet() {
   if [[ "$DRY_RUN" == "true" ]]; then
     log "[DRY-RUN] Would run: $*"

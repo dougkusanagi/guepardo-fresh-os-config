@@ -87,4 +87,33 @@ grep -Fq autostart_enabled=True "$TARGET_HOME/.config/onedrive-gui/gui_settings"
   if install_lm_studio > "$sandbox/lm-output"; then echo 'Gear Lever failure swallowed' >&2; exit 1; fi
   ! grep -Fq 'LM Studio integrated' "$sandbox/lm-output"
 )
+# Failures inside an app stop that app without skipping the next independent app.
+(
+  set -Eeuo pipefail
+  GUEPARDO_FAILURES_FILE="$sandbox/pending-apps"
+  broken_app() { echo 'bwrap: missing document portal' >&2; false; touch "$sandbox/false-success"; }
+  healthy_app() { touch "$sandbox/next-app-installed"; }
+  run_app 'Broken Flatpak' broken_app
+  run_app 'Healthy app' healthy_app
+  [[ ! -f "$sandbox/false-success" && -f "$sandbox/next-app-installed" ]]
+  grep -Fxq 'Broken Flatpak (exit 1)' "$GUEPARDO_FAILURES_FILE"
+  [[ "$(wc -l < "$GUEPARDO_FAILURES_FILE")" == 1 ]]
+)
+# The actual desktop app lists continue after LM Studio fails on both distributions.
+for distro in ubuntu fedora; do
+  (
+    GUEPARDO_FAILURES_FILE="$sandbox/$distro-pending"
+    apt_install_optional() { :; }
+    dnf_install_optional() { :; }
+    flatpak_install_app() { :; }
+    for installer in install_vscode_desktop install_google_chrome install_obsidian install_zapfast install_antigravity_desktop install_remote_script; do
+      eval "$installer() { :; }"
+    done
+    install_lm_studio() { return 1; }
+    install_opencode_desktop() { touch "$sandbox/$distro-opencode"; }
+    source "$ROOT_DIR/install-$distro/desktop/10-apps.sh"
+    [[ -f "$sandbox/$distro-opencode" ]]
+    grep -Fq 'lm studio (exit 1)' "$GUEPARDO_FAILURES_FILE"
+  )
+done
 echo 'Desktop application configuration checks passed'

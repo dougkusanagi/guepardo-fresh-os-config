@@ -2,12 +2,12 @@
 
 section "Developer Tools"
 apt_install xsel podman
-install_node_lts
-install_npm_global_package opencode opencode-ai
-install_npm_global_package codex @openai/codex
-install_npm_global_package claude @anthropic-ai/claude-code
+run_app "node lts" install_node_lts
+run_app "npm global package" install_npm_global_package opencode opencode-ai
+run_app "npm global package" install_npm_global_package codex @openai/codex
+run_app "npm global package" install_npm_global_package claude @anthropic-ai/claude-code
 if [[ "${GUEPARDO_DEFER_DOTAGENTS:-false}" != true ]]; then install_dotagents; fi
-install_vite_plus
+run_app "vite plus" install_vite_plus
 if [[ "$DRY_RUN" == "true" ]]; then
   log "[DRY-RUN] Would configure podman registries"
 else

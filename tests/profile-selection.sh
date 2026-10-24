@@ -105,4 +105,20 @@ assert 'flatpak: com.ktechpit.whatsie' not in s
 PYCHECK
 done
 
+# A failed profile must not prevent later profiles, and app failures stay in the summary.
+fixture_root="$(mktemp -d)"
+mkdir -p "$fixture_root/scripts"
+cat > "$fixture_root/scripts/run-profile.sh" <<'SH'
+#!/usr/bin/env bash
+set -eu
+if [[ "$2" == desktop ]]; then exit 7; fi
+printf 'Later profile executed\n'
+printf 'Example app (exit 1)\n' >> "$GUEPARDO_FAILURES_FILE"
+SH
+if output="$(XDG_STATE_HOME="$fixture_root/state" go run ./cmd/guepardo --root="$fixture_root" --distro=ubuntu --profiles=desktop,games --dry-run --yes 2>&1)"; then
+  fail 'Incomplete installation reported success'
+fi
+[[ "$output" == *'Later profile executed'* && "$output" == *'perfil desktop: exit status 7'* && "$output" == *'Example app (exit 1)'* && "$output" == *'Instalação finalizada com pendências'* ]] || fail "Missing continuation or failure summary: $output"
+rm -rf "$fixture_root"
+
 printf 'Profile selection checks passed\n'
