@@ -85,7 +85,7 @@ if [[ -z "$TMP_DIR" ]]; then
 fi
 release="https://github.com/$REPOSITORY/releases/latest/download"
 # A pinned README/tag must keep using its own executable after newer releases.
-if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ || "$REF" =~ ^installer-[0-9a-f]{40}$ ]]; then
   release="https://github.com/$REPOSITORY/releases/download/$REF"
 fi
 asset="guepardo-linux-$architecture"

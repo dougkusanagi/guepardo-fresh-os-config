@@ -23,4 +23,4 @@ jobs:
       - name: Publish matching source and binaries
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "installer-${GITHUB_SHA}" dist/guepardo-linux-amd64 dist/guepardo-linux-arm64 dist/SOURCE_SHA256 dist/SHA256SUMS --target "$GITHUB_SHA" --title "Installer ${GITHUB_SHA:0:12}" --generate-notes --latest
+        run: gh release create "installer-${GITHUB_SHA}" dist/guepardo-linux-amd64 dist/guepardo-linux-arm64 dist/SOURCE_SHA256 dist/SHA256SUMS dist/install.sh --target "$GITHUB_SHA" --title "Installer ${GITHUB_SHA:0:12}" --generate-notes --latest

@@ -9,10 +9,10 @@ O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.
 
 ```bash
-bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.2/install.sh -o "$installer"; GUEPARDO_REF=v0.2.2 bash "$installer"'
+bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://github.com/dougkusanagi/guepardo-fresh-os-config/releases/latest/download/install.sh -o "$installer"; bash "$installer"'
 ```
 
-O comando usa a release `v0.2.2`, com fontes e executável correspondentes. O instalador prefere o binário publicado, verifica SHA256 e a impressão das fontes antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
+O endereço `releases/latest/download/install.sh` sempre instala a última release publicada, com fontes e executável correspondentes. Cada instalador publicado fixa internamente a própria release; não é necessário atualizar o comando. O instalador prefere o binário publicado, verifica SHA256 e a impressão das fontes antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
 
 Para instalação sem o menu, acrescente `--profiles=cli,dev,web --yes` à chamada final `bash "$installer"`. `--mode=full --yes` seleciona também desktop e jogos; no WSL use `--mode=wsl --yes`. Não execute o instalador inteiro com `sudo`.
 

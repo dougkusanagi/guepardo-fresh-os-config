@@ -60,6 +60,10 @@ refresh_release() {
   : > "$sandbox/urls"
 }
 refresh_release
+release_ref="installer-$(printf 'a%.0s' {1..40})"
+GUEPARDO_REF="$release_ref" bash "$repo/install.sh" --list-profiles >/dev/null
+[[ "$(cat "$sandbox/urls")" == *"/releases/download/$release_ref/"* ]] || fail 'Published installer must use its matching binary release'
+refresh_release
 bash "$repo/install.sh" --list-profiles >/dev/null
 [[ "$(cat "$sandbox/calls")" == binary*'--list-profiles' ]] || fail 'Compatible binary was not used'
 : > "$sandbox/calls"
@@ -146,7 +150,7 @@ SH
 chmod +x "$sandbox/readme-bin/"*
 readme_command="$(sed -n '/^bash -c /{p;q;}' "$ROOT_DIR/README.md")"
 [[ -n "$readme_command" ]] || fail 'README is missing its recommended command'
-[[ "$readme_command" == *'/v0.2.2/install.sh'* && "$readme_command" == *'GUEPARDO_REF=v0.2.2'* ]] || fail 'README must pin matching release script and sources'
+[[ "$readme_command" == *'/releases/latest/download/install.sh'* && "$readme_command" != *GUEPARDO_REF=* ]] || fail 'README must follow the latest published installer'
 for environment in linux wsl interop; do
   distro_name='' interop=''
   [[ "$environment" == wsl ]] && distro_name=Ubuntu
