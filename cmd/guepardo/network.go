@@ -1,13 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"errors"
-	"fmt"
-	"io"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -60,7 +55,7 @@ func detectActiveNetworks() ([]activeNetwork, error) {
 			return r
 		}, name)
 		n := activeNetwork{UUID: fields[0], Device: fields[2], Name: cleanName, Kind: kind}
-		// Current values are suggestions only; the user confirms or replaces each one.
+		// Keep discovery information available for diagnostics.
 		n.Address, _ = nmcliValues("-g", "IP4.ADDRESS", "device", "show", n.Device)
 		n.Gateway, _ = nmcliValues("-g", "IP4.GATEWAY", "device", "show", n.Device)
 		n.DNS, _ = nmcliValues("-g", "IP4.DNS", "device", "show", n.Device)
@@ -72,44 +67,34 @@ func detectActiveNetworks() ([]activeNetwork, error) {
 	return networks, nil
 }
 
-func promptDetectedNetwork(opts *options, reader *bufio.Reader, output io.Writer, networks []activeNetwork) (*activeNetwork, error) {
-	if opts.networkInterface != "" {
-		for i := range networks {
-			if networks[i].Device == opts.networkInterface {
-				return &networks[i], nil
-			}
-		}
-		return nil, nil
+// configureNetworkSettings uses the personal preset without reading stdin.
+// Prefer an active wired connection when both Ethernet and Wi-Fi are available.
+func configureNetworkSettings(opts *options, networks []activeNetwork) {
+	if opts.networkAddress == "" {
+		opts.networkAddress = "192.168.1.77/24"
 	}
-	if len(networks) == 0 {
-		return nil, nil
+	if opts.networkGateway == "" {
+		opts.networkGateway = "192.168.1.1"
 	}
-	selected := 0
-	if len(networks) > 1 {
-		fmt.Fprintln(output, "  Escolha a rede que receberá o IP fixo:")
-		for i, n := range networks {
-			fmt.Fprintf(output, "    %d) %s (%s)\n", i+1, n.Name, n.Kind)
-		}
-		for {
-			fmt.Fprintf(output, "  Rede [1–%d, Q cancela]: ", len(networks))
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				return nil, fmt.Errorf("não consegui ler a rede: %w", err)
-			}
-			value := strings.TrimSpace(line)
-			if strings.EqualFold(value, "q") {
-				return nil, errors.New("configuração de rede cancelada")
-			}
-			index, err := strconv.Atoi(value)
-			if err == nil && index >= 1 && index <= len(networks) {
-				selected = index - 1
+	if opts.networkDNS == "" {
+		opts.networkDNS = "1.1.1.1"
+	}
+	selected := -1
+	for i, network := range networks {
+		if opts.networkInterface != "" {
+			if network.Device == opts.networkInterface {
+				selected = i
 				break
 			}
-			fmt.Fprintln(output, "  Digite o número de uma das redes acima.")
+		} else if selected == -1 || network.Kind == "cabo" {
+			selected = i
+			if network.Kind == "cabo" {
+				break
+			}
 		}
 	}
-	n := &networks[selected]
-	opts.networkInterface = n.Device
-	fmt.Fprintf(output, "  Rede selecionada: %s (%s)\n", n.Name, n.Kind)
-	return n, nil
+	if selected >= 0 {
+		opts.networkInterface = networks[selected].Device
+		opts.networkUUID = networks[selected].UUID
+	}
 }

@@ -8,9 +8,9 @@ jobs=4
 theme=""
 network_interface=""
 network_uuid=""
-network_address=""
-network_gateway=""
-network_dns=""
+network_address="192.168.1.77/24"
+network_gateway="192.168.1.1"
+network_dns="1.1.1.1"
 plan=false
 dry_run=false
 doctor=false
@@ -237,12 +237,10 @@ valid_ipv4() {
   done
 }
 if [[ ",$profiles," == *',network,'* && "$plan" == false && "$dry_run" == false && "$doctor" == false ]]; then
-  if [[ -t 0 && "$yes" == false ]]; then
-    source "$ROOT_DIR/scripts/network-prompt.sh"
-    prompt_network_settings || exit 1
-  fi
+  source "$ROOT_DIR/scripts/network-prompt.sh"
+  configure_network_settings
   [[ -n "$network_interface" && -n "$network_address" && -n "$network_gateway" ]] || {
-    echo 'network requires --network-interface, --network-address and --network-gateway.' >&2
+    echo 'No active network detected; provide --network-interface.' >&2
     exit 1
   }
   [[ "$network_address" == */* ]] && valid_ipv4 "${network_address%/*}" \

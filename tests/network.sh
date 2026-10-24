@@ -25,18 +25,17 @@ nmcli() {
 }
 reset_network() { network_interface=''; network_uuid=''; network_address=''; network_gateway=''; network_dns=''; }
 reset_network
-prompt_network_settings <<< $'\n\n\n' > "$sandbox/single"
-[[ "$network_interface" == wlan0 && "$network_uuid" == wifi-uuid && "$network_address" == 192.168.1.10/24 && "$network_dns" == 9.9.9.9 ]] || fail 'Single active network/defaults not detected'
+configure_network_settings < /dev/null
+[[ "$network_interface" == wlan0 && "$network_uuid" == wifi-uuid && "$network_address" == 192.168.1.77/24 && "$network_gateway" == 192.168.1.1 && "$network_dns" == 1.1.1.1 ]] || fail 'Personal preset not applied'
 [[ ! -f "$sandbox/mutations" ]] || fail 'Discovery modified the network'
 multiple=true
 reset_network
-prompt_network_settings <<< $'0\nfoo\n3\n2\n\n\n\n' > "$sandbox/multiple"
-[[ "$network_interface" == eth0 && "$network_uuid" == cable-uuid ]] || fail 'Multiple-network selection failed'
-grep -Fq '1) Casa: principal (Wi-Fi)' "$sandbox/multiple"
-grep -Fq '2) Rede escritório (cabo)' "$sandbox/multiple"
-! grep -Fq tun0 "$sandbox/multiple" || fail 'VPN shown as a physical network'
+configure_network_settings < /dev/null
+[[ "$network_interface" == eth0 && "$network_uuid" == cable-uuid ]] || fail 'Wired connection not preferred'
 reset_network
-if prompt_network_settings <<< q > /dev/null; then fail 'Cancellation ignored'; fi
+network_interface=wlan0
+configure_network_settings < /dev/null
+[[ "$network_interface" == wlan0 && "$network_uuid" == wifi-uuid ]] || fail 'Explicit interface ignored'
 # The backend must retain the Wi-Fi profile and credentials by using its UUID.
 DRY_RUN=false
 STATIC_NETWORK_INTERFACE=wlan0

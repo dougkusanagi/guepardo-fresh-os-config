@@ -170,59 +170,6 @@ func promptProfiles() (string, error) {
 	return selectProfilesWithPicker(os.Stdin, crlfWriter{os.Stdout}, os.Getenv("NO_COLOR") == "", picker)
 }
 
-func promptNetworkSettings(opts *options, input io.Reader, output io.Writer) error {
-	networks, err := detectActiveNetworks()
-	if err != nil {
-		fmt.Fprintln(output, "  Não foi possível consultar o NetworkManager; informe a interface manualmente.")
-	}
-	return promptNetworkSettingsWithNetworks(opts, input, output, networks)
-}
-
-func promptNetworkSettingsWithNetworks(opts *options, input io.Reader, output io.Writer, networks []activeNetwork) error {
-	reader := bufio.NewReader(input)
-	fmt.Fprintln(output, "\n  Configuração da rede IPv4")
-	selected, err := promptDetectedNetwork(opts, reader, output, networks)
-	if err != nil {
-		return err
-	}
-	defaults := [5]string{"", "", "", "1.1.1.1"}
-	if selected != nil {
-		opts.networkUUID = selected.UUID
-		defaults[1], defaults[2] = selected.Address, selected.Gateway
-		if selected.DNS != "" {
-			defaults[3] = selected.DNS
-		}
-	}
-	fields := []struct {
-		value *string
-		label string
-	}{
-		{&opts.networkInterface, "Interface de rede (ex.: enp1s0)"},
-		{&opts.networkAddress, "Endereço IPv4/CIDR"},
-		{&opts.networkGateway, "Gateway IPv4"},
-		{&opts.networkDNS, "DNS IPv4"},
-	}
-	for i, field := range fields {
-		if *field.value != "" {
-			continue
-		}
-		label := field.label
-		if defaults[i] != "" {
-			label += " [" + defaults[i] + "]"
-		}
-		fmt.Fprintf(output, "  %s: ", label)
-		value, err := reader.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("não consegui ler %s: %w", field.label, err)
-		}
-		*field.value = strings.TrimSpace(value)
-		if *field.value == "" {
-			*field.value = defaults[i]
-		}
-	}
-	return nil
-}
-
 func resolveRoot(explicit string) (string, error) {
 	if explicit != "" {
 		return filepath.Abs(explicit)
@@ -448,10 +395,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if interactive && !opts.yes && hasProfile(profiles, "network") && !opts.plan && !opts.dryRun && !opts.doctor {
-		if err := promptNetworkSettings(&opts, os.Stdin, os.Stdout); err != nil {
-			return err
-		}
+	if hasProfile(profiles, "network") {
+		networks, _ := detectActiveNetworks()
+		configureNetworkSettings(&opts, networks)
 	}
 	if opts.theme != "" && !hasProfile(profiles, "desktop") {
 		return errors.New("--theme requer o perfil desktop")
@@ -467,7 +413,7 @@ func run() error {
 	}
 	if hasProfile(profiles, "network") && !opts.plan && !opts.dryRun && !opts.doctor {
 		if opts.networkInterface == "" || opts.networkAddress == "" || opts.networkGateway == "" {
-			return errors.New("network requer --network-interface, --network-address e --network-gateway")
+			return errors.New("nenhuma rede ativa detectada; informe --network-interface")
 		}
 		address, _, err := net.ParseCIDR(opts.networkAddress)
 		if err != nil || address.To4() == nil {
@@ -516,7 +462,7 @@ func run() error {
 		if opts.networkInterface != "" {
 			fmt.Printf("  %s  %s  via %s  DNS %s\n", opts.networkInterface, opts.networkAddress, opts.networkGateway, opts.networkDNS)
 		} else {
-			fmt.Println("  Para executar, informe --network-interface, --network-address e --network-gateway.")
+			fmt.Println("  IP fixo: 192.168.1.77/24 via 192.168.1.1, DNS 1.1.1.1 (interface detectada automaticamente).")
 		}
 	}
 	if opts.plan {

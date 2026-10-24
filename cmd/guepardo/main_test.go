@@ -71,16 +71,6 @@ func TestProfilePickerCancel(t *testing.T) {
 	}
 }
 
-func TestPromptNetworkSettings(t *testing.T) {
-	opts := options{}
-	if err := promptNetworkSettingsWithNetworks(&opts, strings.NewReader("enp1s0\n192.168.1.77/24\n192.168.1.1\n\n"), io.Discard, nil); err != nil {
-		t.Fatal(err)
-	}
-	if opts.networkInterface != "enp1s0" || opts.networkAddress != "192.168.1.77/24" || opts.networkGateway != "192.168.1.1" || opts.networkDNS != "1.1.1.1" {
-		t.Fatalf("unexpected network settings: %+v", opts)
-	}
-}
-
 func TestSudoSessionRefreshesWithoutPrompt(t *testing.T) {
 	dir := t.TempDir()
 	calls := filepath.Join(dir, "calls")
