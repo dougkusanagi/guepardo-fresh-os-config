@@ -42,7 +42,7 @@ As fontes não ficam neste repositório público (várias são de uso pessoal/co
 ./scripts/publish-fonts-private.sh
 ```
 
-O perfil `fonts` usa, nesta ordem: `GUEPARDO_FONTS_DIR`, uma pasta `fonts/` no checkout, ou clona o repositório privado (exige `gh auth login` ou credenciais git). Sem acesso, o perfil falha com uma mensagem clara. Observação: o histórico antigo do git deste repositório ainda contém as fontes; para removê-las de vez é preciso reescrever o histórico.
+O perfil `fonts` prioriza `GUEPARDO_FONTS_DIR` e a pasta `fonts/` do checkout. Depois usa o cache do repositório privado, se existir. Sem essas origens, reutiliza as fontes já presentes na pasta de instalação, sem download; só tenta clonar o repositório privado quando não há fontes instaladas (exige `gh auth login` ou credenciais git). Para atualizar ou reparar, informe `GUEPARDO_FONTS_DIR`. Em uma máquina sem fontes e sem acesso ao repositório privado, o perfil registra uma pendência; confira se o repositório existe e se sua conta tem permissão. Uma origem vazia também registra erro. Observação: o histórico antigo do git deste repositório ainda contém as fontes; para removê-las de vez é preciso reescrever o histórico.
 
 ## Linux
 

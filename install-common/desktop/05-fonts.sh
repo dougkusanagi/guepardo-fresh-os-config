@@ -18,6 +18,14 @@ if [[ "$DRY_RUN" == "true" ]]; then
   return
 fi
 
+# A fresh bootstrap checkout does not contain private fonts. Reuse this user's
+# installed copy when no explicit/local source or repository cache is available.
+if [[ -z "$FONT_SOURCE_DIR" && ! -d "$FONTS_CACHE_DIR/.git" && -d "$FONT_DEST_DIR" ]] \
+  && [[ -n "$(find "$FONT_DEST_DIR" -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.otf' \) -print -quit)" ]]; then
+  log "Fontes já presentes em $FONT_DEST_DIR; usando os arquivos instalados."
+  return
+fi
+
 if [[ -z "$FONT_SOURCE_DIR" ]]; then
   if [[ -d "$FONTS_CACHE_DIR/.git" ]]; then
     git -C "$FONTS_CACHE_DIR" pull --ff-only --quiet \
@@ -31,7 +39,7 @@ if [[ -z "$FONT_SOURCE_DIR" ]]; then
     fi
   fi
   if [[ ! -d "$FONTS_CACHE_DIR" ]]; then
-    error "Could not fetch $FONTS_REPO. Run 'gh auth login' first, or set GUEPARDO_FONTS_DIR to a local folder with the fonts."
+    error "Não foi possível acessar $FONTS_REPO. Confira se o repositório existe e se sua conta tem permissão, ou informe uma pasta de fontes com GUEPARDO_FONTS_DIR."
     return 1
   fi
   FONT_SOURCE_DIR="$FONTS_CACHE_DIR"
@@ -39,6 +47,11 @@ fi
 
 if [[ ! -d "$FONT_SOURCE_DIR" ]]; then
   error "Font directory not found: $FONT_SOURCE_DIR"
+  return 1
+fi
+
+if [[ -z "$(find "$FONT_SOURCE_DIR" -maxdepth 2 -not -path '*/.git/*' -type f \( -iname '*.ttf' -o -iname '*.otf' \) -print -quit)" ]]; then
+  error "Nenhuma fonte .ttf ou .otf encontrada em $FONT_SOURCE_DIR."
   return 1
 fi
 

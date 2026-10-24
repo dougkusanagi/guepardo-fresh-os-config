@@ -150,10 +150,27 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/
 [[ "$(cat "$HOME/.local/share/fonts/guepardo-fresh-os-config/Private.otf")" == 'private font' ]] || fail 'GUEPARDO_FONTS_DIR fonts were not installed'
 unset GUEPARDO_FONTS_DIR
 
+# Installed fonts are reused without contacting GitHub or rebuilding the cache.
+(
+  git() { touch "$sandbox/unexpected-font-network"; return 1; }
+  gh() { touch "$sandbox/unexpected-font-network"; return 1; }
+  fc-cache() { touch "$sandbox/unexpected-font-cache"; }
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh" >/dev/null
+  [[ ! -e "$sandbox/unexpected-font-network" && ! -e "$sandbox/unexpected-font-cache" ]] || fail 'Installed fonts triggered unnecessary work'
+)
+# An explicit but empty directory must not report successful font installation.
+(
+  mkdir -p "$sandbox/empty-fonts"
+  GUEPARDO_FONTS_DIR="$sandbox/empty-fonts"
+  if source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh" >/dev/null 2>&1; then
+    fail 'Empty explicit font source reported success'
+  fi
+)
+
 # Without any font source and no access to the private repository, fail loudly.
 git() { return 1; }
 gh() { return 1; }
-if (source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh") >/dev/null 2>&1; then
+if (TARGET_HOME="$sandbox/fresh-font-home"; source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh") >/dev/null 2>&1; then
   fail 'Missing private fonts repository was reported as success'
 fi
 unset -f git gh
