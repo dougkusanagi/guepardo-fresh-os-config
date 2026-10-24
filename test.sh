@@ -535,6 +535,10 @@ run_local_static_checks() {
   run_quiet bash tests/network.sh
   success "Project structure validated"
 
+  log "Validating portable media library notes..."
+  run_quiet bash tests/media-agents.sh
+  success "Portable media library notes validated"
+
   log "Validating developer tool coverage..."
   run_quiet bash tests/dev-tools.sh
   success "Developer tool coverage validated"
@@ -559,6 +563,7 @@ run_local_static_checks() {
     run_quiet pwsh -NoLogo -NoProfile -File tests/test-windows.ps1
     run_quiet pwsh -NoLogo -NoProfile -File tests/windows-reliability.ps1
     run_quiet pwsh -NoLogo -NoProfile -File tests/apps-windows.ps1
+    run_quiet pwsh -NoLogo -NoProfile -File tests/jellyfin-suite.ps1
     success "Windows behaviour validated"
   else
     warn "PowerShell not found; run tests/test-windows.ps1 and tests/windows-reliability.ps1 on Windows or with pwsh."

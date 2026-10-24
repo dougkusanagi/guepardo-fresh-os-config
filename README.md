@@ -30,6 +30,8 @@ Se a instalação parar, consulte o erro e o log e repita o mesmo comando depois
 | `fonts` | Fontes do seu repositório privado de fontes | Não |
 | `network` | IPv4 estático via NetworkManager | Não; use com cuidado em acesso remoto |
 
+No Windows existem ainda os perfis `jellyfin` (servidor, tema GlassFin e plugins) e `wsl2` (WSL 2 + Ubuntu).
+
 Os perfis são independentes. `games` não instala a stack web; `cli` não instala aplicativos gráficos, banco de dados nem altera a rede. A configuração de rede é sempre opcional.
 
 ## Fontes privadas
@@ -115,6 +117,27 @@ O instalador PowerShell aceita os mesmos grupos principais:
 
 O Winget usa a fonte `winget`, modo silencioso e reaproveita aplicativos existentes. Se um app falhar, o instalador continua os demais, lista as falhas e sai com código `1`. Pedidos de reinicialização são informados no final. O Windows ainda pode exibir a confirmação de administrador (UAC) de alguns instaladores.
 
+### Jellyfin e WSL 2 (Windows)
+
+```powershell
+.\install.ps1 -Profiles 'jellyfin' -Plan
+.\install.ps1 -Profiles 'wsl2'
+.\install.ps1 -Mode wsl   # cli,dev,web + WSL 2
+```
+
+`jellyfin` instala o servidor pelo Winget e aplica `jellyfin/polish.css` e os plugins com `modules/jellyfin.ps1 -SkipInstall`, preservando um backup do CSS anterior em `%LOCALAPPDATA%\WindowsFreshInstall\Jellyfin`; use `modules/jellyfin.ps1 -Restore` para voltar. Aguarde o assistente inicial do Jellyfin no navegador e tenha o login de administrador à mão. A configuração exige um checkout do repositório (não funciona pelo comando remoto de uma linha). `wsl2` pede UAC, habilita WSL e Virtual Machine Platform, instala o Ubuntu sem abrir o primeiro shell e define WSL 2; reinicie quando solicitado e execute `wsl -d Ubuntu` uma vez para criar o usuário. O perfil `dev` também configura Node.js LTS via NVM for Windows. Virtualização Intel VT-x/AMD-V precisa estar habilitada no firmware.
+
+### Notas para bibliotecas de mídia
+
+`templates/media-library/AGENTS.md` guarda as notas da biblioteca compartilhada entre Jellyfin e qBittorrent (seed, hardlinks, `.ignore`, escaneamento). Para copiá-las para uma biblioteca:
+
+```bash
+./install.sh --helpers
+./install.sh --media-agents "/caminho/da/biblioteca"
+```
+
+Só `AGENTS.md` é copiado; um arquivo existente diferente é preservado.
+
 ## Desenvolvimento e testes
 
 ```bash
@@ -124,6 +147,7 @@ go test ./...
 ./scripts/build-release.sh
 pwsh -NoProfile -File tests/test-windows.ps1
 pwsh -NoProfile -File tests/windows-reliability.ps1
+pwsh -NoProfile -File tests/jellyfin-suite.ps1
 ./test.sh --mode=container --distro=ubuntu --profiles=dev --run-installer
 ```
 

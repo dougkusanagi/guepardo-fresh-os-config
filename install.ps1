@@ -12,7 +12,7 @@
 #>
 [CmdletBinding()]
 param (
-    [ValidateSet('full', 'basic', 'games', 'server', 'desktop', 'wsl')]
+    [ValidateSet('full', 'basic', 'games', 'server', 'desktop', 'wsl', 'jellyfin')]
     [string]$Mode = 'full',
 
     [string]$Profiles,
@@ -29,14 +29,14 @@ param (
 $ErrorActionPreference = 'Stop'
 
 if ($ListProfiles) {
-    Write-Host "cli, dev, web, desktop, games"
+    Write-Host "cli, dev, web, desktop, games, jellyfin, wsl2"
     exit 0
 }
 
 if ($Help) {
     Write-Host @"
 Usage:
-  .\install.ps1 [-Profiles cli,dev,web,desktop,games] [-Plan] [-DryRun]
+  .\install.ps1 [-Profiles cli,dev,web,desktop,games,jellyfin,wsl2] [-Plan] [-DryRun]
   .\install.ps1 [-Mode <full|basic|games|server|desktop|wsl>]
 
 Options:
@@ -150,6 +150,7 @@ $cliPackages = @(
     @{ Id = "bootandy.dust"; Name = "dust" }
     @{ Id = "JesseDuffield.lazygit"; Name = "lazygit" }
     @{ Id = "sxyazi.yazi"; Name = "yazi" }
+    @{ Id = "GnuPG.Gpg4win"; Name = "GnuPG" }
 )
 $devPackages = @(
     @{ Id = "guepardo.vite-plus"; Name = "Vite+ global CLI (vp)" }
@@ -159,6 +160,12 @@ $devPackages = @(
     @{ Id = "astral-sh.uv"; Name = "uv" }
     @{ Id = "CoreyButler.NVMforWindows"; Name = "NVM for Windows" }
     @{ Id = "Google.AntigravityCLI"; Name = "Antigravity CLI"; Force = $true }
+    @{ Id = "SST.opencode"; Name = "OpenCode CLI" }
+    @{ Id = "GitHub.GitHubDesktop"; Name = "GitHub Desktop" }
+    @{ Id = "Termius.Termius"; Name = "Termius" }
+    @{ Id = "GodotEngine.GodotEngine"; Name = "Godot Engine" }
+    @{ Id = "Comfy.ComfyUI-Desktop"; Name = "ComfyUI Desktop" }
+    @{ Id = "ElementLabs.Bionic"; Name = "Bionic" }
 )
 $webPackages = @(
     @{ Id = "PHP.PHP.8.4"; Name = "PHP" }
@@ -182,12 +189,17 @@ $desktopPackages = @(
     @{ Id = "OBSProject.OBSStudio"; Name = "OBS Studio" }
     @{ Id = "ElementLabs.LMStudio"; Name = "LM Studio" }
     @{ Id = "RARLab.WinRAR"; Name = "WinRAR"; Force = $true }
-    @{ Id = "Jellyfin.Server"; Name = "Jellyfin Server" }
     @{ Id = "Zen-Team.Zen-Browser"; Name = "Zen Browser" }
     @{ Id = "dynobo.NormCap"; Name = "NormCap" }
     @{ Id = "RedHat.Podman-Desktop"; Name = "Podman Desktop" }
     @{ Id = "VideoLAN.VLC"; Name = "VLC Media Player" }
-    @{ Id = "CodecGuide.K-LiteCodecPack.Standard"; Name = "K-Lite Codec Pack Standard" }
+    @{ Id = "CodecGuide.K-LiteCodecPack.Mega"; Name = "K-Lite Codec Pack Mega" }
+    @{ Id = "RevoUninstaller.RevoUninstaller"; Name = "Revo Uninstaller" }
+    @{ Id = "7zip.7zip"; Name = "7-Zip" }
+    @{ Id = "Microsoft.PowerToys"; Name = "PowerToys" }
+    @{ Id = "Telegram.TelegramDesktop"; Name = "Telegram Desktop" }
+    @{ Id = "Gyan.FFmpeg"; Name = "FFmpeg" }
+    @{ Id = "Canva.Affinity"; Name = "Affinity" }
 )
 $gamingPackages = @(
     @{ Id = "Valve.Steam"; Name = "Steam" }
@@ -200,6 +212,9 @@ $gamingPackages = @(
     @{ Id = "Playnite.Playnite"; Name = "Playnite" }
     @{ Id = "Guru3D.Afterburner"; Name = "MSI Afterburner (RTSS)" }
 )
+$jellyfinPackages = @(
+    @{ Id = "Jellyfin.Server"; Name = "Jellyfin Server" }
+)
 
 if ($Profiles -and $PSBoundParameters.ContainsKey('Mode')) {
     throw "Use -Profiles or -Mode, not both."
@@ -209,13 +224,14 @@ if (-not $Profiles) {
         'full'    { 'cli,dev,web,desktop,games' }
         'basic'   { 'cli,dev,web' }
         'server'  { 'cli' }
-        'wsl'     { 'cli,dev,web' }
+        'wsl'     { 'cli,dev,web,wsl2' }
+        'jellyfin' { 'jellyfin' }
         'desktop' { 'desktop' }
         'games'   { 'games' }
     }
 }
 $selectedProfiles = @($Profiles.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
-$validProfiles = @('cli', 'dev', 'web', 'desktop', 'games')
+$validProfiles = @('cli', 'dev', 'web', 'desktop', 'games', 'jellyfin', 'wsl2')
 foreach ($profileName in $selectedProfiles) {
     if ($profileName -notin $validProfiles) { throw "Unknown profile: $profileName" }
 }
@@ -227,6 +243,8 @@ $groups = @{
     web = $webPackages
     desktop = $desktopPackages
     games = $gamingPackages
+    jellyfin = $jellyfinPackages
+    wsl2 = @()
 }
 $toInstall = @()
 foreach ($profileName in $validProfiles) {
@@ -240,6 +258,16 @@ $toInstall = @($toInstall | Where-Object {
 
 if ('dev' -in $selectedProfiles -or 'desktop' -in $selectedProfiles) {
     $toInstall += @{ Id = 'guepardo.dotagents'; Name = 'dotagents (install + sync)' }
+}
+
+if ('dev' -in $selectedProfiles) {
+    $toInstall += @{ Id = 'guepardo.node-lts'; Name = 'Node.js LTS via NVM for Windows' }
+}
+if ('jellyfin' -in $selectedProfiles) {
+    $toInstall += @{ Id = 'guepardo.jellyfin-config'; Name = 'Jellyfin theme and plugins' }
+}
+if ('wsl2' -in $selectedProfiles) {
+    $toInstall += @{ Id = 'guepardo.wsl2'; Name = 'WSL 2 + Ubuntu (UAC prompt)' }
 }
 
 if ('desktop' -in $selectedProfiles) {
@@ -317,6 +345,73 @@ function Install-Dotagents {
         & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; export HOME="$(cygpath -u "$2")"; cd "$(cygpath -u "$1")" && bash ./install.sh && bash ./bin/sync' -- $destination $env:USERPROFILE
         if ($LASTEXITCODE -ne 0) { throw 'dotagents failed. Enable Windows Developer Mode or run elevated to allow symlinks.' }
     } finally { $env:MSYS = $previousMsys }
+}
+
+function Install-NodeLts {
+    Update-ProcessEnvironment
+    $node = Get-Command node.exe -ErrorAction SilentlyContinue
+    if ($node -and (Get-Command npm.cmd -ErrorAction SilentlyContinue) -and ((& $node.Source --version) -match '^v(22|24)\.')) { return }
+    $nvm = (Get-Command nvm.exe -ErrorAction SilentlyContinue).Source
+    if (-not $nvm) {
+        $nvmHome = @($env:NVM_HOME, [Environment]::GetEnvironmentVariable('NVM_HOME', 'User'), [Environment]::GetEnvironmentVariable('NVM_HOME', 'Machine')) | Where-Object { $_ } | Select-Object -First 1
+        if ($nvmHome -and (Test-Path (Join-Path $nvmHome 'nvm.exe'))) { $nvm = Join-Path $nvmHome 'nvm.exe' }
+    }
+    if (-not $nvm) { throw 'NVM for Windows not found after installation; restart the terminal and rerun.' }
+    & $nvm install lts
+    if ($LASTEXITCODE -ne 0) { throw "nvm install lts failed: $LASTEXITCODE" }
+    & $nvm use lts
+    if ($LASTEXITCODE -ne 0) { throw "nvm use lts failed: $LASTEXITCODE" }
+    Update-ProcessEnvironment
+    if (-not (Get-Command node.exe -ErrorAction SilentlyContinue) -or -not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
+        throw 'NVM finished without exposing node.exe and npm.cmd in PATH.'
+    }
+}
+
+function Install-Wsl {
+    # Returns an installer exit code: 0 configured, 3010 restart required.
+    $wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+    if (-not (Test-Path -LiteralPath $wsl)) { throw 'wsl.exe not found. Use Windows 10 build 19041 or Windows 11.' }
+    $adminScript = @'
+$ErrorActionPreference = 'Stop'
+$wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+$restartNeeded = $false
+foreach ($featureName in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
+    if ((Enable-WindowsOptionalFeature -Online -FeatureName $featureName -All -NoRestart).RestartNeeded) { $restartNeeded = $true }
+}
+if ($restartNeeded) { exit 3010 }
+$distros = @(& $wsl --list --quiet 2>$null | ForEach-Object { ([string]$_).Replace([string][char]0, '').Trim() } | Where-Object { $_ })
+if ($LASTEXITCODE -ne 0) { $distros = @() }
+if ($distros -notcontains 'Ubuntu') {
+    & $wsl --install --distribution Ubuntu --no-launch
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+& $wsl --update
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $wsl --set-default-version 2
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $wsl --set-version Ubuntu 2
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $wsl --set-default Ubuntu
+exit $LASTEXITCODE
+'@
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($adminScript))
+    $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ' + $encoded
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    $powershellExe = (Get-Process -Id $PID).Path
+    $process = if ($isAdmin) { Start-Process $powershellExe -ArgumentList $arguments -Wait -PassThru }
+               else { Start-Process $powershellExe -ArgumentList $arguments -Verb RunAs -Wait -PassThru }
+    if ($process.ExitCode -eq 0) { Write-Log 'WSL 2 and Ubuntu configured. Open `wsl -d Ubuntu` to create your Linux user.' -Level OK }
+    return $process.ExitCode
+}
+
+function Install-JellyfinConfiguration {
+    $module = if ($PSScriptRoot) { Join-Path $PSScriptRoot 'modules/jellyfin.ps1' } else { $null }
+    if (-not $module -or -not (Test-Path -LiteralPath $module)) {
+        throw 'modules/jellyfin.ps1 not found; run install.ps1 from a repository checkout.'
+    }
+    $powershellExe = (Get-Process -Id $PID).Path
+    & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $module -SkipInstall
+    if ($LASTEXITCODE -ne 0) { throw "Jellyfin configuration failed: $LASTEXITCODE" }
 }
 
 function Install-SlothNote {
@@ -458,15 +553,18 @@ foreach ($pkg in $toInstall) {
     Write-Log -Message "[$packageIndex/$($toInstall.Count)] Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
     
     $exitCode = 1
-    if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note', 'guepardo.zapfast', 'guepardo.vite-plus')) {
+    if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note', 'guepardo.zapfast', 'guepardo.vite-plus', 'guepardo.node-lts', 'guepardo.jellyfin-config', 'guepardo.wsl2')) {
         try {
+            $exitCode = 0
             switch ($pkg.Id) {
                 'guepardo.dotagents' { Install-Dotagents }
                 'guepardo.sloth-note' { Install-SlothNote }
                 'guepardo.zapfast' { Install-ZapFast }
                 'guepardo.vite-plus' { Install-VitePlus }
+                'guepardo.node-lts' { Install-NodeLts }
+                'guepardo.jellyfin-config' { Install-JellyfinConfiguration }
+                'guepardo.wsl2' { $exitCode = [int](Install-Wsl | Select-Object -Last 1) }
             }
-            $exitCode = 0
         } catch { Write-Log "Failed to install $($pkg.Name): $_" -Level WARN; $exitCode = 1 }
     } elseif ($pkg.Id -eq "Composer.Composer") {
         # Refresh environment variables first to make sure PHP is in PATH
