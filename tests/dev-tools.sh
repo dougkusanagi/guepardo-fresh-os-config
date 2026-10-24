@@ -26,7 +26,18 @@ for distro in ubuntu fedora; do
   contains "$games" 'install_lutris'
   excludes "$games" 'install_vscode_desktop'
   contains "install-$distro/network.sh" 'configure_static_ipv4_network'
+  for app in com.brave.Browser com.obsproject.Studio org.videolan.VLC; do
+    contains "$desktop" "$app"
+  done
 done
+contains 'install-ubuntu/games/10-apps.sh' 'gamescope'
+contains 'install-ubuntu/games/10-apps.sh' 'install_gpu_drivers'
+contains 'install-ubuntu/lib.sh' 'ubuntu-drivers install'
+contains 'install.ps1' 'Playnite.Playnite'
+contains 'install.ps1' 'Guru3D.Afterburner'
+[[ ! -e "$ROOT_DIR/old_install.sh" && ! -e "$ROOT_DIR/jellyfin/polish.css" ]] || fail 'Orphan files were reintroduced'
+git -C "$ROOT_DIR" ls-files --error-unmatch fonts/Inter-Italic-VariableFont_opsz,wght.ttf >/dev/null 2>&1 && fail 'Fonts must not be tracked in the public repository'
+contains '.gitignore' '/fonts/'
 contains 'install-common/lib.sh' 'run_independent()'
 contains 'scripts/run-profile.sh' 'source "$INSTALL_ROOT/games/10-apps.sh"'
 contains 'scripts/run-profile.sh' 'exec "$sudo_binary" -n "\$@"'

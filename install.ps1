@@ -197,6 +197,8 @@ $gamingPackages = @(
     @{ Id = "qBittorrent.qBittorrent"; Name = "qBittorrent" }
     @{ Id = "Stremio.Stremio"; Name = "Stremio" }
     @{ Id = "HeroicGamesLauncher.HeroicGamesLauncher"; Name = "Heroic Games Launcher" }
+    @{ Id = "Playnite.Playnite"; Name = "Playnite" }
+    @{ Id = "Guru3D.Afterburner"; Name = "MSI Afterburner (RTSS)" }
 )
 
 if ($Profiles -and $PSBoundParameters.ContainsKey('Mode')) {

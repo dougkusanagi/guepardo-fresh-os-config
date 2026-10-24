@@ -303,6 +303,31 @@ install_steam() {
   success "Steam installed"
 }
 
+install_gpu_drivers() {
+  # Vulkan/Mesa userspace (including 32-bit for Proton) plus, on NVIDIA
+  # hardware, the driver recommended by Ubuntu's own detection.
+  apt_install_optional pciutils mesa-vulkan-drivers libvulkan1 mesa-vulkan-drivers:i386 libvulkan1:i386
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would install the recommended NVIDIA driver via ubuntu-drivers when an NVIDIA GPU is detected"
+    return
+  fi
+  if ! command_exists lspci || ! lspci 2>/dev/null | grep -Ei 'vga|3d|display' | grep -qi nvidia; then
+    log "No NVIDIA GPU detected; keeping the open-source graphics stack."
+    return
+  fi
+  if command_exists nvidia-smi && nvidia-smi >/dev/null 2>&1; then
+    log "NVIDIA driver is already working."
+    return
+  fi
+
+  apt_install ubuntu-drivers-common
+  run_quiet sudo ubuntu-drivers install
+  REQUIRES_REBOOT="true"
+  warn "NVIDIA driver installed. Reboot to load it; with Secure Boot enabled, enroll the MOK key when prompted."
+  success "NVIDIA driver installed"
+}
+
 install_lutris() {
   if command_exists lutris; then
     log "Lutris is already installed."

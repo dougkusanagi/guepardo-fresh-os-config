@@ -10,6 +10,9 @@ flatpak_install_app "md.obsidian.Obsidian"
 flatpak_install_app "io.github.zen_browser.zen"
 flatpak_install_app "io.missioncenter.MissionCenter"
 install_zapfast
+flatpak_install_app "com.brave.Browser"
+flatpak_install_app "com.obsproject.Studio"
+flatpak_install_app "org.videolan.VLC"
 flatpak_install_app "com.github.dynobo.normcap"
 install_lm_studio
 install_opencode_desktop

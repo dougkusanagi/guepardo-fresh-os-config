@@ -25,12 +25,22 @@ Se a instalação parar, consulte o erro e o log e repita o mesmo comando depois
 | `cli` | Git, gh, ripgrep, fzf, eza, dust, lazygit, yazi e utilitários | Não |
 | `dev` | Node 24 LTS, npm, Bun, uv, Vite+ (vp), Podman, Codex CLI, Claude Code CLI e dotagents | Não |
 | `web` | PHP, Composer e MySQL/MariaDB | Não |
-| `desktop` | Chrome, ChatGPT, Claude, T3 Code, Sloth Note, OneDrive com GUI/autostart, ZapFast, editores, Flatpak e ajustes GNOME | Sim |
-| `games` | Steam, Lutris, Heroic, Discord e ferramentas de jogos | Sim |
-| `fonts` | Fontes incluídas no repositório | Não |
+| `desktop` | Chrome, Brave, OBS, VLC, ChatGPT, Claude, T3 Code, Sloth Note, OneDrive com GUI/autostart, ZapFast, editores, Flatpak e ajustes GNOME | Sim |
+| `games` | Steam, Lutris, Heroic, Discord, gamescope e ferramentas de jogos; no Ubuntu, Vulkan/Mesa e driver NVIDIA recomendado quando há GPU NVIDIA; no Windows, Playnite e MSI Afterburner | Sim |
+| `fonts` | Fontes do seu repositório privado de fontes | Não |
 | `network` | IPv4 estático via NetworkManager | Não; use com cuidado em acesso remoto |
 
 Os perfis são independentes. `games` não instala a stack web; `cli` não instala aplicativos gráficos, banco de dados nem altera a rede. A configuração de rede é sempre opcional.
+
+## Fontes privadas
+
+As fontes não ficam neste repositório público (várias são de uso pessoal/comercial). Elas ficam num repositório **privado**, por padrão `dougkusanagi/guepardo-fonts` (altere com `GUEPARDO_FONTS_REPO`). Para publicar a pasta local `fonts/` nele, depois de `gh auth login`:
+
+```bash
+./scripts/publish-fonts-private.sh
+```
+
+O perfil `fonts` usa, nesta ordem: `GUEPARDO_FONTS_DIR`, uma pasta `fonts/` no checkout, ou clona o repositório privado (exige `gh auth login` ou credenciais git). Sem acesso, o perfil falha com uma mensagem clara. Observação: o histórico antigo do git deste repositório ainda contém as fontes; para removê-las de vez é preciso reescrever o histórico.
 
 ## Linux
 
