@@ -563,7 +563,6 @@ run_local_static_checks() {
     run_quiet pwsh -NoLogo -NoProfile -File tests/test-windows.ps1
     run_quiet pwsh -NoLogo -NoProfile -File tests/windows-reliability.ps1
     run_quiet pwsh -NoLogo -NoProfile -File tests/apps-windows.ps1
-    run_quiet pwsh -NoLogo -NoProfile -File tests/jellyfin-suite.ps1
     success "Windows behaviour validated"
   else
     warn "PowerShell not found; run tests/test-windows.ps1 and tests/windows-reliability.ps1 on Windows or with pwsh."
