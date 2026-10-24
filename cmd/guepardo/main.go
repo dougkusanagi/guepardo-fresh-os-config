@@ -21,7 +21,7 @@ import (
 	"golang.org/x/term"
 )
 
-var profileOrder = []string{"cli", "dev", "web", "desktop", "games", "fonts", "network"}
+var profileOrder = []string{"cli", "dev", "web", "desktop", "games", "network"}
 var themes = []string{"tokyo-night", "catppuccin", "nord", "everforest", "gruvbox", "kanagawa", "ristretto", "rose-pine", "matte-black", "osaka-jade"}
 var sudoRefreshInterval = 25 * time.Second
 
@@ -31,16 +31,15 @@ var profileLabels = map[string]string{
 	"web":     "PHP, Composer e banco de dados",
 	"desktop": "Aplicativos e ajustes do desktop",
 	"games":   "Steam, Lutris e jogos",
-	"fonts":   "Fontes locais",
 	"network": "IPv4 estático (altera a conexão de rede)",
 }
 
 var presets = map[string]string{
-	"all":     "cli,dev,web,desktop,games,fonts,network",
-	"todos":   "cli,dev,web,desktop,games,fonts,network",
+	"all":     "cli,dev,web,desktop,games,network",
+	"todos":   "cli,dev,web,desktop,games,network",
 	"server":  "cli",
 	"basic":   "cli,dev,web",
-	"full":    "cli,dev,web,desktop,games,fonts",
+	"full":    "cli,dev,web,desktop,games",
 	"games":   "games",
 	"wsl":     "cli,dev,web",
 	"dev-web": "dev,web",
@@ -354,7 +353,7 @@ func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun
 
 func run() error {
 	var opts options
-	flag.StringVar(&opts.profiles, "profiles", "", "perfis separados por vírgula: cli,dev,web,desktop,games,fonts,network")
+	flag.StringVar(&opts.profiles, "profiles", "", "perfis separados por vírgula: cli,dev,web,desktop,games,network")
 	flag.StringVar(&opts.mode, "mode", "", "atalho legado: full,basic,games,wsl,server")
 	flag.StringVar(&opts.distro, "distro", "auto", "auto,ubuntu,fedora,nobara")
 	flag.StringVar(&opts.root, "root", "", "diretório do repositório")
@@ -527,12 +526,8 @@ func run() error {
 	fmt.Printf("\n  Log: %s\n", path)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	privileged := false
-	for _, profile := range profiles {
-		privileged = privileged || profile != "fonts"
-	}
 	var sudoFailures <-chan error
-	if !opts.dryRun && privileged {
+	if !opts.dryRun {
 		fmt.Println("  Autenticando sudo uma vez para toda a instalação...")
 		stop, failures, err := sudoSession(ctx, cancel, file)
 		if err != nil {

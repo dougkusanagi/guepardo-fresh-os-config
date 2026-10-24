@@ -45,14 +45,12 @@ finish_runner() {
 trap finish_runner EXIT
 
 # Every profile must work on a clean machine without selecting CLI first.
-if [[ "$PROFILE" != "fonts" ]]; then
-  if [[ "$DISTRO" == "ubuntu" ]]; then
-    apt_update
-    apt_install curl ca-certificates tar unzip jq gpg xz-utils
-  else
-    dnf_update
-    dnf_install curl ca-certificates tar unzip jq gnupg2 xz
-  fi
+if [[ "$DISTRO" == "ubuntu" ]]; then
+  apt_update
+  apt_install curl ca-certificates tar unzip jq gpg xz-utils
+else
+  dnf_update
+  dnf_install curl ca-certificates tar unzip jq gnupg2 xz
 fi
 
 case "$PROFILE" in
@@ -92,9 +90,6 @@ case "$PROFILE" in
   games)
     source "$INSTALL_ROOT/games/00-core.sh"
     source "$INSTALL_ROOT/games/10-apps.sh"
-    ;;
-  fonts)
-    source "$ROOT_DIR/install-common/desktop/05-fonts.sh"
     ;;
   network)
     source "$INSTALL_ROOT/network.sh"

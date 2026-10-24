@@ -10,5 +10,5 @@ Thumbs.db
 
 /work/
 
-# Fontes ficam em repositório privado (scripts/publish-fonts-private.sh)
+# Fontes pessoais são gerenciadas fora do repositório
 /fonts/

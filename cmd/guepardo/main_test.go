@@ -22,9 +22,9 @@ func TestParseProfilesSeparatesScopes(t *testing.T) {
 		{"games", []string{"games"}},
 		{"desktop,games", []string{"desktop", "games"}},
 		{"web,cli,cli", []string{"cli", "web"}},
-		{"full", []string{"cli", "dev", "web", "desktop", "games", "fonts"}},
+		{"full", []string{"cli", "dev", "web", "desktop", "games"}},
 		{"wsl", []string{"cli", "dev", "web"}},
-		{"todos", []string{"cli", "dev", "web", "desktop", "games", "fonts", "network"}},
+		{"todos", []string{"cli", "dev", "web", "desktop", "games", "network"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
@@ -45,8 +45,8 @@ func TestProfilePickerKeyboardSelection(t *testing.T) {
 	}{
 		{"numbers toggle several", "1234\r", "cli,dev,web,desktop"},
 		{"space toggles focused row", "\x1b[B \r", "dev"},
-		{"all includes network", "8\r", "cli,dev,web,desktop,games,fonts,network"},
-		{"empty selection cannot continue", "\r7\r", "network"},
+		{"all includes network", "7\r", "cli,dev,web,desktop,games,network"},
+		{"empty selection cannot continue", "\r6\r", "network"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestPickerFitsTerminal(t *testing.T) {
 	for _, size := range [][2]int{{40, 20}, {60, 24}, {80, 32}} {
 		p := newProfilePicker()
 		p.width, p.height = size[0], size[1]
-		p.toggle(6)
+		p.toggle(5)
 		p.message = "Marque ao menos um perfil para continuar."
 		var out bytes.Buffer
 		p.render(&out, false)
@@ -267,9 +267,9 @@ func TestWSLPickerHidesUnsupportedModules(t *testing.T) {
 	if got := p.profiles(); got != "cli,dev,web" {
 		t.Fatalf("unsupported profile leaked: %s", got)
 	}
-	p.toggle(7)
+	p.toggle(6)
 	p = newProfilePickerForEnvironment(false)
-	p.toggle(7)
+	p.toggle(6)
 	if !p.allSelected() {
 		t.Fatal("Linux Todos no longer selects all profiles")
 	}
@@ -298,5 +298,21 @@ func TestConfirmInstallation(t *testing.T) {
 				t.Fatal(output.String())
 			}
 		})
+	}
+}
+
+func TestFontsProfileRemoved(t *testing.T) {
+	if _, err := parseProfiles("fonts"); err == nil {
+		t.Fatal("removed fonts profile is accepted")
+	}
+	p := newProfilePickerForEnvironment(false)
+	var output bytes.Buffer
+	p.render(&output, false)
+	if strings.Contains(output.String(), "Fontes") || !strings.Contains(output.String(), "1–7") {
+		t.Fatal(output.String())
+	}
+	p.toggle(len(p.availableProfiles()))
+	if p.profiles() != "cli,dev,web,desktop,games,network" {
+		t.Fatal(p.profiles())
 	}
 }

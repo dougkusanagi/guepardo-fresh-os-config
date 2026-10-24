@@ -95,7 +95,6 @@ Ele nao valida:
 - GNOME
 - `gsettings`
 - atalho do `flameshot`
-- integracao visual de fontes
 - temas do Omakub aplicados no GNOME
 - Nautilus/Samba no desktop
 - reboot pos-instalacao
@@ -137,7 +136,6 @@ chmod +x install.sh
 - `flatpak` funcionando
 - apps desktop instalados
 - `flameshot` associado a tecla `Print`
-- fontes copiadas para `~/.local/share/fonts/guepardo-fresh-os-config`
 - `fc-cache` executado sem erro
 - `samba`, `smbclient` e `nautilus-share` instalados
 - usuario no grupo `sambashare`
@@ -181,7 +179,6 @@ chmod +x install.sh install-fedora.sh
 - `flatpak` funcionando com Flathub em modo system
 - apps desktop instalados
 - `flameshot` associado a tecla `Print`
-- fontes copiadas para `~/.local/share/fonts/guepardo-fresh-os-config`
 - `fc-cache` executado sem erro
 - `samba` e `samba-client` instalados
 - servico `smb` reinicia sem erro

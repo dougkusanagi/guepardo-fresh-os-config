@@ -12,7 +12,7 @@ Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TU
 bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://github.com/dougkusanagi/guepardo-fresh-os-config/releases/latest/download/install.sh -o "$installer"; bash "$installer"'
 ```
 
-O endereço `releases/latest/download/install.sh` sempre instala a última release publicada, com fontes e executável correspondentes. Cada instalador publicado fixa internamente a própria release; não é necessário atualizar o comando. O instalador prefere o binário publicado, verifica SHA256 e a impressão das fontes antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
+O endereço `releases/latest/download/install.sh` sempre instala a última release publicada, com código-fonte e executável correspondentes. Cada instalador publicado fixa internamente a própria release; não é necessário atualizar o comando. O instalador prefere o binário publicado, verifica SHA256 e a impressão do código-fonte antes de executá-lo. Se não houver binário compatível, usa Go local ou baixa uma toolchain Go temporária verificada por SHA256; esse comportamento vale também para execução com argumentos. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
 
 Para instalação sem o menu, acrescente `--profiles=cli,dev,web --yes` à chamada final `bash "$installer"`. `--mode=full --yes` seleciona também desktop e jogos; no WSL use `--mode=wsl --yes`. Não execute o instalador inteiro com `sudo`.
 
@@ -27,22 +27,11 @@ Se um aplicativo falhar, a instalação registra a pendência e continua com os 
 | `web` | PHP, Composer e MySQL/MariaDB | Não |
 | `desktop` | Chrome, Brave, OBS, VLC, ChatGPT, Claude, T3 Code, Sloth Note, OneDrive com GUI/autostart, ZapFast, editores, Flatpak e ajustes GNOME | Sim |
 | `games` | Steam, Lutris, Heroic, Discord, gamescope e ferramentas de jogos; no Ubuntu, Vulkan/Mesa e driver NVIDIA recomendado quando há GPU NVIDIA; no Windows, Playnite e MSI Afterburner | Sim |
-| `fonts` | Fontes do seu repositório privado de fontes | Não |
 | `network` | IPv4 estático via NetworkManager | Não; use com cuidado em acesso remoto |
 
 No Windows existem ainda os perfis `jellyfin` (servidor, tema GlassFin e plugins) e `wsl2` (WSL 2 + Ubuntu).
 
-Os perfis são independentes. `games` não instala a stack web; `cli` não instala aplicativos gráficos, banco de dados nem altera a rede. A configuração de rede é sempre opcional.
-
-## Fontes privadas
-
-As fontes não ficam neste repositório público (várias são de uso pessoal/comercial). Elas ficam num repositório **privado**, por padrão `dougkusanagi/guepardo-fonts` (altere com `GUEPARDO_FONTS_REPO`). Para publicar a pasta local `fonts/` nele, depois de `gh auth login`:
-
-```bash
-./scripts/publish-fonts-private.sh
-```
-
-O perfil `fonts` prioriza `GUEPARDO_FONTS_DIR` e a pasta `fonts/` do checkout. Depois usa o cache do repositório privado, se existir. Sem essas origens, reutiliza as fontes já presentes na pasta de instalação, sem download; só tenta clonar o repositório privado quando não há fontes instaladas (exige `gh auth login` ou credenciais git). Para atualizar ou reparar, informe `GUEPARDO_FONTS_DIR`. Em uma máquina sem fontes e sem acesso ao repositório privado, o perfil registra uma pendência; confira se o repositório existe e se sua conta tem permissão. Uma origem vazia também registra erro. Observação: o histórico antigo do git deste repositório ainda contém as fontes; para removê-las de vez é preciso reescrever o histórico.
+Os perfis são independentes. `games` não instala a stack web; `cli` não instala aplicativos gráficos, banco de dados nem altera a rede. A configuração de rede é sempre opcional. As fontes pessoais são gerenciadas separadamente pelo Google Drive; o instalador não baixa nem configura fontes.
 
 ## Linux
 
@@ -57,13 +46,13 @@ No checkout local (Go 1.22 ou superior é opcional):
 ./install.sh --profiles=network --network-interface=enp1s0 --network-address=192.168.1.77/24 --network-gateway=192.168.1.1 --plan
 ```
 
-Sem argumentos, um terminal interativo abre o menu de módulos para o ambiente detectado. No Linux nativo, mostra somente Linux e os sete perfis, inicialmente desmarcados; dentro do WSL, mostra somente WSL com `cli,dev,web`, inicialmente selecionados. Não há abas ou atalhos para trocar de ambiente: o instalador configura a distribuição em execução. Use ↑/↓ e Espaço ou os números `1` a `8` no Linux e `1` a `4` no WSL para selecionar; Enter continua e Q cancela. O menu adapta o espaçamento à altura do terminal e respeita `NO_COLOR`. Todos inclui os sete perfis no Linux (inclusive rede) e apenas CLI/dev/web no WSL.
+Sem argumentos, um terminal interativo abre o menu de módulos para o ambiente detectado. No Linux nativo, mostra somente Linux e os seis perfis, inicialmente desmarcados; dentro do WSL, mostra somente WSL com `cli,dev,web`, inicialmente selecionados. Não há abas ou atalhos para trocar de ambiente: o instalador configura a distribuição em execução. Use ↑/↓ e Espaço ou os números `1` a `7` no Linux e `1` a `4` no WSL para selecionar; Enter continua e Q cancela. O menu adapta o espaçamento à altura do terminal e respeita `NO_COLOR`. Todos inclui os seis perfis no Linux (inclusive rede) e apenas CLI/dev/web no WSL.
 
 Ao selecionar rede, o instalador aplica a configuração pessoal fixa: **192.168.1.77/24**, gateway **192.168.1.1** e DNS **1.1.1.1**, sem perguntar os dados da rede. Detecta automaticamente uma conexão ativa do NetworkManager, priorizando cabo quando cabo e Wi-Fi estão ativos. Quem não quiser essa configuração deve desmarcar o perfil de rede. VPNs, bridges de containers e interfaces desconectadas são ignoradas. O backend modifica o perfil ativo por UUID, preservando tipo e credenciais Wi-Fi, sem desabilitar as outras redes nem alterar IPv6. Se a conexão mudar antes da aplicação, a instalação da rede é interrompida. Os argumentos `--network-*` continuam disponíveis para configuração explícita.
 
-Para automação, use `--profiles` e `--yes` com os argumentos `--network-*`; `--profiles=all` seleciona os sete perfis. `--mode=wsl` continua disponível explicitamente, sem trocar o ambiente real. `--plan` detalha as ações sem mudanças; `--dry-run` simula sem sudo. `--jobs=N` limita downloads diretos concorrentes; APT, DNF e Flatpak continuam em sequência. O padrão é `--jobs=4`.
+Para automação, use `--profiles` e `--yes` com os argumentos `--network-*`; `--profiles=all` seleciona os seis perfis. `--mode=wsl` continua disponível explicitamente, sem trocar o ambiente real. `--plan` detalha as ações sem mudanças; `--dry-run` simula sem sudo. `--jobs=N` limita downloads diretos concorrentes; APT, DNF e Flatpak continuam em sequência. O padrão é `--jobs=4`.
 
-Atalhos legados: `--mode=full`, `basic`, `games` e `wsl`. `full` equivale a `cli,dev,web,desktop,games,fonts`; `basic` e `wsl` equivalem a `cli,dev,web`. Consulte `--list-profiles` e `--list-themes`.
+Atalhos legados: `--mode=full`, `basic`, `games` e `wsl`. `full` equivale a `cli,dev,web,desktop,games`; `basic` e `wsl` equivalem a `cli,dev,web`. Consulte `--list-profiles` e `--list-themes`.
 
 `--doctor` verifica ferramentas locais, arquivos do instalador, arquitetura e permissões do diretório pessoal, sem instalar pacotes nem pedir senha. Sem perfis explícitos, verifica `cli`. Essa verificação também acontece automaticamente antes de uma instalação real; ela não certifica disponibilidade de todos os servidores de download. Os perfis `desktop` e `games` incluem apps exclusivos de x86_64; a verificação recusa esses grupos em ARM64 antes de alterar o sistema.
 
@@ -89,7 +78,7 @@ O programa chama `sudo -v` uma vez antes da primeira etapa privilegiada. Enquant
 
 ### Servidor sem Go instalado
 
-A release `v0.2.2` fornece `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` prefere esses executáveis mesmo quando Go já está instalado, verifica checksums e só usa o binário se a impressão das fontes corresponder ao checkout baixado. Sem correspondência, usa Go local ou prepara Go temporário; o executor Bash fica disponível apenas com `GUEPARDO_BASH_FALLBACK=1` quando não houver Go local/release correspondente. Um checksum incorreto encerra o processo sem executar o binário. O workflow continua gerando releases de cada atualização em `master`; fixe `GUEPARDO_REF` na tag ou commit que quiser executar.
+A release `v0.2.2` fornece `guepardo-linux-amd64`, `guepardo-linux-arm64`, `SOURCE_SHA256` e `SHA256SUMS`. O `install.sh` prefere esses executáveis mesmo quando Go já está instalado, verifica checksums e só usa o binário se a impressão do código-fonte corresponder ao checkout baixado. Sem correspondência, usa Go local ou prepara Go temporário; o executor Bash fica disponível apenas com `GUEPARDO_BASH_FALLBACK=1` quando não houver Go local/release correspondente. Um checksum incorreto encerra o processo sem executar o binário. O workflow continua gerando releases de cada atualização em `master`; fixe `GUEPARDO_REF` na tag ou commit que quiser executar.
 
 ```bash
 GUEPARDO_REF=v0.2.2 bash <(curl -fsSL https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/v0.2.2/install.sh) --profiles=cli --yes

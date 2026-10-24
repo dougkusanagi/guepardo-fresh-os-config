@@ -20,6 +20,10 @@ done
 picker_output="$(printf '584a\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
 [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash WSL Todos selected unsupported modules'
 
+# Native Linux shortcuts now have six profiles and Todos on key 7.
+picker_output="$(printf '7\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
+[[ "$picker_output" == *'RESULT:cli,dev,web,desktop,games,network'* && "$picker_output" != *Fontes* && "$picker_output" == *'1–7'* ]] || fail 'Native Bash menu still includes fonts or uses old shortcuts'
+
 # Failed transfers must preserve an existing download and remove partial data.
 curl() {
   local destination
@@ -99,7 +103,7 @@ GUEPARDO_ROOT="$fake_root" GUEPARDO_TEST_CALLS="$sandbox/profile-calls" bash "$R
 for tool in bash tar sha256sum mktemp awk sort find uname; do
   ln -s "$(command -v "$tool")" "$sandbox/bin/$tool"
 done
-if PATH="$sandbox/bin" /bin/bash "$ROOT_DIR/scripts/preflight.sh" ubuntu fonts "$fake_root" > "$sandbox/preflight" 2>&1; then
+if PATH="$sandbox/bin" /bin/bash "$ROOT_DIR/scripts/preflight.sh" ubuntu cli "$fake_root" > "$sandbox/preflight" 2>&1; then
   fail 'Preflight accepted missing curl'
 fi
 [[ "$(cat "$sandbox/preflight")" == *'Ferramenta necessária ausente: curl'* ]] || fail 'Preflight did not explain the missing prerequisite'
@@ -128,52 +132,6 @@ download_file() {
 uname() { printf 'x86_64\n'; }
 if install_node_lts >/dev/null 2>&1; then fail 'Node checksum mismatch was accepted'; fi
 [[ ! -e "$HOME/.local/bin/node" ]] || fail 'Node was linked before checksum verification'
-
-# Repeating the fonts profile repairs an interrupted copy and picks up updates.
-font_root="$sandbox/fonts-test"
-mkdir -p "$font_root/fonts" "$HOME/.local/share/fonts/guepardo-fresh-os-config"
-printf 'new font' > "$font_root/fonts/My Font.ttf"
-printf 'partial font' > "$HOME/.local/share/fonts/guepardo-fresh-os-config/My Font.ttf"
-ROOT_DIR="$font_root"
-fc-cache() { :; }
-run_quiet() { "$@"; }
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh" >/dev/null
-[[ "$(cat "$HOME/.local/share/fonts/guepardo-fresh-os-config/My Font.ttf")" == 'new font' ]] || fail 'Interrupted font copy was not repaired'
-
-# Fonts can come from an explicit directory outside the public checkout.
-custom_fonts="$sandbox/custom-fonts"
-mkdir -p "$custom_fonts"
-printf 'private font' > "$custom_fonts/Private.otf"
-ROOT_DIR="$sandbox/no-fonts-here"
-GUEPARDO_FONTS_DIR="$custom_fonts"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh" >/dev/null
-[[ "$(cat "$HOME/.local/share/fonts/guepardo-fresh-os-config/Private.otf")" == 'private font' ]] || fail 'GUEPARDO_FONTS_DIR fonts were not installed'
-unset GUEPARDO_FONTS_DIR
-
-# Installed fonts are reused without contacting GitHub or rebuilding the cache.
-(
-  git() { touch "$sandbox/unexpected-font-network"; return 1; }
-  gh() { touch "$sandbox/unexpected-font-network"; return 1; }
-  fc-cache() { touch "$sandbox/unexpected-font-cache"; }
-  source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh" >/dev/null
-  [[ ! -e "$sandbox/unexpected-font-network" && ! -e "$sandbox/unexpected-font-cache" ]] || fail 'Installed fonts triggered unnecessary work'
-)
-# An explicit but empty directory must not report successful font installation.
-(
-  mkdir -p "$sandbox/empty-fonts"
-  GUEPARDO_FONTS_DIR="$sandbox/empty-fonts"
-  if source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh" >/dev/null 2>&1; then
-    fail 'Empty explicit font source reported success'
-  fi
-)
-
-# Without any font source and no access to the private repository, fail loudly.
-git() { return 1; }
-gh() { return 1; }
-if (TARGET_HOME="$sandbox/fresh-font-home"; source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install-common/desktop/05-fonts.sh") >/dev/null 2>&1; then
-  fail 'Missing private fonts repository was reported as success'
-fi
-unset -f git gh
 
 # GPU drivers: only NVIDIA hardware triggers the driver install, and it asks for a reboot.
 (

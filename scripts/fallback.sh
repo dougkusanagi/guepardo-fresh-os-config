@@ -18,23 +18,23 @@ yes=false
 
 usage() {
   cat <<'HELP'
-Usage: ./install.sh --profiles=cli,dev,web,desktop,games,fonts,network|all [--plan|--dry-run|--doctor] [--yes]
+Usage: ./install.sh --profiles=cli,dev,web,desktop,games,network|all [--plan|--dry-run|--doctor] [--yes]
 Options: --distro=auto|ubuntu|fedora|nobara --jobs=1..8 --theme=NAME --mode=full|basic|games|wsl
 HELP
 }
 
 select_profiles_interactive() {
-  local -a names=('CLI e servidor' 'Desenvolvimento' 'Stack web' 'Desktop' 'Jogos' 'Fontes' 'Rede IPv4' 'Todos')
-  local -a keys=(cli dev web desktop games fonts network)
-  local -a checked=(0 0 0 0 0 0 0)
-  local active=0 key sequence direction i count all mark cursor wsl=0 total=7
+  local -a names=('CLI e servidor' 'Desenvolvimento' 'Stack web' 'Desktop' 'Jogos' 'Rede IPv4' 'Todos')
+  local -a keys=(cli dev web desktop games network)
+  local -a checked=(0 0 0 0 0 0)
+  local active=0 key sequence direction i count all mark cursor wsl=0 total=6
   local accent='' muted='' reset='' focused='' selected_color=''
   if [[ -z "${NO_COLOR:-}" ]]; then
     accent=$'\e[1;38;2;167;139;250m'; muted=$'\e[38;2;148;163;184m'; reset=$'\e[0m'
     focused=$'\e[1;38;2;237;233;254;48;2;49;41;70m'; selected_color=$'\e[38;2;110;231;183m'
   fi
   if [[ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ]] || [[ "$(cat /proc/sys/kernel/osrelease 2>/dev/null)" == *[Mm]icrosoft* ]]; then
-    wsl=1; checked=(1 1 1 0 0 0 0)
+    wsl=1; checked=(1 1 1 0 0 0)
   fi
   trap 'printf "\033[?25h\033[?1049l"; exit 130' INT
   trap 'printf "\033[?25h\033[?1049l"; exit 143' TERM
@@ -48,7 +48,7 @@ select_profiles_interactive() {
       printf '   %sLinux%s\n' "$accent" "$reset"
       printf '   Escolha o que quer ter pronto neste computador.\n\n'
     fi
-    total=7
+    total=6
     ((wsl)) && total=3
     count=0
     all=1
@@ -72,8 +72,8 @@ select_profiles_interactive() {
     printf '   ↑↓ navegar · Espaço / 1–%d selecionar · Q sair\n' "$((total+1))"
     if ((wsl)); then
       printf '   Todos inclui apenas CLI, desenvolvimento e stack web.\n'
-    elif ((checked[6])); then
-      printf '  Rede altera a conexão; os dados IPv4 serão solicitados.\n'
+    elif ((checked[5])); then
+      printf '  Rede aplica 192.168.1.77/24 automaticamente.\n'
     else
       printf '  Rede altera a conexão; escolha apenas se precisar.\n'
     fi
@@ -92,7 +92,7 @@ select_profiles_interactive() {
         else
           checked[active]=$((1-checked[active]))
         fi ;;
-      [1-8])
+      [1-7])
         ((key <= total+1)) || continue
         active=$((key-1))
         if ((active==total)); then
@@ -143,7 +143,7 @@ for arg in "$@"; do
     --dry-run) dry_run=true ;;
     --doctor) doctor=true ;;
     --yes) yes=true ;;
-    --list-profiles) printf '%s\n' cli dev web desktop games fonts network; exit 0 ;;
+    --list-profiles) printf '%s\n' cli dev web desktop games network; exit 0 ;;
     --list-themes)
       sed -n '/^SUPPORTED_THEMES=(/,/^)/p' "$ROOT_DIR/install-common/lib.sh" | sed -n 's/^  "\(.*\)"/\1/p'
       exit 0 ;;
@@ -166,8 +166,8 @@ fi
 case "$profiles" in
   server) profiles=cli ;;
   basic|wsl) profiles=cli,dev,web ;;
-  full) profiles=cli,dev,web,desktop,games,fonts ;;
-  all|todos) profiles=cli,dev,web,desktop,games,fonts,network ;;
+  full) profiles=cli,dev,web,desktop,games ;;
+  all|todos) profiles=cli,dev,web,desktop,games,network ;;
 esac
 [[ "$jobs" =~ ^[1-8]$ ]] || { echo '--jobs must be between 1 and 8.' >&2; exit 1; }
 
@@ -196,11 +196,11 @@ for candidate in "${requested[@]}"; do
   candidate="${candidate#"${candidate%%[![:space:]]*}"}"
   candidate="${candidate%"${candidate##*[![:space:]]}"}"
   case "$candidate" in
-    cli|dev|web|desktop|games|fonts|network) ;;
+    cli|dev|web|desktop|games|network) ;;
     server) candidate=cli ;;
     basic|wsl) candidate=cli,dev,web ;;
-    full) candidate=cli,dev,web,desktop,games,fonts ;;
-    all|todos) candidate=cli,dev,web,desktop,games,fonts,network ;;
+    full) candidate=cli,dev,web,desktop,games ;;
+    all|todos) candidate=cli,dev,web,desktop,games,network ;;
     dev-web) candidate=dev,web ;;
     *) echo "Unknown profile: $candidate" >&2; exit 1 ;;
   esac
@@ -208,7 +208,7 @@ for candidate in "${requested[@]}"; do
 done
 selected=()
 profiles=''
-for candidate in cli dev web desktop games fonts network; do
+for candidate in cli dev web desktop games network; do
   if [[ ",$expanded," == *",$candidate,"* ]]; then
     selected+=("$candidate")
     profiles+="${profiles:+,}$candidate"
@@ -298,7 +298,7 @@ mkdir -p "$log_dir"
 log_file="$log_dir/install-$(date +%Y%m%d-%H%M%S)-$$.log"
 (umask 077; touch "$log_file")
 printf '\nLog: %s\n' "$log_file"
-if ! $dry_run && [[ "${selected[*]}" != fonts ]]; then
+if ! $dry_run; then
   if [[ -t 0 ]]; then
     sudo -v
   elif [[ -n "${SUDO_ASKPASS:-}" ]]; then

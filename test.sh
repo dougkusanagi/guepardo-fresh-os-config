@@ -251,7 +251,7 @@ configure_target() {
   if [[ "$MODE" == "multipass" && "$DISTRO" != "ubuntu" ]]; then
     error "Multipass mode only supports --distro=ubuntu."
     warn "Use './test.sh --distro=$DISTRO --mode=container' for a CLI smoke test."
-    warn "Use a real Nobara/Fedora desktop VM for GNOME, Samba, fonts, Flatpak, and theme validation."
+    warn "Use a real Nobara/Fedora desktop VM for GNOME, Samba, Flatpak, and theme validation."
     exit 1
   fi
 }
@@ -650,7 +650,7 @@ run_vm_test() {
   check_multipass_host_prereqs
   ensure_multipass
   warn "Multipass mode validates a clean Ubuntu VM and the CLI path of the installer."
-  warn "For GNOME, Nautilus Share, Samba reboot, fonts, and themes, follow the manual desktop checklist in test-vm.md."
+  warn "For GNOME, Nautilus Share, Samba reboot, and themes, follow the manual desktop checklist in test-vm.md."
 
   launch_vm
   mount_workspace

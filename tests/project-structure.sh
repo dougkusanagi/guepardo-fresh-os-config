@@ -4,7 +4,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail() { printf 'ERROR %s\n' "$*" >&2; exit 1; }
 required=(
   install.sh install.ps1 go.mod cmd/guepardo/main.go scripts/run-profile.sh
-  install-common/lib.sh install-common/desktop/05-fonts.sh
+  install-common/lib.sh
   install-ubuntu/lib.sh install-fedora/lib.sh
 )
 for path in "${required[@]}"; do

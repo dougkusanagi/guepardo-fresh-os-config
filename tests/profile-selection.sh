@@ -13,7 +13,7 @@ games="$(go run ./cmd/guepardo --distro=fedora --profiles=games --plan)"
 [[ "$games" != *'  web       '* && "$games" != *'  dev       '* ]] || fail 'Games plan includes development profiles'
 
 all="$(go run ./cmd/guepardo --distro=ubuntu --profiles=all --plan)"
-[[ "$all" == *'7/7  network'* ]] || fail 'All must include the network profile'
+[[ "$all" == *'6/6  network'* ]] || fail 'All must include the network profile'
 fallback_all="$(bash scripts/fallback.sh --distro=ubuntu --profiles=all --plan)"
 [[ "$fallback_all" == *'• network'* ]] || fail 'Bash fallback must include the network profile in all'
 
@@ -26,6 +26,19 @@ fi
 if go run ./cmd/guepardo --distro=ubuntu --profiles=network --yes --network-interface=enp1s0 --network-address=invalid --network-gateway=192.168.1.1 >/dev/null 2>&1; then
   fail 'Invalid static network address was accepted'
 fi
+
+# Font management was removed; all and the profile listings must exclude it.
+[[ "$all" != *'fonts'* && "$fallback_all" != *'fonts'* ]] || fail 'All still includes fonts'
+for executor in go bash; do
+  if [[ "$executor" == go ]]; then
+    listed="$(go run ./cmd/guepardo --list-profiles)"
+    if go run ./cmd/guepardo --profiles=fonts --plan >/dev/null 2>&1; then fail 'Go still accepts fonts'; fi
+  else
+    listed="$(bash scripts/fallback.sh --list-profiles)"
+    if bash scripts/fallback.sh --profiles=fonts --plan >/dev/null 2>&1; then fail 'Bash still accepts fonts'; fi
+  fi
+  [[ "$listed" != *fonts* && "$listed" != *Fontes* ]] || fail "$executor still lists fonts"
+done
 
 # Both installers must start before the first is allowed to finish.
 source "$ROOT_DIR/install-common/lib.sh"

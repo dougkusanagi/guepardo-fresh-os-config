@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 )
 
-var pickerNames = []string{"CLI e servidor", "Desenvolvimento", "Stack web", "Desktop", "Jogos", "Fontes", "Rede IPv4", "Todos"}
+var pickerNames = []string{"CLI e servidor", "Desenvolvimento", "Stack web", "Desktop", "Jogos", "Rede IPv4", "Todos"}
 
 type profilePicker struct {
 	selected map[string]bool
