@@ -6,15 +6,15 @@ O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 
 ## Ubuntu ou WSL Ubuntu novo: um comando
 
-Abra um terminal como seu usuário normal e cole o comando abaixo. Ele prepara o download e detecta o ambiente: no Ubuntu normal, instala terminal, desenvolvimento, stack web, desktop, jogos e fontes; no WSL Ubuntu, instala apenas terminal, desenvolvimento e stack web. A senha de administrador é solicitada pelo `sudo`; a rede permanece com sua configuração atual.
+Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.
 
 ```bash
-bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/master/install.sh -o "$installer"; mode=full; if [ -n "${WSL_DISTRO_NAME:-}${WSL_INTEROP:-}" ] || grep -qi microsoft /proc/sys/kernel/osrelease; then mode=wsl; fi; bash "$installer" --mode="$mode" --yes'
+bash -c 'set -e; sudo apt-get update; sudo apt-get install -y curl ca-certificates python3; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 https://raw.githubusercontent.com/dougkusanagi/guepardo-fresh-os-config/master/install.sh -o "$installer"; bash "$installer"'
 ```
 
-**Publicação pendente:** o comando remoto requer a versão nova deste instalador em `master`. O branch publicado ainda usa o instalador antigo; enquanto esta atualização não for publicada, não use este comando remoto. Melhorias feitas no checkout local passam a fazer parte dele após a publicação nesse branch. Para testar este checkout, use `./install.sh --mode=full --plan` e depois `./install.sh --mode=full --yes`.
+O comando usa `master`; mudanças em outra branch só chegam a ele após a integração. O fluxo de publicação gera binários Linux com checksums e identificação das fontes a cada push em `master`. Sem release compatível e sem Go instalado, o modo sem argumentos baixa uma toolchain Go temporária verificada por SHA256 para abrir a mesma TUI. Não instala Go no sistema. `GUEPARDO_BASH_FALLBACK=1` permite usar explicitamente o menu Bash.
 
-Para instalar apenas as ferramentas de trabalho, substitua `--mode=full` por `--profiles=cli,dev,web`. Para escolher os grupos na tela, substitua a chamada final por `bash "$installer"`. Não execute o instalador inteiro com `sudo`.
+Para instalação sem o menu, acrescente `--profiles=cli,dev,web --yes` à chamada final `bash "$installer"`. `--mode=full --yes` seleciona também desktop e jogos; no WSL use `--mode=wsl --yes`. Não execute o instalador inteiro com `sudo`.
 
 Se a instalação parar, consulte o erro e o log e repita o mesmo comando depois de resolver a causa. O instalador reaproveita os apps que detecta como instalados e refaz etapas incompletas. Abra um novo terminal ao terminar; reinicie quando a instalação do desktop solicitar.
 
@@ -23,9 +23,9 @@ Se a instalação parar, consulte o erro e o log e repita o mesmo comando depois
 | Perfil | Instala | Requer interface gráfica |
 | --- | --- | --- |
 | `cli` | Git, gh, ripgrep, fzf, eza, dust, lazygit, yazi e utilitários | Não |
-| `dev` | Node 24 LTS, npm, Bun, uv, Podman e ferramentas de desenvolvimento | Não |
+| `dev` | Node 24 LTS, npm, Bun, uv, Podman, Codex CLI, Claude Code CLI e dotagents | Não |
 | `web` | PHP, Composer e MySQL/MariaDB | Não |
-| `desktop` | Navegadores, editores, Flatpak e ajustes GNOME | Sim |
+| `desktop` | Chrome, ChatGPT, Claude, T3 Code, Sloth Note, editores, Flatpak e ajustes GNOME | Sim |
 | `games` | Steam, Lutris, Heroic, Discord e ferramentas de jogos | Sim |
 | `fonts` | Fontes incluídas no repositório | Não |
 | `network` | IPv4 estático via NetworkManager | Não; use com cuidado em acesso remoto |
@@ -54,6 +54,16 @@ Atalhos legados: `--mode=full`, `basic`, `games` e `wsl`. `full` equivale a `cli
 Cada perfil prepara suas próprias dependências e atualiza o índice de pacotes quando necessário. O APT aguarda até 120 segundos pelo lock de outra instalação e tenta novamente downloads transitórios. Downloads diretos têm tentativas e timeout, e só substituem arquivos anteriores após a transferência completa. Scripts remotos são baixados antes de executar; Composer e Node são verificados por checksum.
 
 O perfil `dev` mantém Node 22/24 existente quando npm está disponível; caso contrário instala Node 24 LTS para o usuário. Os pacotes npm globais ficam em `~/.local`, e `~/.local/bin` e `~/.bun/bin` são adicionados ao PATH do Bash. O instalador configura atalhos no Bash; usuários de outros shells devem incluir esses diretórios no próprio PATH.
+
+### Apps de IA e múltiplos monitores
+
+`dev` instala Codex CLI, Claude Code CLI e dotagents nos dois sistemas. O checkout do dotagents fica separado dos diretórios de regras e memórias existentes; o instalador upstream preserva regras anteriores com backups. No Windows, instala MSYS2 e util-linux para executar o sincronizador Bash com locks e links reais; links exigem modo de desenvolvedor ou terminal elevado.
+
+`desktop` inclui Chrome, ChatGPT, Claude Desktop, T3 Code e Sloth Note. No Linux, ChatGPT é um atalho de aplicativo web no Chrome. Claude Desktop usa o repositório APT oficial no Ubuntu; Fedora/Nobara recebem o aplicativo web Claude, pois não há pacote oficial RPM. T3 Code usa AppImage no Linux e Winget no Windows. O Sloth Note usa a release pública quando disponível; sem artefato, compila o código-fonte e instala o executável e um atalho. Essa compilação instala Bun, Node, Rust e dependências Tauri (MSVC no Windows) e pode demorar. Erros são reportados; não são tratados como instalação concluída.
+
+No GNOME, `desktop` instala AI Quota Pulse e Multi Monitor Bar compatíveis com a versão do Shell. Configura Dash to Dock com `multi-monitor=true` e a barra superior nos monitores secundários, com relógio, calendário, indicadores e controles do sistema. As extensões ficam gravadas no disco e habilitadas nas preferências persistentes, inclusive para o primeiro login Wayland após a instalação. A dock anterior só é desativada depois que a substituta é instalada. Se não houver versão compatível da extensão, a instalação informa o erro.
+
+Encerre a sessão e entre novamente após instalar extensões novas. Extensões de tray de terceiros podem ter limitações próprias de espelhamento. AI Quota Pulse e as barras GNOME não se aplicam ao Windows nem ao WSL sem desktop GNOME. A validação visual de logout/login e dois monitores deve ser feita em uma sessão GNOME real, conforme `test-vm.md`.
 
 ### Autenticação
 

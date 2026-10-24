@@ -69,6 +69,13 @@ Assert-True ($gamesOutput -like "*Steam*") "Games profile contains Steam"
 Assert-True ($gamesOutput -notlike "*PHP (PHP.PHP.8.4)*") "Games profile excludes web tools"
 
 
+foreach ($app in @('ChatGPT', 'Codex CLI', 'Claude Desktop', 'Claude Code CLI', 'T3 Code', 'Sloth Note', 'dotagents')) {
+    Assert-True ($dryRunFullOutput -like "*$app*") "$app is included in full installation"
+}
+Assert-True ($dryRunFullOutput -like '*unavailable on native Windows*') 'GNOME-only app is explicitly reported'
+Assert-True ($dryRunOutput -like '*Codex CLI*' -and $dryRunOutput -like '*dotagents*') 'Dev profile includes agent tools'
+Assert-True ($dryRunOutput -notlike '*Sloth Note*' -and $dryRunOutput -notlike '*Claude Desktop*') 'Dev excludes desktop tools'
+
 # Test 4: Logs generation
 $statePath = [Environment]::GetFolderPath('LocalApplicationData')
 if ([string]::IsNullOrEmpty($statePath)) { $statePath = [IO.Path]::GetTempPath() }

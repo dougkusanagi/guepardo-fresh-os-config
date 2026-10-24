@@ -76,5 +76,10 @@ if bootstrap_download "$release/SOURCE_SHA256" "$TMP_DIR/SOURCE_SHA256" 2>/dev/n
     fi
   fi
 fi
-echo "Sem binário Go compatível com esta configuração; usando o executor Bash." >&2
+# A fresh desktop must not silently replace the interactive Go UI with Bash.
+if [[ $# -eq 0 && "${GUEPARDO_BASH_FALLBACK:-0}" != 1 ]]; then
+  bash "$ROOT_DIR/scripts/bootstrap-go.sh" "$ROOT_DIR" "$@"
+  exit $?
+fi
+echo "Sem binário Go compatível com esta configuração; usando o executor Bash (sem TUI Go)." >&2
 bash "$ROOT_DIR/scripts/fallback.sh" "$@"

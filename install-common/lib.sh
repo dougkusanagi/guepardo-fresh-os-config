@@ -470,6 +470,8 @@ download_file() {
 
 install_remote_script() (
   local url="$1" shell_name="${2:-bash}" tmpdir
+  shift
+  if (($#)); then shift; fi
   tmpdir="$(mktemp -d)" || return 1
   trap 'rm -rf "$tmpdir"' EXIT
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -477,7 +479,7 @@ install_remote_script() (
     return 0
   fi
   download_file "$url" "$tmpdir/install.sh" || return 1
-  run_quiet "$shell_name" "$tmpdir/install.sh" || return 1
+  run_quiet "$shell_name" "$tmpdir/install.sh" "$@" || return 1
 )
 
 configure_user_path() {
@@ -957,3 +959,6 @@ finish_installation() {
     warn "Reboot the computer before using Samba/Nautilus Share. Logoff/login is not enough."
   fi
 }
+
+# shellcheck source=install-common/apps.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/apps.sh"

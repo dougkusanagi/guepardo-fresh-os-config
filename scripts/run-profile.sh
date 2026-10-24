@@ -75,7 +75,9 @@ case "$PROFILE" in
     source "$INSTALL_ROOT/desktop/00-core.sh"
     source "$INSTALL_ROOT/desktop/05-warp.sh"
     source "$INSTALL_ROOT/desktop/10-apps.sh"
+    install_ai_desktop_apps
     if [[ "$RUNNING_GNOME" == "true" ]]; then
+      if [[ "$DISTRO" == ubuntu ]]; then apt_install python3; else dnf_install python3; fi
       source "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh"
       if [[ -n "$SELECTED_THEME" ]]; then
         apply_selected_theme "$SELECTED_THEME"

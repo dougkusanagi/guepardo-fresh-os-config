@@ -5,6 +5,8 @@ dnf_install xsel podman
 install_node_lts
 install_npm_global_package opencode opencode-ai
 install_npm_global_package codex @openai/codex
+install_npm_global_package claude @anthropic-ai/claude-code
+install_dotagents
 if [[ "$DRY_RUN" == "true" ]]; then
   log "[DRY-RUN] Would configure podman registries"
 else

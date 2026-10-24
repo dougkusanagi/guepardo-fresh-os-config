@@ -228,3 +228,18 @@ sudo snap restart multipass.multipassd
 ```
 
 Depois do teste, restaure o setup do Valet se voce ainda precisar dele.
+
+
+## Regressão de extensões e dois monitores
+
+Em Ubuntu e Fedora GNOME, conecte dois monitores no modo estendido. Execute `./install.sh --profiles=desktop --yes` como usuário normal. Confirme que não há pedidos interativos do site de extensões. Encerre a sessão (Wayland) e entre novamente.
+
+- Dash to Dock aparece nos dois monitores e permanece após mais um logout/login.
+- Multi Monitor Bar mostra relógio, calendário e controles do sistema no secundário; abra o menu de energia nesse monitor. Verifique os indicadores de tray instalados.
+- Desconecte e reconecte o monitor secundário; as barras retornam.
+- AI Quota Pulse aparece e abre preferências; a autenticação de contas é feita pelo usuário.
+- Chrome, ChatGPT, Claude, T3 Code e Sloth Note abrem pelos atalhos. No Fedora, Claude e ChatGPT são apps web; no Ubuntu, Claude usa pacote oficial.
+- Em uma instalação sem Go e sem release correspondente, rode `./install.sh` e confirme a mesma TUI. Cancele sem iniciar a instalação.
+- Simule falha no download da Dash to Dock em uma sessão com Ubuntu Dock funcional: a dock anterior deve continuar habilitada e o erro deve ser reportado.
+
+No Windows descartável, valide `-Profiles dev,desktop` incluindo a compilação do Sloth Note sem release, os links de regras dotagents via MSYS2 e o atalho do Sloth Note. Confira que falhas de dependências aparecem no resumo e causam saída 1. Estes cenários gráficos não são cobertos pelos mocks de CI.

@@ -378,7 +378,8 @@ test_steam_detects_binary_on_path() {
   steam_command_exists && ok || fail "a PATH-visible steam was not detected"
 
   rm -f "$BIN_DIR/steam"
-  if [[ -x /usr/games/steam ]]; then
+  hash -r
+  if command -v steam >/dev/null || [[ -x /usr/games/steam ]]; then
     # This host has the out-of-PATH binary, so detection must still succeed.
     steam_command_exists && ok || fail "/usr/games/steam was not detected"
   else

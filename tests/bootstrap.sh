@@ -15,6 +15,10 @@ cat > "$repo/scripts/fallback.sh" <<'SH'
 printf 'fallback %s\n' "$*" >> "$GUEPARDO_TEST_CALLS"
 SH
 chmod +x "$repo/scripts/fallback.sh"
+cat > "$repo/scripts/bootstrap-go.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'bootstrap-go %s\n' "$*" >> "$GUEPARDO_TEST_CALLS"
+SH
 cat > "$sandbox/bin/go" <<'SH'
 #!/usr/bin/env bash
 echo 'go version go1.18.0 linux/amd64'
@@ -62,6 +66,13 @@ printf 'different source\n' > "$sandbox/release/SOURCE_SHA256"
 : > "$sandbox/calls"
 bash "$repo/install.sh" --list-profiles >/dev/null 2>&1
 [[ "$(cat "$sandbox/calls")" == 'fallback --list-profiles' ]] || fail 'Source mismatch did not use fallback'
+: > "$sandbox/calls"
+bash "$repo/install.sh" >/dev/null 2>&1
+[[ "$(cat "$sandbox/calls")" == "bootstrap-go $repo" ]] || fail 'Fresh interactive invocation lost the Go TUI'
+: > "$sandbox/calls"
+GUEPARDO_BASH_FALLBACK=1 bash "$repo/install.sh" >/dev/null 2>&1
+[[ "$(cat "$sandbox/calls")" == 'fallback ' ]] || fail 'Explicit Bash fallback was ignored'
+
 
 # Neither corrupted artifacts nor missing checksums can execute a binary.
 refresh_release
@@ -126,8 +137,7 @@ for environment in linux wsl interop; do
   WSL_DISTRO_NAME="$distro_name" WSL_INTEROP="$interop" \
     GUEPARDO_TEST_README_ARGS="$sandbox/readme-args" GUEPARDO_TEST_DOWNLOAD_PATH="$sandbox/readme-download" \
     PATH="$sandbox/readme-bin:$PATH" bash -c "$readme_command"
-  expected='--mode=wsl --yes'
-  [[ "$environment" == linux ]] && expected='--mode=full --yes'
+  expected='' # The recommended command opens the picker; it detects WSL itself.
   [[ "$(cat "$sandbox/readme-args")" == "$expected" ]] || fail "README selected the wrong preset for $environment"
   [[ ! -e "$(cat "$sandbox/readme-download")" ]] || fail 'README download was not cleaned up'
 done

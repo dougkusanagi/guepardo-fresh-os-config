@@ -152,6 +152,9 @@ $cliPackages = @(
     @{ Id = "sxyazi.yazi"; Name = "yazi" }
 )
 $devPackages = @(
+    @{ Id = "OpenAI.Codex"; Name = "Codex CLI" }
+    @{ Id = "Anthropic.ClaudeCode"; Name = "Claude Code CLI" }
+    @{ Id = "guepardo.dotagents"; Name = "dotagents" }
     @{ Id = "Oven-sh.Bun"; Name = "Bun" }
     @{ Id = "astral-sh.uv"; Name = "uv" }
     @{ Id = "CoreyButler.NVMforWindows"; Name = "NVM for Windows" }
@@ -163,6 +166,10 @@ $webPackages = @(
     @{ Id = "Oracle.MySQL"; Name = "MySQL Server" }
 )
 $desktopPackages = @(
+    @{ Id = "OpenAI.ChatGPT"; Name = "ChatGPT" }
+    @{ Id = "Anthropic.Claude"; Name = "Claude Desktop" }
+    @{ Id = "T3Tools.T3Code"; Name = "T3 Code" }
+    @{ Id = "guepardo.sloth-note"; Name = "Sloth Note" }
     @{ Id = "Warp.Warp"; Name = "Warp Terminal" }
     @{ Id = "Microsoft.VisualStudioCode"; Name = "Visual Studio Code" }
     @{ Id = "ZedIndustries.Zed"; Name = "Zed Editor" }
@@ -227,6 +234,10 @@ $toInstall = @($toInstall | Where-Object {
     else { $seenPackages[$_.Id] = $true; $true }
 })
 
+if ('desktop' -in $selectedProfiles) {
+    Write-Log 'AI Quota Pulse is a GNOME extension and is unavailable on native Windows.' -Level WARN
+}
+
 if ($Plan -or $DryRun) {
     Write-Log "Installation plan for profiles: $($selectedProfiles -join ', ')" -Level "INFO"
     foreach ($pkg in $toInstall) {
@@ -258,6 +269,99 @@ function Update-ProcessEnvironment {
     $env:Path = "$machinePath;$userPath"
 }
 
+function Install-RequiredWingetPackage {
+    param ([string]$Id, [string[]]$ExtraArgs = @())
+    & winget install -e --id $Id --source winget --silent --disable-interactivity --no-upgrade --accept-package-agreements --accept-source-agreements @ExtraArgs | Out-Host
+    if ((Get-InstallResult $LASTEXITCODE) -eq 'failed') { throw "Dependency failed: $Id ($LASTEXITCODE)" }
+    Update-ProcessEnvironment
+}
+
+function Get-GuepardoCheckout {
+    param ([string]$Repo, [string]$Name)
+    Install-RequiredWingetPackage 'Git.Git'
+    $destination = Join-Path $env:LOCALAPPDATA "Guepardo/Sources/$Name"
+    if (Test-Path (Join-Path $destination '.git')) {
+        $origin = & git -C $destination remote get-url origin
+        if ($LASTEXITCODE -ne 0 -or $origin -ne "https://github.com/$Repo.git") { throw "Unexpected repository: $destination" }
+        & git -C $destination pull --ff-only | Out-Host
+    } elseif (Test-Path $destination) { throw "Preserving existing directory: $destination" }
+    else { & git clone --depth=1 "https://github.com/$Repo.git" $destination | Out-Host }
+    if ($LASTEXITCODE -ne 0) { throw "Checkout failed: $Repo" }
+    return $destination
+}
+
+function Install-Dotagents {
+    $destination = Get-GuepardoCheckout 'dougkusanagi/dotagents' 'dotagents'
+    # Upstream uses flock and real symlinks; use MSYS2's util-linux runtime.
+    Install-RequiredWingetPackage 'MSYS2.MSYS2'
+    $bash = Join-Path $env:SystemDrive 'msys64/usr/bin/bash.exe'
+    if (-not (Test-Path $bash)) { throw 'MSYS2 Bash not found at the default installation path.' }
+    New-Item -ItemType Directory (Join-Path $env:USERPROFILE '.codex') -Force | Out-Null
+    New-Item -ItemType Directory (Join-Path $env:USERPROFILE '.claude') -Force | Out-Null
+    $previousMsys = $env:MSYS
+    try {
+        $env:MSYS = 'winsymlinks:nativestrict'
+        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; pacman -Syu --noconfirm'
+        # Relaunch after the runtime upgrade before installing dependencies.
+        if ($LASTEXITCODE -ne 0) { throw 'MSYS2 runtime upgrade failed; rerun the installer.' }
+        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; pacman -Syu --noconfirm && pacman -S --noconfirm --needed util-linux git'
+        if ($LASTEXITCODE -ne 0) { throw 'MSYS2 dotagents dependencies failed.' }
+        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; export HOME="$(cygpath -u "$2")"; cd "$(cygpath -u "$1")" && bash ./install.sh' -- $destination $env:USERPROFILE
+        if ($LASTEXITCODE -ne 0) { throw 'dotagents failed. Enable Windows Developer Mode or run elevated to allow symlinks.' }
+    } finally { $env:MSYS = $previousMsys }
+}
+
+function Install-SlothNote {
+    if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs/Sloth Note/sloth-note.exe')) { return }
+    $release = $null
+    try { $release = Invoke-RestMethod 'https://api.github.com/repos/dougkusanagi/sloth-noter/releases/latest' -TimeoutSec 60 }
+    catch {
+        if ([int]$_.Exception.Response.StatusCode -ne 404) { throw }
+    }
+    $asset = $release.assets | Where-Object { $_.name -match 'x64.*setup\.exe$|x64.*-setup\.exe$' } | Select-Object -First 1
+    if ($asset) {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString() + '.exe')
+        try {
+            Invoke-WebRequest $asset.browser_download_url -OutFile $temp -TimeoutSec 600
+            $process = Start-Process $temp -ArgumentList '/S' -Wait -PassThru
+            if ((Get-InstallResult $process.ExitCode) -eq 'failed') { throw "Sloth Note installer failed: $($process.ExitCode)" }
+        } finally { Remove-Item $temp -Force -ErrorAction SilentlyContinue }
+        return
+    }
+    Write-Log 'No public Sloth Note installer; building source with Bun/Rust/MSVC (may take several minutes).' -Level WARN
+    Install-RequiredWingetPackage 'Oven-sh.Bun'
+    Install-RequiredWingetPackage 'OpenJS.NodeJS.LTS'
+    Install-RequiredWingetPackage 'Rustlang.Rustup'
+    Install-RequiredWingetPackage 'Microsoft.VisualStudio.2022.BuildTools' @('--override', '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended')
+    $destination = Get-GuepardoCheckout 'dougkusanagi/sloth-noter' 'sloth-noter'
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    $vsPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if (-not $vsPath) { throw 'MSVC C++ build tools unavailable; restart Windows and rerun.' }
+    $devCmd = Join-Path $vsPath 'Common7/Tools/VsDevCmd.bat'
+    $devEnvironment = & cmd.exe /s /c "`"`"$devCmd`" -arch=x64 >nul && set`""
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to initialize MSVC environment.' }
+    foreach ($line in $devEnvironment) {
+        if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') }
+    }
+    $env:Path = (Join-Path $env:USERPROFILE '.cargo/bin') + ';' + $env:Path
+    & rustup default stable
+    if ($LASTEXITCODE -ne 0) { throw 'Rust toolchain setup failed.' }
+    Push-Location $destination
+    try {
+        & bun install --frozen-lockfile
+        if ($LASTEXITCODE -ne 0) { throw 'Sloth Note dependency installation failed.' }
+        & bun run desktop:build --no-bundle
+        if ($LASTEXITCODE -ne 0) { throw 'Sloth Note compilation failed.' }
+        $appDir = Join-Path $env:LOCALAPPDATA 'Programs/Sloth Note'
+        New-Item -ItemType Directory $appDir -Force | Out-Null
+        Copy-Item 'src-tauri/target/release/sloth-note.exe' $appDir -Force
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'Sloth Note.lnk'))
+        $shortcut.TargetPath = Join-Path $appDir 'sloth-note.exe'
+        $shortcut.Save()
+    } finally { Pop-Location }
+}
+
 Write-Section "Installing Applications via winget"
 $failed = @()
 function Get-InstallResult {
@@ -283,7 +387,12 @@ foreach ($pkg in $toInstall) {
     Write-Log -Message "[$packageIndex/$($toInstall.Count)] Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
     
     $exitCode = 1
-    if ($pkg.Id -eq "Composer.Composer") {
+    if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note')) {
+        try {
+            if ($pkg.Id -eq 'guepardo.dotagents') { Install-Dotagents } else { Install-SlothNote }
+            $exitCode = 0
+        } catch { Write-Log "Failed to install $($pkg.Name): $_" -Level WARN; $exitCode = 1 }
+    } elseif ($pkg.Id -eq "Composer.Composer") {
         # Refresh environment variables first to make sure PHP is in PATH
         Update-ProcessEnvironment
         
