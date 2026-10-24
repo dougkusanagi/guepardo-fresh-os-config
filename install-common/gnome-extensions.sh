@@ -43,13 +43,19 @@ PY
 }
 
 configure_multimonitor_panels() {
-  local uuid=multi-monitors-bar@frederykabryan schema_dir
+  local uuid=multi-monitors-bar@frederykabryan schema_dir shell_version
   install_ego_extension "$uuid" || return 1
-  persist_gnome_extension "$uuid" || return 1
   schema_dir="${XDG_DATA_HOME:-$TARGET_HOME/.local/share}/gnome-shell/extensions/$uuid/schemas"
+  shell_version="$(gnome-shell --version | grep -oE '[0-9]+' | head -1)" || return 1
+  # GNOME 50 removed AppDisplay grid.setGridModes. Keep additional panels,
+  # but disable the extension's incompatible overview before enabling it.
+  if ((shell_version >= 50)); then
+    GSETTINGS_SCHEMA_DIR="$schema_dir" set_gsettings_if_different org.gnome.shell.extensions.multi-monitors-bar show-overview-on-extended-monitors false || return 1
+  fi
   for key in show-panel show-date-time show-app-indicators; do
-    GSETTINGS_SCHEMA_DIR="$schema_dir" set_gsettings_if_different org.gnome.shell.extensions.multi-monitors-bar "$key" true
+    GSETTINGS_SCHEMA_DIR="$schema_dir" set_gsettings_if_different org.gnome.shell.extensions.multi-monitors-bar "$key" true || return 1
   done
+  persist_gnome_extension "$uuid" || return 1
 }
 
 install_ai_quota_pulse() {

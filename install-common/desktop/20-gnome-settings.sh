@@ -164,6 +164,10 @@ fi
 log "Enabling Dash to Dock..."
 sudo glib-compile-schemas /usr/share/glib-2.0/schemas/ 2>/dev/null || true
 
+# Prepare the additional-monitor extension before any helper reenables user
+# extensions globally. Its optional failure must not block the dock itself.
+run_app "Multi Monitor Bar" configure_multimonitor_panels
+
 # Preserve the working Ubuntu dock if downloading a compatible replacement fails.
 if enable_gnome_extension dash-to-dock@micxgx.gmail.com; then
   disable_gnome_extension ubuntu-dock@ubuntu.com
@@ -172,7 +176,6 @@ else
   return 1
 fi
 
-configure_multimonitor_panels || return 1
 install_ai_quota_pulse || return 1
 
 log "Configuring Dash to Dock..."

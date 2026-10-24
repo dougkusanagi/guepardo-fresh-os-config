@@ -33,13 +33,37 @@ assert ast.literal_eval((root/'enabled-extensions').read_text()) == ['unrelated@
 assert ast.literal_eval((root/'disabled-extensions').read_text()) == ['other-disabled@example']
 assert (root/'disable-user-extensions').read_text() == 'false'
 PY
+# Configure the GNOME 50 workaround before extension activation, leaving older
+# GNOME versions' overview settings and all versions' additional panels intact.
+for version in 49 50; do
+  (
+    calls="$sandbox/multimonitor-$version"
+    gnome-shell() { printf 'GNOME Shell %s.1\n' "$version"; }
+    install_ego_extension() { :; }
+    set_gsettings_if_different() {
+      [[ "$GSETTINGS_SCHEMA_DIR" == "$TARGET_HOME/.local/share/gnome-shell/extensions/multi-monitors-bar@frederykabryan/schemas" ]]
+      printf '%s %s\n' "$2" "$3" >> "$calls"
+    }
+    persist_gnome_extension() { echo enabled >> "$calls"; }
+    configure_multimonitor_panels
+    [[ "$(tail -1 "$calls")" == enabled ]]
+    for key in show-panel show-date-time show-app-indicators; do grep -Fxq "$key true" "$calls"; done
+    if ((version >= 50)); then
+      [[ "$(head -1 "$calls")" == 'show-overview-on-extended-monitors false' ]]
+    else
+      ! grep -q show-overview-on-extended-monitors "$calls"
+    fi
+  )
+done
+
 # A rejected/incompatible download must never disable the working dock.
 script="$ROOT_DIR/install-common/desktop/20-gnome-settings.sh"
 python3 - "$script" > "$sandbox/dock.sh" <<'PY'
 import pathlib, sys
 s = pathlib.Path(sys.argv[1]).read_text()
 a = s.index('if enable_gnome_extension dash-to-dock@')
-b = s.index('\nconfigure_multimonitor_panels', a)
+b = s.index('\ninstall_ai_quota_pulse', a)
+assert s.index('run_app "Multi Monitor Bar" configure_multimonitor_panels') < a
 print(s[a:b])
 PY
 enable_gnome_extension() { return 1; }
