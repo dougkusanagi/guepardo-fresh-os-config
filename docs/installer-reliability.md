@@ -15,7 +15,7 @@ O catálogo `catalog/apps.json` é a fonte dos aplicativos Windows, dependência
 .\install.cmd -Profiles desktop -PrefetchOnly -Jobs 4
 ```
 
-Sem argumentos, o menu permite marcar perfis ou expandi-los com `e N` para escolher aplicativos individuais. Dependências são incluídas automaticamente. `-ExcludeApps` não pode remover uma dependência necessária. `-Apps` e `-ExcludeApps` recebem os IDs do catálogo. O modo sem cores funciona com `-NoColor` ou `NO_COLOR`.
+Sem argumentos, o menu usa as setas para navegar e Espaço para marcar/desmarcar perfis ou apps. Direita expande um perfil; esquerda recolhe e volta ao perfil. Enter confirma, T alterna todos/nenhum e Esc ou Q cancela. Home/End e Page Up/Down também funcionam, e a lista rola acompanhando o foco. Em terminais sem leitura direta de teclas, o modo por números e `e N` permanece como fallback. Dependências são incluídas automaticamente. `-ExcludeApps` não pode remover uma dependência necessária. `-Apps` e `-ExcludeApps` recebem os IDs do catálogo. O modo sem cores funciona com `-NoColor` ou `NO_COLOR`.
 
 O antigo `winstall-dougkusanagi-basic.ps1` encaminha para o mesmo instalador e aceita os mesmos argumentos. Não mantém outra lista independente de pacotes.
 

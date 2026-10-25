@@ -77,6 +77,10 @@ jobs:
       - shell: powershell
         run: ./tests/installer-engine.tests.ps1
       - shell: pwsh
+        run: ./tests/keyboard-picker.tests.ps1
+      - shell: powershell
+        run: ./tests/keyboard-picker.tests.ps1
+      - shell: pwsh
         run: ./tests/download-http.tests.ps1
       - shell: pwsh
         run: ./tests/installer-integration.tests.ps1
