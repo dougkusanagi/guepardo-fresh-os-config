@@ -177,6 +177,7 @@ else
 fi
 
 install_ai_quota_pulse || return 1
+install_extension_guard || warn "Could not install the GNOME extension guard."
 
 log "Configuring Dash to Dock..."
 dock_schemas="${XDG_DATA_HOME:-$TARGET_HOME/.local/share}/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com/schemas"

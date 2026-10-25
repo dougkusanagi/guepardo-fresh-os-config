@@ -120,4 +120,15 @@ if install_source_checkout dougkusanagi/dotagents "$sandbox/existing" >/dev/null
   install_ai_quota_pulse
   [[ "$(tail -1 "$sandbox/notch-calls")" == enabled ]]
 )
+# Extensions disabled by a logout crash come back on the next login.
+(
+  XDG_CONFIG_HOME="$sandbox/config"
+  systemctl() { printf '%s\n' "$*" >> "$sandbox/systemctl-calls"; }
+  install_extension_guard
+  unit="$XDG_CONFIG_HOME/systemd/user/guepardo-extensions-guard.service"
+  grep -Fxq 'ExecStart=/usr/bin/gsettings set org.gnome.shell disable-user-extensions false' "$unit"
+  grep -Fxq 'WantedBy=graphical-session.target' "$unit"
+  grep -Fxq -- '--user enable guepardo-extensions-guard.service' "$sandbox/systemctl-calls"
+)
+grep -Fq 'install_extension_guard' "$ROOT_DIR/install-common/desktop/20-gnome-settings.sh"
 echo 'Application and GNOME persistence checks passed'

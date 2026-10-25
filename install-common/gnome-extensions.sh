@@ -84,3 +84,28 @@ install_ai_quota_pulse() {
   run_quiet make -C "$destination" install "EXTENSIONS_DIR=${XDG_DATA_HOME:-$TARGET_HOME/.local/share}/gnome-shell/extensions" || return 1
   persist_gnome_extension "$uuid"
 }
+
+# Ubuntu's org.gnome.Shell-disable-extensions sets disable-user-extensions
+# after any shell failure, including crashes while logging out. Restore the
+# extensions on each login once the shell has started.
+install_extension_guard() {
+  local unit_dir="${XDG_CONFIG_HOME:-$TARGET_HOME/.config}/systemd/user" unit=guepardo-extensions-guard.service
+  if [[ "$DRY_RUN" == true ]]; then log "[dry-run] Install $unit"; return 0; fi
+  mkdir -p "$unit_dir" || return 1
+  cat > "$unit_dir/$unit" <<'UNIT' || return 1
+[Unit]
+Description=Re-enable GNOME user extensions disabled after a shell failure
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 15
+ExecStart=/usr/bin/gsettings set org.gnome.shell disable-user-extensions false
+
+[Install]
+WantedBy=graphical-session.target
+UNIT
+  systemctl --user daemon-reload 2>/dev/null || true
+  systemctl --user enable "$unit" >/dev/null 2>&1 || warn "$unit installed; enable it after the next login."
+}
