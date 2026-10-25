@@ -49,7 +49,11 @@ try {
             else { $global:LASTEXITCODE=1 }
             return
         }
-        if($args[1] -eq 'aria2') { $script:ariaReady=$true }
+        if($args[1] -eq 'aria2') {
+            $script:ariaReady=$true
+            $binary=Join-Path $script:testScoopRoot 'apps/aria2/current/aria2c.exe'
+            New-Item -ItemType Directory (Split-Path $binary) -Force | Out-Null; Set-Content $binary '# fake aria2'
+        }
         $script:scoopInstalls++; New-Item -ItemType Directory $script:scoopPrefix -Force | Out-Null; $global:LASTEXITCODE=0
     }
     function Get-Command {
@@ -74,16 +78,27 @@ try {
     function powershell.exe { $script:coldArgs=@($args); $script:scoopReady=$true; $global:LASTEXITCODE=0 }
     function Get-Command {
         param($Name,$ErrorAction)
-        if($Name -eq 'scoop' -and $script:scoopReady) { return @{Name=$Name;Source=$Name} }
+        if($Name -eq 'scoop' -and ($script:scoopReady -or ((Test-Path (Join-Path $script:testScoopRoot 'shims/scoop.ps1')) -and (Join-Path $script:testScoopRoot 'shims') -in $env:Path.Split(';')))) { return @{Name=$Name;Source=$Name} }
         if($Name -eq 'aria2c' -and $script:ariaReady) { return @{Name=$Name;Source=$Name} }
         return $null
     }
     foreach($admin in @($false,$true)) {
         $script:adminCase=$admin; $script:scoopReady=$false; $script:ariaReady=$false
+        Remove-Item -LiteralPath (Join-Path $script:testScoopRoot 'apps/aria2/current/aria2c.exe') -Force
         Install-GuepardoScoop $sandbox
         Assert ($script:scoopReady -and $script:ariaReady) 'Cold bootstrap did not prepare Scoop/aria2'
         Assert (('-RunAsAdmin' -in $script:coldArgs) -eq $admin) 'Bootstrap elevation option is incorrect'
     }
+    $shims=Join-Path $script:testScoopRoot 'shims'
+    New-Item -ItemType Directory $shims -Force | Out-Null
+    Set-Content (Join-Path $shims 'scoop.ps1') '# fake existing Scoop'
+    $savedPath=$env:Path
+    try {
+        $env:Path=($env:Path.Split(';') | Where-Object { $_ -ne $shims }) -join ';'
+        $script:scoopReady=$false; $script:coldArgs=@()
+        Install-GuepardoScoop $sandbox
+        Assert ($script:coldArgs.Count -eq 0 -and $shims -in $env:Path.Split(';')) 'Existing Scoop was reinstalled because the parent terminal had a stale PATH'
+    } finally { $env:Path=$savedPath }
     # Package names need not match executable names (verified against publisher manifests).
     function Get-Command {
         param($Name,$ErrorAction)

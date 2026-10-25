@@ -41,6 +41,7 @@ function scoop {
     if($args[0] -eq 'install') {
         if($name -eq 'aria2') { Set-Content (Join-Path $Sandbox 'aria-ready') ready }
         New-Item -ItemType Directory (Join-Path $Sandbox "scoop/apps/$name/current") -Force | Out-Null
+        if($name -eq 'aria2') { Set-Content (Join-Path $Sandbox 'scoop/apps/aria2/current/aria2c.exe') '# fake aria2' }
     }
     $global:LASTEXITCODE=0
 }

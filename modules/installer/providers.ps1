@@ -1,5 +1,5 @@
 ﻿function Get-GuepardoProvider {
-    param($Package, [ValidateSet('auto','winget','scoop')][string]$Preferred = 'auto')
+    param($Package, [ValidateSet('auto','winget','scoop')][string]$Preferred = 'scoop')
     if ($Package.Definition.windows.provider -eq 'custom') { return 'custom' }
     if ($Preferred -ne 'winget' -and $Package.Definition.windows.scoop -and (Get-Command scoop -ErrorAction SilentlyContinue)) { return 'scoop' }
     if ($Preferred -ne 'winget' -and $Package.Definition.windows.scoop) { throw 'Scoop preparation did not finish. Retry the installer; use -Provider winget only to choose Winget explicitly.' }
@@ -93,6 +93,12 @@ function Get-GuepardoScoopRoot {
 
 function Install-GuepardoScoop {
     param([string]$CacheDirectory, [string[]]$Buckets = @())
+    # A terminal opened before Scoop was installed still has the old PATH.
+    $knownRoot = Get-GuepardoScoopRoot
+    $knownShims = Join-Path $knownRoot 'shims'
+    if ((Test-Path -LiteralPath (Join-Path $knownShims 'scoop.ps1')) -or (Test-Path -LiteralPath (Join-Path $knownShims 'scoop.cmd'))) {
+        $env:Path = $knownShims + ';' + $env:Path
+    }
     if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
         $temporary = Join-Path ([IO.Path]::GetTempPath()) ("guepardo-scoop-$([guid]::NewGuid()).ps1")
         try {
@@ -106,9 +112,11 @@ function Install-GuepardoScoop {
     $scoopRoot = Get-GuepardoScoopRoot
     $env:Path = (Join-Path $scoopRoot 'shims') + ';' + $env:Path
     if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) { throw 'Scoop is unavailable after bootstrap.' }
-    if (-not (Get-Command aria2c -ErrorAction SilentlyContinue)) {
+    $managedAria2 = Join-Path $scoopRoot 'apps/aria2/current/aria2c.exe'
+    if (-not (Test-Path -LiteralPath $managedAria2)) {
         & scoop install aria2
         if ($LASTEXITCODE -ne 0) { throw 'aria2 installation failed; retry the installer.' }
+        if (-not (Test-Path -LiteralPath $managedAria2)) { throw 'Scoop reported success but aria2 was not installed.' }
     }
     foreach ($key in @('aria2-enabled','aria2-fallback-enabled')) {
         & scoop config $key true | Out-Host

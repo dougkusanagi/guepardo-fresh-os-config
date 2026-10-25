@@ -26,7 +26,7 @@ param (
     [switch]$Help,
     [string[]]$Apps,
     [string[]]$ExcludeApps,
-    [ValidateSet('auto','winget','scoop')][string]$Provider = 'auto',
+    [ValidateSet('auto','winget','scoop')][string]$Provider = 'scoop',
     [switch]$BootstrapScoop,
     [switch]$Resume,
     [switch]$RetryFailed,
@@ -96,7 +96,7 @@ Options:
   -ListProfiles List available profiles.
   -DryRun    Show what would be installed without making any changes.
   -Apps / -ExcludeApps Select individual catalog IDs (dependencies are included).
-  -Provider auto|winget|scoop  Auto prepares Scoop/aria2 and prefers Scoop for supported apps.
+  -Provider scoop|winget|auto  Scoop is the default; auto is a compatibility alias.
   -BootstrapScoop Compatibility option; Scoop/aria2 preparation is automatic by default.
   -Resume / -RetryFailed Resume verified results / rerun only pending or failed steps.
   -Jobs 1..8 Download concurrency (installations remain serial).
