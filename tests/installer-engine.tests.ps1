@@ -37,16 +37,24 @@ try {
     Assert ($script:calls -eq 2) 'Explicit interactive fallback missing'
     $script:scoopPrefix=Join-Path $sandbox 'scoop-package'
     $script:scoopInstalls=0
+    $script:scoopConfigs=@()
+    $script:ariaReady=$false; $script:bucketAdds=0
+    $script:testScoopRoot=Join-Path $sandbox 'scoop'
+    function Get-GuepardoScoopRoot { return $script:testScoopRoot }
     function scoop {
+        if($args[0] -eq 'config') { $script:scoopConfigs+="$($args[1])=$($args[2])"; $global:LASTEXITCODE=0; return }
+        if($args[0] -eq 'bucket') { $script:bucketAdds++; New-Item -ItemType Directory (Join-Path $script:testScoopRoot 'buckets/extras') -Force | Out-Null; $global:LASTEXITCODE=0; return }
         if($args[0] -eq 'prefix') {
             if(Test-Path $script:scoopPrefix) { $global:LASTEXITCODE=0; $script:scoopPrefix }
             else { $global:LASTEXITCODE=1 }
             return
         }
+        if($args[1] -eq 'aria2') { $script:ariaReady=$true }
         $script:scoopInstalls++; New-Item -ItemType Directory $script:scoopPrefix -Force | Out-Null; $global:LASTEXITCODE=0
     }
     function Get-Command {
         param($Name,$ErrorAction)
+        if($Name -eq 'aria2c' -and $script:ariaReady) { return @{Name=$Name;Source=$Name} }
         if($Name -eq 'scoop' -or ($Name -eq 'gh' -and (Test-Path $script:scoopPrefix))) { return @{Name=$Name;Source=$Name} }
         return $null
     }
@@ -57,6 +65,25 @@ try {
     Assert ($code -eq 0 -and (Test-GuepardoPackage $scoopPackage scoop)) 'Scoop install/verification failed'
     Install-GuepardoScoop $sandbox
     Assert ($script:scoopInstalls -eq 2) 'Existing Scoop did not prepare aria2'
+    Assert ('aria2-enabled=true' -in $script:scoopConfigs -and 'aria2-fallback-enabled=true' -in $script:scoopConfigs) 'aria2 was not enabled with fallback'
+    Install-GuepardoScoop $sandbox -Buckets extras
+    Install-GuepardoScoop $sandbox -Buckets extras
+    Assert ($script:bucketAdds -eq 1 -and $script:scoopInstalls -eq 3) 'Extras/Git preparation is missing or not idempotent'
+    function Receive-GuepardoFile { param($Uri,$Destination,$CacheDirectory,$MaxAgeSeconds) Set-Content $Destination '# fake bootstrap' }
+    function Test-GuepardoAdministrator { return $script:adminCase }
+    function powershell.exe { $script:coldArgs=@($args); $script:scoopReady=$true; $global:LASTEXITCODE=0 }
+    function Get-Command {
+        param($Name,$ErrorAction)
+        if($Name -eq 'scoop' -and $script:scoopReady) { return @{Name=$Name;Source=$Name} }
+        if($Name -eq 'aria2c' -and $script:ariaReady) { return @{Name=$Name;Source=$Name} }
+        return $null
+    }
+    foreach($admin in @($false,$true)) {
+        $script:adminCase=$admin; $script:scoopReady=$false; $script:ariaReady=$false
+        Install-GuepardoScoop $sandbox
+        Assert ($script:scoopReady -and $script:ariaReady) 'Cold bootstrap did not prepare Scoop/aria2'
+        Assert (('-RunAsAdmin' -in $script:coldArgs) -eq $admin) 'Bootstrap elevation option is incorrect'
+    }
     # Package names need not match executable names (verified against publisher manifests).
     function Get-Command {
         param($Name,$ErrorAction)

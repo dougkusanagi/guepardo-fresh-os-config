@@ -2,7 +2,7 @@
     param($Package, [ValidateSet('auto','winget','scoop')][string]$Preferred = 'auto')
     if ($Package.Definition.windows.provider -eq 'custom') { return 'custom' }
     if ($Preferred -ne 'winget' -and $Package.Definition.windows.scoop -and (Get-Command scoop -ErrorAction SilentlyContinue)) { return 'scoop' }
-    if ($Preferred -eq 'scoop' -and $Package.Definition.windows.scoop) { throw 'Scoop is not installed. Use -BootstrapScoop from a non-elevated terminal.' }
+    if ($Preferred -ne 'winget' -and $Package.Definition.windows.scoop) { throw 'Scoop preparation did not finish. Retry the installer; use -Provider winget only to choose Winget explicitly.' }
     return 'winget'
 }
 
@@ -51,7 +51,9 @@ function Invoke-GuepardoManagedInstall {
         $ErrorActionPreference = 'Continue'
         $global:LASTEXITCODE = 0
         if ($Provider -eq 'scoop') {
-            $output = @(& scoop install $Package.Definition.windows.scoop 2>&1)
+            $scoopName = $Package.Definition.windows.scoop
+            if ($Package.Definition.windows.scoopBucket) { $scoopName = "$($Package.Definition.windows.scoopBucket)/$scoopName" }
+            $output = @(& scoop install $scoopName 2>&1)
         } else {
             $output = @(& winget install --id $Package.Id --exact --source winget --silent --disable-interactivity --no-upgrade --accept-package-agreements --accept-source-agreements --verbose-logs 2>&1)
         }
@@ -72,25 +74,58 @@ function Invoke-GuepardoManagedInstall {
     return $code
 }
 
-function Install-GuepardoScoop {
-    param([string]$CacheDirectory)
-    if (Get-Command scoop -ErrorAction SilentlyContinue) {
-        & scoop install aria2
-        if ($LASTEXITCODE -ne 0) { throw 'aria2 installation failed.' }
-        return
-    }
+function Test-GuepardoAdministrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    if ((New-Object Security.Principal.WindowsPrincipal $identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw 'Install Scoop from a non-elevated terminal; elevation is handled by individual installers.'
+    return (New-Object Security.Principal.WindowsPrincipal $identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Get-GuepardoScoopRoot {
+    if ($env:SCOOP) { return $env:SCOOP }
+    $registered = [Environment]::GetEnvironmentVariable('SCOOP','User')
+    if ($registered) { return $registered }
+    $command = Get-Command scoop -ErrorAction SilentlyContinue
+    if ($command -and $command.Source) {
+        $parent = Split-Path $command.Source -Parent
+        if ($parent -and (Split-Path $parent -Leaf) -eq 'shims') { return Split-Path $parent -Parent }
     }
-    $temporary = Join-Path ([IO.Path]::GetTempPath()) ("guepardo-scoop-$([guid]::NewGuid()).ps1")
-    try {
-        Receive-GuepardoFile -Uri 'https://get.scoop.sh' -Destination $temporary -CacheDirectory $CacheDirectory -MaxAgeSeconds 0
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $temporary
-        if ($LASTEXITCODE -ne 0) { throw 'Scoop bootstrap failed.' }
-        $env:Path = (Join-Path $env:USERPROFILE 'scoop/shims') + ';' + $env:Path
-        if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) { throw 'Scoop is unavailable after bootstrap.' }
+    return Join-Path $env:USERPROFILE 'scoop'
+}
+
+function Install-GuepardoScoop {
+    param([string]$CacheDirectory, [string[]]$Buckets = @())
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        $temporary = Join-Path ([IO.Path]::GetTempPath()) ("guepardo-scoop-$([guid]::NewGuid()).ps1")
+        try {
+            Receive-GuepardoFile -Uri 'https://get.scoop.sh' -Destination $temporary -CacheDirectory $CacheDirectory -MaxAgeSeconds 0
+            $bootstrapArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$temporary)
+            if (Test-GuepardoAdministrator) { $bootstrapArgs += '-RunAsAdmin' }
+            & powershell.exe @bootstrapArgs
+            if ($LASTEXITCODE -ne 0) { throw 'Scoop bootstrap failed; app installation has not started. Retry the installer.' }
+        } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
+    }
+    $scoopRoot = Get-GuepardoScoopRoot
+    $env:Path = (Join-Path $scoopRoot 'shims') + ';' + $env:Path
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) { throw 'Scoop is unavailable after bootstrap.' }
+    if (-not (Get-Command aria2c -ErrorAction SilentlyContinue)) {
         & scoop install aria2
-        if ($LASTEXITCODE -ne 0) { throw 'aria2 installation failed.' }
-    } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
+        if ($LASTEXITCODE -ne 0) { throw 'aria2 installation failed; retry the installer.' }
+    }
+    foreach ($key in @('aria2-enabled','aria2-fallback-enabled')) {
+        & scoop config $key true | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Scoop configuration failed: $key" }
+    }
+    & scoop config aria2-warning-enabled false | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw 'Scoop aria2 configuration failed.' }
+    foreach ($bucket in $Buckets) {
+        if ($bucket -eq 'main') { continue }
+        if ($bucket -ne 'extras') { throw "Unsupported Scoop bucket: $bucket" }
+        if (-not (Test-Path -LiteralPath (Join-Path $scoopRoot "buckets/$bucket"))) {
+            if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+                & scoop install git
+                if ($LASTEXITCODE -ne 0) { throw 'Git is required to prepare Scoop extras.' }
+            }
+            & scoop bucket add extras https://github.com/ScoopInstaller/Extras
+            if ($LASTEXITCODE -ne 0) { throw 'Scoop extras preparation failed.' }
+        }
+    }
 }

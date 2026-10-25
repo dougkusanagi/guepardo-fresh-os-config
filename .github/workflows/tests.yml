@@ -12,6 +12,26 @@ on:
 permissions:
   contents: read
 jobs:
+  scoop-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.real_smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Default installer prepares Scoop and aria2 automatically
+        shell: pwsh
+        run: ./install.ps1 -Apps chmln.sd,dbrgn.tealdeer -NoPrefetch -NoColor
+      - name: Verify default provider and downloader
+        shell: pwsh
+        run: |
+          $state = Get-Content "$env:LOCALAPPDATA/Guepardo/State/install-state.json" -Raw | ConvertFrom-Json
+          foreach ($id in @('chmln.sd','dbrgn.tealdeer')) {
+            if ($state.packages.$id.provider -ne 'scoop') { throw "Scoop was not used for $id" }
+          }
+          & "$env:USERPROFILE/scoop/shims/scoop.ps1" prefix aria2
+          if ($LASTEXITCODE -ne 0) { throw 'aria2 is not installed' }
+      - name: Default recovery reuses Scoop
+        shell: pwsh
+        run: ./install.ps1 -Resume -NoPrefetch -NoColor
   windows-smoke:
     if: github.event_name == 'workflow_dispatch' && inputs.real_smoke
     runs-on: windows-latest

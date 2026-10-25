@@ -96,8 +96,8 @@ Options:
   -ListProfiles List available profiles.
   -DryRun    Show what would be installed without making any changes.
   -Apps / -ExcludeApps Select individual catalog IDs (dependencies are included).
-  -Provider auto|winget|scoop  Auto prefers Scoop for supported tools when available.
-  -BootstrapScoop Install Scoop and aria2 from a non-elevated terminal.
+  -Provider auto|winget|scoop  Auto prepares Scoop/aria2 and prefers Scoop for supported apps.
+  -BootstrapScoop Compatibility option; Scoop/aria2 preparation is automatic by default.
   -Resume / -RetryFailed Resume verified results / rerun only pending or failed steps.
   -Jobs 1..8 Download concurrency (installations remain serial).
   -StateDirectory / -CacheDirectory Override persistent state/cache locations.
@@ -219,13 +219,9 @@ if ($Plan -or $DryRun) {
     foreach ($pkg in $toInstall) {
         Write-Log -Message "  $($pkg.Name) ($($pkg.Id))" -Level "INFO"
     }
+    if ($Provider -ne 'winget' -or $BootstrapScoop) { Write-Log 'Pré-requisito automático: preparar Scoop + aria2 antes dos aplicativos.' }
     Write-Log -Message "Dry-run completed successfully." -Level "OK"
     exit 0
-}
-
-if (-not $PrefetchOnly -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Log -Level "ERROR" -Message "winget is not installed. Please install App Installer from the Microsoft Store."
-    exit 1
 }
 
 function Update-ProcessEnvironment {
@@ -247,6 +243,7 @@ function Update-ProcessEnvironment {
 
 function Install-RequiredWingetPackage {
     param ([string]$Id, [string[]]$ExtraArgs = @())
+    if ($Id -eq 'Git.Git' -and (Get-Command git -ErrorAction SilentlyContinue)) { return }
     & winget install -e --id $Id --source winget --silent --disable-interactivity --no-upgrade --accept-package-agreements --accept-source-agreements @ExtraArgs | Out-Host
     if ((Get-InstallResult $LASTEXITCODE) -eq 'failed') { throw "Dependency failed: $Id ($LASTEXITCODE)" }
     Update-ProcessEnvironment
@@ -469,7 +466,7 @@ function Install-ZapFast {
     } finally { Remove-Item $temporary -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
-Write-Section "Installing Applications via winget"
+Write-Section "Instalação de aplicativos"
 $failed = @()
 function Get-InstallResult {
     param ([long]$ExitCode)
@@ -508,8 +505,15 @@ if (-not $PrefetchOnly) {
     }
     Save-GuepardoState $installState $stateFile
 }
-if ($BootstrapScoop -and -not $PrefetchOnly) { Install-GuepardoScoop $CacheDirectory }
+if (-not $PrefetchOnly -and ($Provider -ne 'winget' -or $BootstrapScoop)) {
+    Write-GuepardoHeading 'Preparando Scoop + aria2' -NoColor:$NoColor
+    $scoopBuckets = @($toInstall | ForEach-Object { $_.Definition.windows.scoopBucket } | Where-Object { $_ } | Select-Object -Unique)
+    Install-GuepardoScoop -CacheDirectory $CacheDirectory -Buckets $scoopBuckets
+}
 if (-not $PrefetchOnly) { foreach ($candidate in $toInstall) { $null = Get-GuepardoProvider $candidate $Provider } }
+if (-not $PrefetchOnly -and @($toInstall | Where-Object { (Get-GuepardoProvider $_ $Provider) -ne 'scoop' }).Count -gt 0 -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    throw 'Winget é necessário para os aplicativos sem suporte Scoop. Instale o App Installer da Microsoft Store.'
+}
 $prefetchRoot = Join-Path $StateDirectory 'prefetch'
 if (-not $NoPrefetch) {
     $downloads = @(Get-GuepardoPrefetchPlan -Packages $toInstall -Directory $prefetchRoot -CacheDirectory $CacheDirectory)

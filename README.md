@@ -6,6 +6,8 @@ O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 
 O instalador inclui seleção individual de apps no Windows, catálogo compartilhado, cache validado, downloads diretos antecipados e recuperação por etapa. Veja [instalação, recuperação e desempenho](docs/installer-reliability.md) para provedores Scoop/Winget, diagnóstico, limites e exemplos.
 
+No Windows, execute `.\install.cmd`: Scoop e aria2 são preparados automaticamente e usados por padrão nos apps compatíveis. Winget atende os demais aplicativos, e instalações existentes são reaproveitadas.
+
 ## Ubuntu ou WSL Ubuntu novo: um comando
 
 Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. Na confirmação `[S/n]`, Enter inicia a instalação e `n` cancela. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.

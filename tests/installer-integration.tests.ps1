@@ -8,10 +8,41 @@ try {
     @'
 param($Installer,$Sandbox,$Scenario,[switch]$Resume,[switch]$RetryFailed)
 $PROFILE=Join-Path $Sandbox 'profile.ps1'
+$env:SCOOP=Join-Path $Sandbox 'scoop'
 function Get-Command {
     param([string]$Name,$ErrorAction)
-    if($Name -eq 'scoop') { return $null }
+    if($Name -eq 'curl.exe') { return @{Name='curl.exe';Source='curl.exe'} }
+    if($Name -eq 'scoop') {
+        if(Test-Path (Join-Path $Sandbox 'scoop-ready')) { return @{Name='scoop';Source=(Join-Path $env:SCOOP 'shims/scoop.ps1')} }
+        return $null
+    }
+    if($Name -eq 'aria2c' -and (Test-Path (Join-Path $Sandbox 'aria-ready'))) { return @{Name='aria2c';Source='fake-aria2c'} }
     Microsoft.PowerShell.Core\Get-Command $Name -ErrorAction SilentlyContinue
+}
+function curl.exe {
+    $destination=$args[[array]::IndexOf($args,'--output')+1]
+    Set-Content -LiteralPath $destination '# mocked Scoop installer'
+    $global:LASTEXITCODE=0
+}
+function powershell.exe {
+    'bootstrap' | Add-Content (Join-Path $Sandbox 'events')
+    if($Scenario -eq 'auto-fail') { $global:LASTEXITCODE=1; return }
+    Set-Content (Join-Path $Sandbox 'scoop-ready') ready
+    $global:LASTEXITCODE=0
+}
+function scoop {
+    $name=([string]$args[1]).Split('/')[-1]
+    if($args[0] -eq 'prefix') {
+        $prefix=Join-Path $Sandbox "scoop/apps/$name/current"
+        if(Test-Path $prefix) { $prefix; $global:LASTEXITCODE=0 } else { $global:LASTEXITCODE=1 }
+        return
+    }
+    ($args -join ' ') | Add-Content (Join-Path $Sandbox 'events')
+    if($args[0] -eq 'install') {
+        if($name -eq 'aria2') { Set-Content (Join-Path $Sandbox 'aria-ready') ready }
+        New-Item -ItemType Directory (Join-Path $Sandbox "scoop/apps/$name/current") -Force | Out-Null
+    }
+    $global:LASTEXITCODE=0
 }
 function winget {
     $id=$args[[array]::IndexOf($args,'--id')+1]
@@ -28,6 +59,10 @@ function winget {
 }
 $apps=if($Scenario -eq 'dependency') { @('Composer.Composer') } else { @('GitHub.cli') }
 if($Scenario -eq 'interrupted') { $apps=@('GitHub.cli','Microsoft.PowerToys') }
+if($Scenario -in @('auto','auto-fail')) {
+    & $Installer -Apps $apps -NoPrefetch -NoColor -StateDirectory (Join-Path $Sandbox 'state') -CacheDirectory (Join-Path $Sandbox 'cache')
+    exit $LASTEXITCODE
+}
 & $Installer -Apps $apps -Provider winget -NoPrefetch -NoColor -StateDirectory (Join-Path $Sandbox 'state') -CacheDirectory (Join-Path $Sandbox 'cache') -Resume:$Resume -RetryFailed:$RetryFailed
 exit $LASTEXITCODE
 '@ | Set-Content $driver -Encoding UTF8
@@ -35,11 +70,21 @@ exit $LASTEXITCODE
         $directory=Join-Path $sandbox $name; New-Item -ItemType Directory $directory -Force | Out-Null
         $parameters=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$driver,'-Installer',$installer,'-Sandbox',$directory,'-Scenario',$scenario)
         if($Resume) { $parameters+='-Resume' }; if($RetryFailed) { $parameters+='-RetryFailed' }
-        $output=& $shell @parameters 2>&1 | Out-String
-        if($LASTEXITCODE -ne $expected) { throw "$name/$scenario exit=$LASTEXITCODE expected=$expected`n$output" }
+        $savedPreference=$ErrorActionPreference
+        try { $ErrorActionPreference='Continue'; $output=& $shell @parameters 2>&1 | Out-String; $caseExitCode=$LASTEXITCODE }
+        finally { $ErrorActionPreference=$savedPreference }
+        if($caseExitCode -ne $expected) { throw "$name/$scenario exit=$caseExitCode expected=$expected`n$output" }
         return $directory
     }
     $case=Invoke-Case success success 0
+    $autoCase=Invoke-Case auto auto 0
+    $events=@(Get-Content (Join-Path $autoCase 'events'))
+    if($events[0] -ne 'bootstrap' -or [array]::IndexOf($events,'install aria2') -lt 0 -or [array]::IndexOf($events,'install gh') -le [array]::IndexOf($events,'install aria2')) { throw 'Default path did not prepare Scoop/aria2 before installing apps' }
+    if(Test-Path (Join-Path $autoCase 'installs')) { throw 'Default path used Winget for a Scoop-compatible app' }
+    $autoState=Get-Content (Join-Path $autoCase 'state/install-state.json') -Raw | ConvertFrom-Json
+    if($autoState.packages.'GitHub.cli'.provider -ne 'scoop') { throw 'Default provider was not Scoop' }
+    $autoFailed=Invoke-Case auto-fail auto-fail 1
+    if(Test-Path (Join-Path $autoFailed 'installs')) { throw 'Scoop bootstrap failure silently fell back to Winget' }
     $null=Invoke-Case success success 0 -Resume
     if(@(Get-Content (Join-Path $case 'installs')).Count -ne 1) { throw 'Resume reinstalled a verified package' }
     $resumePlan=& $shell -NoProfile -ExecutionPolicy Bypass -File $installer -Resume -Plan -StateDirectory (Join-Path $case 'state') 2>&1 | Out-String

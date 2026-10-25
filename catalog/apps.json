@@ -95,10 +95,11 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
+        "scoop": "git",
         "commands": [
           "git"
-        ]
+        ],
+        "scoopBucket": "main"
       },
       "dependsOn": []
     },
@@ -333,10 +334,11 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
+        "scoop": "codex",
         "commands": [
           "codex"
-        ]
+        ],
+        "scoopBucket": "main"
       },
       "dependsOn": []
     },
@@ -348,10 +350,11 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
+        "scoop": "claude-code",
         "commands": [
           "claude"
-        ]
+        ],
+        "scoopBucket": "main"
       },
       "dependsOn": []
     },
@@ -421,10 +424,11 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
+        "scoop": "opencode",
         "commands": [
           "opencode"
-        ]
+        ],
+        "scoopBucket": "main"
       },
       "dependsOn": []
     },
@@ -449,8 +453,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "termius",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -637,8 +642,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "vscode",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -650,8 +656,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "zed",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -676,8 +683,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "brave",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -689,8 +697,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "googlechrome",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -702,8 +711,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "obsidian",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -715,8 +725,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "obs-studio",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -754,8 +765,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "zen-browser",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -793,8 +805,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "vlc",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -832,8 +845,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "7zip",
+        "commands": [],
+        "scoopBucket": "main"
       },
       "dependsOn": []
     },
@@ -858,8 +872,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "telegram",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -871,8 +886,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "ffmpeg",
+        "commands": [],
+        "scoopBucket": "main"
       },
       "dependsOn": []
     },
@@ -936,8 +952,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "discord",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -949,8 +966,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "qbittorrent",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },
@@ -988,8 +1006,9 @@
       ],
       "windows": {
         "provider": "winget",
-        "scoop": null,
-        "commands": []
+        "scoop": "playnite",
+        "commands": [],
+        "scoopBucket": "extras"
       },
       "dependsOn": []
     },

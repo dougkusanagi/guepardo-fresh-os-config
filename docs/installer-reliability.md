@@ -11,7 +11,7 @@ O catálogo `catalog/apps.json` é a fonte dos aplicativos Windows, dependência
 .\install.cmd -Profiles dev,desktop -ExcludeApps Oracle.MySQL -Provider auto
 .\install.cmd -Resume
 .\install.cmd -RetryFailed
-.\install.cmd -Profiles dev -BootstrapScoop
+.\install.cmd
 .\install.cmd -Profiles desktop -PrefetchOnly -Jobs 4
 ```
 
@@ -19,7 +19,9 @@ Sem argumentos, o menu permite marcar perfis ou expandi-los com `e N` para escol
 
 O antigo `winstall-dougkusanagi-basic.ps1` encaminha para o mesmo instalador e aceita os mesmos argumentos. Não mantém outra lista independente de pacotes.
 
-`auto` usa Scoop para as ferramentas com mapeamento quando Scoop está disponível e mantém Winget para os demais pacotes. `-BootstrapScoop` instala Scoop e aria2 explicitamente, em terminal sem elevação. Instalações Winget existentes são detectadas antes de adotar Scoop, evitando duplicação. Não há troca automática para Chocolatey depois de uma instalação parcial.
+O comando simples `.\install.cmd` prepara Scoop e aria2 automaticamente, antes dos aplicativos. `auto` é o padrão: prefere Scoop para todos os apps com mapeamento e mantém Winget para os demais pacotes. O bucket oficial Extras e Git são preparados quando necessários. aria2 fica habilitado, com fallback para o downloader do Scoop se uma transferência falhar. `-BootstrapScoop` permanece apenas por compatibilidade; não é necessário digitá-lo. `-Provider winget` permite escolher explicitamente uma execução sem a preparação automática de Scoop. `-Plan`, `-DryRun`, `-Doctor` e `-PrefetchOnly` não instalam gerenciadores.
+
+O bootstrap usa a opção oficial `-RunAsAdmin` quando o terminal já está elevado. Instalações existentes são detectadas antes de adotar outro provedor, evitando duplicação. Uma falha na preparação de Scoop/aria2 é informada e interrompe a execução, sem mudar silenciosamente para Winget. A seleção fica salva para retomar.
 
 O estado fica em `%LOCALAPPDATA%\Guepardo\State\install-state.json`. Cada etapa registra provedor, impressão da definição, resultado e horário. As gravações são atômicas, com backup do estado anterior. Uma trava impede duas execuções no mesmo diretório de estado.
 
