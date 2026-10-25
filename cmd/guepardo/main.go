@@ -18,12 +18,25 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dougkusanagi/guepardo-fresh-os-config/catalog"
 	"golang.org/x/term"
 )
 
 var profileOrder = []string{"cli", "dev", "web", "desktop", "games", "network"}
 var themes = []string{"tokyo-night", "catppuccin", "nord", "everforest", "gruvbox", "kanagawa", "ristretto", "rose-pine", "matte-black", "osaka-jade"}
 var sudoRefreshInterval = 25 * time.Second
+
+func init() {
+	c, err := catalog.Load()
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range c.Profiles {
+		if p.LinuxRecipe != "" {
+			profileLabels[p.ID] = p.Label
+		}
+	}
+}
 
 var profileLabels = map[string]string{
 	"cli":     "Ferramentas de terminal",
@@ -63,6 +76,9 @@ type options struct {
 	list             bool
 	listThemes       bool
 	jobs             int
+	resume           bool
+	retryFailed      bool
+	stateDir         string
 }
 
 func parseProfiles(input string) ([]string, error) {
@@ -271,6 +287,19 @@ func sudoSession(ctx context.Context, cancel context.CancelFunc, log io.Writer) 
 }
 
 func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun bool, jobs int, indexMarker string, network [5]string, interactive bool, output io.Writer, log io.Writer) error {
+	c, catalogErr := catalog.Load()
+	if catalogErr != nil {
+		return catalogErr
+	}
+	recipe := ""
+	for _, p := range c.Profiles {
+		if p.ID == profile {
+			recipe = p.LinuxRecipe
+		}
+	}
+	if recipe == "" {
+		return fmt.Errorf("perfil Linux desconhecido: %s", profile)
+	}
 	cmd := exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts", "run-profile.sh"), distro, profile)
 	configureProcessCancellation(cmd)
 	cmd.Dir = root
@@ -281,6 +310,7 @@ func runProfile(ctx context.Context, root, distro, profile, theme string, dryRun
 	}
 	cmd.Env = append(os.Environ(), "GUEPARDO_ROOT="+root, "GUEPARDO_SUDO_NONINTERACTIVE=1", "GUEPARDO_DRY_RUN="+fmt.Sprint(dryRun), "GUEPARDO_JOBS="+fmt.Sprint(jobs), "GUEPARDO_INDEX_MARKER="+indexMarker, "GUEPARDO_FAILURES_FILE="+failurePath, "SELECTED_THEME="+theme,
 		"STATIC_NETWORK_INTERFACE="+network[0], "STATIC_NETWORK_ADDRESS="+network[1], "STATIC_NETWORK_GATEWAY="+network[2], "STATIC_NETWORK_DNS="+network[3], "STATIC_NETWORK_UUID="+network[4])
+	cmd.Env = append(cmd.Env, "GUEPARDO_PROFILE_RECIPE="+recipe)
 	if !interactive {
 		cmd.Stdout = io.MultiWriter(output, log)
 		cmd.Stderr = io.MultiWriter(output, log)
@@ -369,7 +399,20 @@ func run() error {
 	flag.BoolVar(&opts.list, "list-profiles", false, "listar perfis")
 	flag.BoolVar(&opts.listThemes, "list-themes", false, "listar temas GNOME")
 	flag.IntVar(&opts.jobs, "jobs", 4, "limite de instaladores independentes simultâneos (1-8)")
+	flag.BoolVar(&opts.resume, "resume", false, "retomar etapas concluídas após verificar os aplicativos")
+	flag.BoolVar(&opts.retryFailed, "retry-failed", false, "repetir pendências e verificar resultados anteriores")
+	flag.StringVar(&opts.stateDir, "state-dir", "", "diretório dos checkpoints por aplicativo")
 	flag.Parse()
+	// The Bash backends inherit recovery policy; dry-run never writes checkpoints.
+	if opts.resume {
+		os.Setenv("GUEPARDO_RESUME", "true")
+	}
+	if opts.retryFailed {
+		os.Setenv("GUEPARDO_RETRY_FAILED", "true")
+	}
+	if opts.stateDir != "" {
+		os.Setenv("GUEPARDO_STATE_DIR", opts.stateDir)
+	}
 	if flag.NArg() != 0 {
 		return fmt.Errorf("argumentos desconhecidos: %s", strings.Join(flag.Args(), " "))
 	}
@@ -509,6 +552,25 @@ func run() error {
 		}
 	}
 	path, err := logPath()
+	if !opts.dryRun {
+		stateDirectory := opts.stateDir
+		if stateDirectory == "" {
+			base := os.Getenv("XDG_STATE_HOME")
+			if base == "" {
+				home, homeErr := os.UserHomeDir()
+				if homeErr != nil {
+					return homeErr
+				}
+				base = filepath.Join(home, ".local", "state")
+			}
+			stateDirectory = filepath.Join(base, "guepardo", "steps")
+		}
+		unlock, lockErr := lockInstaller(stateDirectory)
+		if lockErr != nil {
+			return fmt.Errorf("outro instalador está ativo ou o diretório de estado não está acessível: %w", lockErr)
+		}
+		defer unlock()
+	}
 	if err != nil {
 		return err
 	}

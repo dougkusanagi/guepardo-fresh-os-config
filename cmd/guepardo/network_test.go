@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -34,6 +35,9 @@ func TestNetworkPresetWithoutPrompts(t *testing.T) {
 }
 
 func TestDetectActiveNetworks(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux NetworkManager backend; exercised by Ubuntu CI")
+	}
 	dir := t.TempDir()
 	stub := `#!/bin/sh
 case "$*" in

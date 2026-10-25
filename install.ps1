@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Automated environment configuration installer for Windows.
 .DESCRIPTION
@@ -23,10 +23,57 @@ param (
 
     [switch]$DryRun,
 
-    [switch]$Help
+    [switch]$Help,
+    [string[]]$Apps,
+    [string[]]$ExcludeApps,
+    [ValidateSet('auto','winget','scoop')][string]$Provider = 'auto',
+    [switch]$BootstrapScoop,
+    [switch]$Resume,
+    [switch]$RetryFailed,
+    [switch]$InteractiveFallback,
+    [switch]$Doctor,
+    [switch]$NoColor,
+    [switch]$NoPrefetch,
+    [switch]$PrefetchOnly,
+    [ValidateRange(1,8)][int]$Jobs = 4,
+    [string]$StateDirectory,
+    [string]$CacheDirectory
 )
 
 $ErrorActionPreference = 'Stop'
+# A standalone entry point must fetch the modules and catalog as one source tree.
+if (-not $PSScriptRoot -or -not (Test-Path (Join-Path $PSScriptRoot 'catalog/apps.json'))) {
+    $sourceRef = if ($env:GUEPARDO_REF) { $env:GUEPARDO_REF } else { 'master' }
+    if ($sourceRef -notmatch '^[A-Za-z0-9._/-]+$') { throw 'Invalid GUEPARDO_REF.' }
+    $bootstrapDirectory = Join-Path ([IO.Path]::GetTempPath()) ('guepardo-source-'+[guid]::NewGuid())
+    New-Item -ItemType Directory $bootstrapDirectory | Out-Null
+    try {
+        $archive = Join-Path $bootstrapDirectory 'source.zip'
+        Invoke-WebRequest -UseBasicParsing -Uri "https://codeload.github.com/dougkusanagi/guepardo-fresh-os-config/zip/$sourceRef" -OutFile $archive -TimeoutSec 300
+        Expand-Archive -LiteralPath $archive -DestinationPath $bootstrapDirectory
+        $checkout = Get-ChildItem -LiteralPath $bootstrapDirectory -Directory | Select-Object -First 1
+        & (Join-Path $checkout.FullName 'install.ps1') @PSBoundParameters
+        exit $LASTEXITCODE
+    } finally { Remove-Item -LiteralPath $bootstrapDirectory -Recurse -Force }
+}
+if ($env:NO_COLOR) { $NoColor = $true }
+$moduleRoot = Join-Path $PSScriptRoot 'modules/installer'
+foreach ($moduleName in @('catalog','state','download','providers','ui','releases')) {
+    . (Join-Path $moduleRoot "$moduleName.ps1")
+}
+$catalog = Get-GuepardoCatalog
+if ($Doctor) {
+    Write-GuepardoHeading 'guepardo / diagnóstico' -NoColor:$NoColor
+    foreach ($tool in @('winget','scoop','curl.exe','git','node','cargo')) {
+        $found = Get-Command $tool -ErrorAction SilentlyContinue
+        Write-Host ("  {0,-12} {1}" -f $tool, $(if ($found) { $found.Source } else { 'não encontrado' }))
+    }
+    Write-Host "  Catálogo: $($catalog.apps.Count) aplicativos; arquitetura: $env:PROCESSOR_ARCHITECTURE"
+    Write-Host '  Downloads lentos no Winget: compare network.downloader=wininet com Delivery Optimization em winget settings.'
+    Write-Host '  Nenhuma instalação ou alteração de configuração foi feita.'
+    exit 0
+}
+
 
 if ($ListProfiles) {
     Write-Host "cli, dev, web, desktop, games, jellyfin, wsl2"
@@ -45,6 +92,15 @@ Options:
   -Plan      Show the package plan without changes.
   -ListProfiles List available profiles.
   -DryRun    Show what would be installed without making any changes.
+  -Apps / -ExcludeApps Select individual catalog IDs (dependencies are included).
+  -Provider auto|winget|scoop  Auto prefers Scoop for supported tools when available.
+  -BootstrapScoop Install Scoop and aria2 from a non-elevated terminal.
+  -Resume / -RetryFailed Resume verified results / rerun only pending or failed steps.
+  -Jobs 1..8 Download concurrency (installations remain serial).
+  -StateDirectory / -CacheDirectory Override persistent state/cache locations.
+  -InteractiveFallback Allow a visible Winget installer after a silent failure.
+  -NoPrefetch / -PrefetchOnly Disable prefetch / only prepare direct downloads.
+  -Doctor / -NoColor Diagnostic mode / plain console output.
   -Help      Show this help.
 "@
     exit 0
@@ -58,6 +114,8 @@ $logDir = Join-Path $statePath "Guepardo/Logs"
 if (-not (Test-Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
+if (-not $StateDirectory) { $StateDirectory = Join-Path $statePath 'Guepardo/State' }
+if (-not $CacheDirectory) { $CacheDirectory = Join-Path $statePath 'Guepardo/Cache' }
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $logFile = Join-Path $logDir "install-$timestamp-$pid.log"
 
@@ -71,6 +129,7 @@ function Write-Log {
     $logLine = "[$timeStr] [$Level] $Message"
     Add-Content -Path $logFile -Value $logLine
 
+    if ($NoColor) { Write-Host "[$Level] $Message"; return }
     switch ($Level) {
         "INFO" {
             Write-Host "-> $Message" -ForegroundColor Gray
@@ -89,133 +148,24 @@ function Write-Log {
 
 function Write-Section {
     param ([string]$Title)
-    Write-Host "`n=== $Title ===" -ForegroundColor Cyan
+    Write-GuepardoHeading $Title -NoColor:$NoColor
     Write-Log -Message "=== Section: $Title ===" -Level "INFO"
 }
 
 # Ascii Art
 function Show-Intro {
-    Write-Host @'
-   ______                                __    
-  / ____/_  _____  ____  ____ __________/ /___ 
- / / __/ / / / _ \/ __ \/ __ `/ ___/ __  / __ \
-/ /_/ / /_/ /  __/ /_/ / /_/ / /  / /_/ / /_/ /
-\____/\__,_/\___/ .___/\__,_/_/   \__,_/\____/ 
-               /_/                             
-'@ -ForegroundColor Cyan
-
-    Write-Host "Fresh Config Installer (Windows)" -ForegroundColor Green
-    Write-Host "Target: Windows (via winget)" -ForegroundColor Yellow
-    Write-Host "Profiles: $(if ($Profiles) { $Profiles } else { $Mode })" -ForegroundColor Yellow
-    Write-Host "Log: $logFile`n" -ForegroundColor DarkGray
+    Write-GuepardoHeading 'guepardo / Windows' -NoColor:$NoColor
+    Write-Host '  Fresh Config Installer (Windows)'
+    Write-Host "  Perfis: $(if ($Profiles) { $Profiles } else { $Mode }) | Provedor: $Provider | Downloads: $Jobs"
+    Write-Host "  Log: $logFile`n"
 }
 
-# Prompt if not explicitly set
-$modeExplicitlySet = $PSBoundParameters.ContainsKey('Mode') -or $PSBoundParameters.ContainsKey('Profiles')
-if (-not $modeExplicitlySet -and -not $Plan -and -not $DryRun -and [Environment]::UserInteractive) {
-    $title = "Select Installation Mode"
-    $message = "Choose the scope of the installation:"
-    $full = New-Object System.Management.Automation.Host.ChoiceDescription "&Full", "Dev tools + Desktop apps + Games"
-    $basic = New-Object System.Management.Automation.Host.ChoiceDescription "&Basic", "Dev tools only"
-    $games = New-Object System.Management.Automation.Host.ChoiceDescription "&Games", "Gaming apps only"
-    $server = New-Object System.Management.Automation.Host.ChoiceDescription '&Server', 'CLI tools only'
-    $desktopOnly = New-Object System.Management.Automation.Host.ChoiceDescription '&Desktop', 'Desktop apps only'
-    $choices = [System.Management.Automation.Host.ChoiceDescription[]]($full, $basic, $games, $server, $desktopOnly)
-    $decision = $Host.UI.PromptForChoice($title, $message, $choices, 0)
-    
-    switch ($decision) {
-        0 { $Mode = 'full' }
-        1 { $Mode = 'basic' }
-        2 { $Mode = 'games' }
-        3 { $Mode = 'server' }
-        4 { $Mode = 'desktop' }
-    }
+# Interactive profile/app selection uses the same catalog as noninteractive plans.
+$modeExplicitlySet = $PSBoundParameters.ContainsKey('Mode') -or $PSBoundParameters.ContainsKey('Profiles') -or $Apps.Count -gt 0
+if (-not $modeExplicitlySet -and -not $Plan -and -not $DryRun -and -not $RetryFailed -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+    $Apps = @(Select-GuepardoApps -Catalog $catalog -NoColor:$NoColor)
 }
-
 Show-Intro
-
-# Package groups are independent; selecting games does not pull in PHP or desktop apps.
-$cliPackages = @(
-    @{ Id = "GitHub.cli"; Name = "GitHub CLI" }
-    @{ Id = "Git.Git"; Name = "Git" }
-    @{ Id = "sharkdp.bat"; Name = "bat" }
-    @{ Id = "Clement.bottom"; Name = "bottom" }
-    @{ Id = "sharkdp.fd"; Name = "fd" }
-    @{ Id = "junegunn.fzf"; Name = "fzf" }
-    @{ Id = "BurntSushi.ripgrep.MSVC"; Name = "ripgrep" }
-    @{ Id = "chmln.sd"; Name = "sd" }
-    @{ Id = "dbrgn.tealdeer"; Name = "tealdeer" }
-    @{ Id = "jqlang.jq"; Name = "jq" }
-    @{ Id = "eza-community.eza"; Name = "eza" }
-    @{ Id = "bootandy.dust"; Name = "dust" }
-    @{ Id = "JesseDuffield.lazygit"; Name = "lazygit" }
-    @{ Id = "sxyazi.yazi"; Name = "yazi" }
-    @{ Id = "GnuPG.Gpg4win"; Name = "GnuPG" }
-)
-$devPackages = @(
-    @{ Id = "Rustlang.Rustup"; Name = "Rust toolchain (rustup, cargo, rustc)" }
-    @{ Id = "guepardo.vite-plus"; Name = "Vite+ global CLI (vp)" }
-    @{ Id = "OpenAI.Codex"; Name = "Codex CLI" }
-    @{ Id = "Anthropic.ClaudeCode"; Name = "Claude Code CLI" }
-    @{ Id = "Oven-sh.Bun"; Name = "Bun" }
-    @{ Id = "astral-sh.uv"; Name = "uv" }
-    @{ Id = "CoreyButler.NVMforWindows"; Name = "NVM for Windows" }
-    @{ Id = "Google.AntigravityCLI"; Name = "Antigravity CLI"; Force = $true }
-    @{ Id = "SST.opencode"; Name = "OpenCode CLI" }
-    @{ Id = "GitHub.GitHubDesktop"; Name = "GitHub Desktop" }
-    @{ Id = "Termius.Termius"; Name = "Termius" }
-    @{ Id = "GodotEngine.GodotEngine"; Name = "Godot Engine" }
-    @{ Id = "Comfy.ComfyUI-Desktop"; Name = "ComfyUI Desktop" }
-    @{ Id = "ElementLabs.Bionic"; Name = "Bionic" }
-)
-$webPackages = @(
-    @{ Id = "PHP.PHP.8.4"; Name = "PHP" }
-    @{ Id = "Composer.Composer"; Name = "Composer" }
-    @{ Id = "Oracle.MySQL"; Name = "MySQL Server" }
-)
-$desktopPackages = @(
-    @{ Id = "Microsoft.OneDrive"; Name = "OneDrive Sync GUI (autostart)" }
-    @{ Id = "guepardo.zapfast"; Name = "ZapFast" }
-    @{ Id = "OpenAI.ChatGPT"; Name = "ChatGPT" }
-    @{ Id = "Anthropic.Claude"; Name = "Claude Desktop" }
-    @{ Id = "T3Tools.T3Code"; Name = "T3 Code" }
-    @{ Id = "guepardo.sloth-note"; Name = "Sloth Note" }
-    @{ Id = "Warp.Warp"; Name = "Warp Terminal" }
-    @{ Id = "Microsoft.VisualStudioCode"; Name = "Visual Studio Code" }
-    @{ Id = "ZedIndustries.Zed"; Name = "Zed Editor" }
-    @{ Id = "Skillbrains.Lightshot"; Name = "Lightshot" }
-    @{ Id = "Brave.Brave"; Name = "Brave Browser" }
-    @{ Id = "Google.Chrome"; Name = "Google Chrome" }
-    @{ Id = "Obsidian.Obsidian"; Name = "Obsidian" }
-    @{ Id = "OBSProject.OBSStudio"; Name = "OBS Studio" }
-    @{ Id = "ElementLabs.LMStudio"; Name = "LM Studio" }
-    @{ Id = "RARLab.WinRAR"; Name = "WinRAR"; Force = $true }
-    @{ Id = "Zen-Team.Zen-Browser"; Name = "Zen Browser" }
-    @{ Id = "dynobo.NormCap"; Name = "NormCap" }
-    @{ Id = "RedHat.Podman-Desktop"; Name = "Podman Desktop" }
-    @{ Id = "VideoLAN.VLC"; Name = "VLC Media Player" }
-    @{ Id = "CodecGuide.K-LiteCodecPack.Mega"; Name = "K-Lite Codec Pack Mega" }
-    @{ Id = "RevoUninstaller.RevoUninstaller"; Name = "Revo Uninstaller" }
-    @{ Id = "7zip.7zip"; Name = "7-Zip" }
-    @{ Id = "Microsoft.PowerToys"; Name = "PowerToys" }
-    @{ Id = "Telegram.TelegramDesktop"; Name = "Telegram Desktop" }
-    @{ Id = "Gyan.FFmpeg"; Name = "FFmpeg" }
-    @{ Id = "Canva.Affinity"; Name = "Affinity" }
-)
-$gamingPackages = @(
-    @{ Id = "Valve.Steam"; Name = "Steam" }
-    @{ Id = "EpicGames.EpicGamesLauncher"; Name = "Epic Games Launcher" }
-    @{ Id = "GOG.Galaxy"; Name = "GOG Galaxy" }
-    @{ Id = "Discord.Discord"; Name = "Discord" }
-    @{ Id = "qBittorrent.qBittorrent"; Name = "qBittorrent" }
-    @{ Id = "Stremio.Stremio"; Name = "Stremio" }
-    @{ Id = "HeroicGamesLauncher.HeroicGamesLauncher"; Name = "Heroic Games Launcher" }
-    @{ Id = "Playnite.Playnite"; Name = "Playnite" }
-    @{ Id = "Guru3D.Afterburner"; Name = "MSI Afterburner (RTSS)" }
-)
-$jellyfinPackages = @(
-    @{ Id = "Jellyfin.Server"; Name = "Jellyfin Server" }
-)
 
 if ($Profiles -and $PSBoundParameters.ContainsKey('Mode')) {
     throw "Use -Profiles or -Mode, not both."
@@ -238,43 +188,23 @@ foreach ($profileName in $selectedProfiles) {
 }
 if ($selectedProfiles.Count -eq 0) { throw 'Select at least one profile.' }
 
-$groups = @{
-    cli = $cliPackages
-    dev = $devPackages
-    web = $webPackages
-    desktop = $desktopPackages
-    games = $gamingPackages
-    jellyfin = $jellyfinPackages
-    wsl2 = @()
-}
-$toInstall = @()
-foreach ($profileName in $validProfiles) {
-    if ($profileName -in $selectedProfiles) { $toInstall += $groups[$profileName] }
-}
-$seenPackages = @{}
-$toInstall = @($toInstall | Where-Object {
-    if ($seenPackages.ContainsKey($_.Id)) { $false }
-    else { $seenPackages[$_.Id] = $true; $true }
-})
-
-if ('dev' -in $selectedProfiles -or 'desktop' -in $selectedProfiles) {
-    $toInstall += @{ Id = 'guepardo.dotagents'; Name = 'dotagents (install + sync)' }
-}
-
-if ('dev' -in $selectedProfiles) {
-    $toInstall += @{ Id = 'guepardo.node-lts'; Name = 'Node.js LTS via NVM for Windows' }
-}
-if ('jellyfin' -in $selectedProfiles) {
-    $toInstall += @{ Id = 'guepardo.jellyfin-config'; Name = 'Jellyfin theme and plugins' }
-}
-if ('wsl2' -in $selectedProfiles) {
-    $toInstall += @{ Id = 'guepardo.wsl2'; Name = 'WSL 2 + Ubuntu (UAC prompt)' }
+$toInstall = @(Resolve-GuepardoPlan -Catalog $catalog -Profiles $selectedProfiles -Apps $Apps -ExcludeApps $ExcludeApps)
+if ($toInstall.Count -eq 0) { throw 'Select at least one app.' }
+if ($PrefetchOnly -and $NoPrefetch) { throw 'Use -PrefetchOnly or -NoPrefetch, not both.' }
+if ($Apps.Count -gt 0) {
+    $selectedProfiles = @($catalog.apps | Where-Object { $_.id -in @($toInstall | ForEach-Object { $_.Id }) } | ForEach-Object { $_.profiles } | Select-Object -Unique)
 }
 
 if ('desktop' -in $selectedProfiles) {
     Write-Log 'AI Quota Pulse is a GNOME extension and is unavailable on native Windows.' -Level WARN
 }
 
+if ($RetryFailed -and ($Plan -or $DryRun)) {
+    $previewState = Read-GuepardoState (Join-Path $StateDirectory 'install-state.json')
+    $pendingIds = @($previewState.packages.Keys | Where-Object { $previewState.packages[$_].status -in @('failed','blocked','running','reboot-required') })
+    if ($pendingIds.Count -eq 0) { Write-Host 'Nenhuma pendência na execução anterior.'; exit 0 }
+    $toInstall = @(Resolve-GuepardoPlan -Catalog $catalog -Profiles @() -Apps $pendingIds -ExcludeApps $ExcludeApps)
+}
 if ($Plan -or $DryRun) {
     Write-Log "Installation plan for profiles: $($selectedProfiles -join ', ')" -Level "INFO"
     foreach ($pkg in $toInstall) {
@@ -284,7 +214,7 @@ if ($Plan -or $DryRun) {
     exit 0
 }
 
-if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+if (-not $PrefetchOnly -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
     Write-Log -Level "ERROR" -Message "winget is not installed. Please install App Installer from the Microsoft Store."
     exit 1
 }
@@ -418,7 +348,7 @@ function Install-JellyfinConfiguration {
 function Install-SlothNote {
     if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs/Sloth Note/sloth-note.exe')) { return }
     $release = $null
-    try { $release = Invoke-RestMethod 'https://api.github.com/repos/dougkusanagi/sloth-noter/releases/latest' -TimeoutSec 60 }
+    try { $release = Get-GuepardoRelease 'dougkusanagi/sloth-noter' }
     catch {
         if ([int]$_.Exception.Response.StatusCode -ne 404) { throw }
     }
@@ -426,7 +356,7 @@ function Install-SlothNote {
     if ($asset) {
         $temp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString() + '.exe')
         try {
-            Invoke-WebRequest $asset.browser_download_url -OutFile $temp -TimeoutSec 600
+            Receive-GuepardoFile -Uri $asset.browser_download_url -Destination $temp -Sha256 (Get-GuepardoAssetChecksum $asset) -CacheDirectory $CacheDirectory
             $process = Start-Process $temp -ArgumentList '/S' -Wait -PassThru
             if ((Get-InstallResult $process.ExitCode) -eq 'failed') { throw "Sloth Note installer failed: $($process.ExitCode)" }
         } finally { Remove-Item $temp -Force -ErrorAction SilentlyContinue }
@@ -473,7 +403,7 @@ function Install-VitePlus {
     try {
         $env:VP_HOME = Join-Path $env:USERPROFILE '.vite-plus'
         $env:VP_NODE_MANAGER = 'no'; $env:VP_PM_MANAGER = 'no'
-        Invoke-WebRequest 'https://vite.plus/ps1' -OutFile $temporary -TimeoutSec 300
+        Receive-GuepardoFile -Uri 'https://vite.plus/ps1' -Destination $temporary -CacheDirectory $CacheDirectory -MaxAgeSeconds 0
         $powershellExe = (Get-Process -Id $PID).Path
         & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $temporary
         if ($LASTEXITCODE -ne 0) { throw "Vite+ global installer failed: $LASTEXITCODE" }
@@ -505,7 +435,7 @@ function Enable-OneDriveAutostart {
 
 function Install-ZapFast {
     if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs/ZapFast/ZapFast.exe')) { return }
-    $release = Invoke-RestMethod 'https://api.github.com/repos/crmne/zapfast/releases/latest' -TimeoutSec 60
+    $release = Get-GuepardoRelease 'crmne/zapfast'
     $architecture = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { 'aarch64' } else { 'x86_64' }
     $asset = $release.assets | Where-Object { $_.name -match "-$architecture-pc-windows-msvc\.msi$" } | Select-Object -First 1
     $sums = $release.assets | Where-Object { $_.name -eq 'checksums.txt' } | Select-Object -First 1
@@ -515,8 +445,9 @@ function Install-ZapFast {
     try {
         $msi = Join-Path $temporary 'ZapFast.msi'
         $checksums = Join-Path $temporary 'checksums.txt'
-        Invoke-WebRequest $asset.browser_download_url -OutFile $msi -TimeoutSec 600
-        Invoke-WebRequest $sums.browser_download_url -OutFile $checksums -TimeoutSec 60
+        Receive-GuepardoFile -Uri $sums.browser_download_url -Destination $checksums -CacheDirectory $CacheDirectory -MaxAgeSeconds 0
+        $expected = Get-GuepardoChecksumFromFile -Path $checksums -Name $asset.name
+        Receive-GuepardoFile -Uri $asset.browser_download_url -Destination $msi -Sha256 $expected -CacheDirectory $CacheDirectory
         $expected = $null
         foreach ($line in Get-Content $checksums) {
             if ($line -match '^([a-fA-F0-9]{64})\s+\*?(.+)$' -and $Matches[2] -eq $asset.name) { $expected = $Matches[1]; break }
@@ -548,11 +479,67 @@ function Get-InstallResult {
 $rebootRequired = $false
 $startedAt = Get-Date
 $packageIndex = 0
-
+$runLock = Enter-GuepardoLock $StateDirectory
+try {
+$stateFile = Join-Path $StateDirectory 'install-state.json'
+$installState = Read-GuepardoState $stateFile
+if ($RetryFailed) {
+    if ($installState.packages.Count -eq 0) { throw 'No previous run to retry.' }
+    $retryIds = @($installState.packages.Keys | Where-Object { $installState.packages[$_].status -in @('failed','blocked','running','reboot-required') })
+    if ($retryIds.Count -eq 0) { Write-Host 'Nenhuma pendência na execução anterior.'; exit 0 }
+    $toInstall = @(Resolve-GuepardoPlan -Catalog $catalog -Profiles @() -Apps $retryIds -ExcludeApps $ExcludeApps)
+    $selectedProfiles = @($toInstall | ForEach-Object { $_.Definition.profiles } | Select-Object -Unique)
+}
+if ($BootstrapScoop -and -not $PrefetchOnly) { Install-GuepardoScoop $CacheDirectory }
+if (-not $PrefetchOnly) { foreach ($candidate in $toInstall) { $null = Get-GuepardoProvider $candidate $Provider } }
+$prefetchRoot = Join-Path $StateDirectory 'prefetch'
+if (-not $NoPrefetch) {
+    $downloads = @(Get-GuepardoPrefetchPlan -Packages $toInstall -Directory $prefetchRoot -CacheDirectory $CacheDirectory)
+    if ($downloads.Count -gt 0) {
+        try { Invoke-GuepardoPrefetch -Downloads $downloads -CacheDirectory $CacheDirectory -Jobs $Jobs }
+        catch {
+            if ($PrefetchOnly) { throw }
+            Write-Log "Some prefetch downloads failed; each app will retry individually: $_" -Level WARN
+        }
+    }
+}
+if ($PrefetchOnly) { Write-Host "Downloads preparados em $CacheDirectory"; exit 0 }
+$results = @{}
 foreach ($pkg in $toInstall) {
     $packageIndex++
     Write-Log -Message "[$packageIndex/$($toInstall.Count)] Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
     
+    $packageProvider = Get-GuepardoProvider -Package $pkg -Preferred $Provider
+    $blocked = @($pkg.DependsOn | Where-Object { $results[$_] -in @('failed','blocked','reboot-required') })
+    if ($blocked.Count -gt 0) {
+        $results[$pkg.Id] = 'blocked'; $failed += $pkg.Name
+        Set-GuepardoPackageState $installState $stateFile $pkg 'blocked' $packageProvider ("Dependencies: " + ($blocked -join ', '))
+        Write-GuepardoResult $pkg.Name 'bloqueado' ($blocked -join ', ') -NoColor:$NoColor
+        continue
+    }
+    # Detect either provider before choosing one, avoiding duplicate installations.
+    $detectedProvider = $packageProvider
+    $installed = Test-GuepardoPackage $pkg $packageProvider
+    if (-not $installed -and $packageProvider -eq 'scoop' -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+        if (Test-GuepardoPackage $pkg 'winget' -RegistrationOnly) {
+            $packageProvider='winget'; $detectedProvider='winget'; $installed=Test-GuepardoPackage $pkg 'winget'
+        }
+    }
+    if (-not $installed -and $packageProvider -eq 'winget' -and $pkg.Definition.windows.scoop -and (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        if (Test-GuepardoPackage $pkg 'scoop' -RegistrationOnly) {
+            $packageProvider='scoop'; $detectedProvider='scoop'; $installed=Test-GuepardoPackage $pkg 'scoop'
+        }
+    }
+    $previous = $installState.packages[$pkg.Id]
+    $sameDefinition = $previous -and $previous.fingerprint -eq (Get-GuepardoFingerprint $pkg.Definition)
+    if ($installed -and (-not $Resume -or ($sameDefinition -and $previous.status -in @('installed','already-installed')))) {
+        $results[$pkg.Id] = 'already-installed'
+        Set-GuepardoPackageState $installState $stateFile $pkg 'already-installed' $detectedProvider
+        Write-GuepardoResult $pkg.Name 'já instalado' $detectedProvider -NoColor:$NoColor
+        continue
+    }
+    Set-GuepardoPackageState $installState $stateFile $pkg 'running' $packageProvider
+    Write-Progress -Activity 'Instalando aplicativos' -Status "$packageIndex/$($toInstall.Count) $($pkg.Name)" -PercentComplete ([int](100*($packageIndex-1)/[Math]::Max(1,$toInstall.Count)))
     $exitCode = 1
     if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note', 'guepardo.zapfast', 'guepardo.vite-plus', 'guepardo.node-lts', 'guepardo.jellyfin-config', 'guepardo.wsl2')) {
         try {
@@ -577,7 +564,7 @@ foreach ($pkg in $toInstall) {
             $tempDir = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
             New-Item -ItemType Directory -Path $tempDir | Out-Null
             $tempPath = Join-Path $tempDir 'Composer-Setup.exe'
-            Invoke-WebRequest -Uri "https://getcomposer.org/Composer-Setup.exe" -OutFile $tempPath -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop
+            Receive-GuepardoFile -Uri "https://getcomposer.org/Composer-Setup.exe" -Destination $tempPath -CacheDirectory $CacheDirectory -MaxAgeSeconds 900
             
             Write-Log -Message "Running Composer installer..." -Level "INFO"
             $process = Start-Process -FilePath $tempPath -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait -PassThru -NoNewWindow
@@ -589,19 +576,28 @@ foreach ($pkg in $toInstall) {
             if ($tempDir -and (Test-Path $tempDir)) { Remove-Item -Path $tempDir -Recurse -Force }
         }
     } else {
-        $argsList = @('install', '-e', '--id', $pkg.Id, '--source', 'winget', '--silent', '--disable-interactivity', '--no-upgrade', '--accept-package-agreements', '--accept-source-agreements')
         try {
-            & winget @argsList 2>&1 | Tee-Object -FilePath $logFile -Append
-            $exitCode = $LASTEXITCODE
+            $exitCode = Invoke-GuepardoManagedInstall -Package $pkg -Provider $packageProvider -LogFile $logFile -InteractiveFallback:$InteractiveFallback
             if ($pkg.Id -eq 'Microsoft.OneDrive' -and (Get-InstallResult $exitCode) -ne 'failed') { Enable-OneDriveAutostart }
         } catch {
-            Write-Log -Message "Failed to run winget for $($pkg.Name): $_" -Level 'WARN'
+            Write-Log -Message "Failed to run installer for $($pkg.Name): $_" -Level 'WARN'
             $exitCode = 1
         }
     }
 
     $result = Get-InstallResult $exitCode
     if ($result -eq 'reboot-required') { $rebootRequired = $true }
+    if ($result -in @('installed','already-installed')) {
+        Update-ProcessEnvironment
+        $configurationOnly = $pkg.Id -in @('guepardo.dotagents','guepardo.jellyfin-config','guepardo.wsl2')
+        if (-not $configurationOnly -and -not (Test-GuepardoPackage $pkg $packageProvider)) {
+            $result = 'failed'
+            Write-Log "Installer returned success but package verification failed: $($pkg.Id)" -Level WARN
+        }
+    }
+    $results[$pkg.Id] = $result
+    Set-GuepardoPackageState $installState $stateFile $pkg $result $packageProvider
+    Write-GuepardoResult $pkg.Name $(if ($result -eq 'failed') { 'falhou' } elseif ($result -eq 'reboot-required') { 'reinício pendente' } else { 'concluído' }) $packageProvider -NoColor:$NoColor
     if ($result -ne 'failed') {
         Write-Log -Message "$($pkg.Name) installed/updated successfully (or already installed)." -Level "OK"
     } else {
@@ -662,6 +658,7 @@ if ('web' -in $selectedProfiles -and (Get-Content -Path $PROFILE -Raw) -notlike 
 
 }
 
+Write-Progress -Activity "Instalando aplicativos" -Completed
 Write-Section "Installation Summary"
 $elapsed = (Get-Date) - $startedAt
 Write-Log -Message "Completed $($toInstall.Count) packages in $([math]::Round($elapsed.TotalMinutes, 1)) min. Log: $logFile" -Level "INFO"
@@ -669,8 +666,12 @@ if ($failed.Count -eq 0) {
     Write-Log -Message "All requested applications installed successfully!" -Level "OK"
 } else {
     Write-Log -Message "Installation finished with warnings. The following apps failed to install:`n  $($failed -join ', ')" -Level "WARN"
-    Write-Log -Message 'Fix the errors and repeat the same command; installed apps are reused.' -Level 'INFO'
+    Write-Log -Message 'Repita apenas as pendências: .\install.cmd -RetryFailed. Para retomar: -Resume. Diagnóstico: -Doctor.' -Level 'INFO'
 }
 if ($rebootRequired) { Write-Log -Message 'Restart Windows to finish installing the applications.' -Level 'WARN' }
 if ($failed.Count -gt 0) { exit 1 }
 exit 0
+} finally {
+    if ($runLock) { $runLock.Dispose() }
+    Write-Progress -Activity 'Instalando aplicativos' -Completed
+}

@@ -9,8 +9,15 @@ concurrency:
   group: production-installer-release
   cancel-in-progress: false
 jobs:
+  validate:
+    uses: ./.github/workflows/tests.yml
   release:
+    needs: validate
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -20,7 +27,11 @@ jobs:
       - run: ./test.sh --mode=static --distro=ubuntu
       - run: ./test.sh --mode=static --distro=fedora
       - run: ./scripts/build-release.sh
+      - name: Attest installer artifacts
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/*'
       - name: Publish matching source and binaries
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "installer-${GITHUB_SHA}" dist/guepardo-linux-amd64 dist/guepardo-linux-arm64 dist/SOURCE_SHA256 dist/SHA256SUMS dist/install.sh --target "$GITHUB_SHA" --title "Installer ${GITHUB_SHA:0:12}" --generate-notes --latest
+        run: gh release create "installer-${GITHUB_SHA}" dist/guepardo-linux-amd64 dist/guepardo-linux-arm64 dist/guepardo-windows.zip dist/SOURCE_SHA256 dist/SHA256SUMS dist/install.sh --target "$GITHUB_SHA" --title "Installer ${GITHUB_SHA:0:12}" --generate-notes --latest

@@ -4,6 +4,8 @@ Instalador de ambiente para Ubuntu, Fedora/Nobara e Windows. No Linux, o orquest
 
 O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 
+O instalador inclui seleção individual de apps no Windows, catálogo compartilhado, cache validado, downloads diretos antecipados e recuperação por etapa. Veja [instalação, recuperação e desempenho](docs/installer-reliability.md) para provedores Scoop/Winget, diagnóstico, limites e exemplos.
+
 ## Ubuntu ou WSL Ubuntu novo: um comando
 
 Abra um terminal como seu usuário normal e cole o comando abaixo. Ele abre a TUI Go para escolher os perfis; detecta automaticamente Linux ou WSL. Na confirmação `[S/n]`, Enter inicia a instalação e `n` cancela. A senha de administrador é solicitada pelo `sudo`. A rede só muda se você selecionar o perfil `network`.
@@ -96,7 +98,7 @@ Este conteúdo também está disponível na pasta `windows-fresh-install`, origi
 
 Para instalar no Windows pelo checkout local, execute `.\install.cmd`. Para escolher perfis, use `.\install.cmd -Profiles 'dev,desktop'`; `-Plan` mostra as ações antes de instalar. O perfil `dev` inclui Rust mesmo sem instalar Sloth Note.
 
-O launcher independente `.\jellyfin.cmd` e o [guia detalhado do Jellyfin](docs/windows-jellyfin.md) também estão disponíveis. O antigo `winstall-dougkusanagi-basic.ps1` foi preservado como lista legada; o instalador com perfis está em `install.ps1`.
+O launcher independente `.\jellyfin.cmd` e o [guia detalhado do Jellyfin](docs/windows-jellyfin.md) também estão disponíveis. O antigo `winstall-dougkusanagi-basic.ps1` encaminha para o instalador com perfis em `install.ps1`, usando o mesmo catálogo e as mesmas verificações.
 
 Para executar a mesma release no Windows:
 

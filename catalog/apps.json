@@ -1,0 +1,1076 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "id": "cli",
+      "label": "Ferramentas de terminal",
+      "linuxRecipe": "terminal/00-cli.sh",
+      "platforms": [
+        "linux",
+        "windows"
+      ]
+    },
+    {
+      "id": "dev",
+      "label": "Rust, Node, Bun, uv e desenvolvimento",
+      "linuxRecipe": "terminal/05-dev-tools.sh",
+      "platforms": [
+        "linux",
+        "windows"
+      ]
+    },
+    {
+      "id": "web",
+      "label": "PHP, Composer e banco de dados",
+      "linuxRecipe": "terminal/10-web-stack.sh",
+      "platforms": [
+        "linux",
+        "windows"
+      ]
+    },
+    {
+      "id": "desktop",
+      "label": "Aplicativos e ajustes do desktop",
+      "linuxRecipe": "desktop/10-apps.sh",
+      "platforms": [
+        "linux",
+        "windows"
+      ]
+    },
+    {
+      "id": "games",
+      "label": "Jogos e launchers",
+      "linuxRecipe": "games/10-apps.sh",
+      "platforms": [
+        "linux",
+        "windows"
+      ]
+    },
+    {
+      "id": "network",
+      "label": "Rede IPv4 estática",
+      "linuxRecipe": "network.sh",
+      "platforms": [
+        "linux"
+      ]
+    },
+    {
+      "id": "jellyfin",
+      "label": "Jellyfin, tema e plugins",
+      "linuxRecipe": null,
+      "platforms": [
+        "windows"
+      ]
+    },
+    {
+      "id": "wsl2",
+      "label": "WSL 2 e Ubuntu",
+      "linuxRecipe": null,
+      "platforms": [
+        "windows"
+      ]
+    }
+  ],
+  "apps": [
+    {
+      "id": "GitHub.cli",
+      "name": "GitHub CLI",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "gh",
+        "commands": [
+          "gh"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Git.Git",
+      "name": "Git",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": [
+          "git"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "sharkdp.bat",
+      "name": "bat",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "bat",
+        "commands": [
+          "bat"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Clement.bottom",
+      "name": "bottom",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "bottom",
+        "commands": [
+          "bottom"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "sharkdp.fd",
+      "name": "fd",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "fd",
+        "commands": [
+          "fd"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "junegunn.fzf",
+      "name": "fzf",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "fzf",
+        "commands": [
+          "fzf"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "BurntSushi.ripgrep.MSVC",
+      "name": "ripgrep",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "ripgrep",
+        "commands": [
+          "ripgrep"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "chmln.sd",
+      "name": "sd",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "sd",
+        "commands": [
+          "sd"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "dbrgn.tealdeer",
+      "name": "tealdeer",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "tealdeer",
+        "commands": [
+          "tealdeer"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "jqlang.jq",
+      "name": "jq",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "jq",
+        "commands": [
+          "jq"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "eza-community.eza",
+      "name": "eza",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "eza",
+        "commands": [
+          "eza"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "bootandy.dust",
+      "name": "dust",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "dust",
+        "commands": [
+          "dust"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "JesseDuffield.lazygit",
+      "name": "lazygit",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "lazygit",
+        "commands": [
+          "lazygit"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "sxyazi.yazi",
+      "name": "yazi",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "yazi",
+        "commands": [
+          "yazi"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "GnuPG.Gpg4win",
+      "name": "GnuPG",
+      "profiles": [
+        "cli"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Rustlang.Rustup",
+      "name": "Rust toolchain (rustup, cargo, rustc)",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": [
+          "cargo",
+          "rustc",
+          "rustup"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "guepardo.vite-plus",
+      "name": "Vite+ global CLI (vp)",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "custom",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "OpenAI.Codex",
+      "name": "Codex CLI",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": [
+          "codex"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Anthropic.ClaudeCode",
+      "name": "Claude Code CLI",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": [
+          "claude"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Oven-sh.Bun",
+      "name": "Bun",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "bun",
+        "commands": [
+          "bun"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "astral-sh.uv",
+      "name": "uv",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": "uv",
+        "commands": [
+          "uv"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "CoreyButler.NVMforWindows",
+      "name": "NVM for Windows",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": [
+          "nvm"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Google.AntigravityCLI",
+      "name": "Antigravity CLI",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "SST.opencode",
+      "name": "OpenCode CLI",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": [
+          "opencode"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "GitHub.GitHubDesktop",
+      "name": "GitHub Desktop",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Termius.Termius",
+      "name": "Termius",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "GodotEngine.GodotEngine",
+      "name": "Godot Engine",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Comfy.ComfyUI-Desktop",
+      "name": "ComfyUI Desktop",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "ElementLabs.Bionic",
+      "name": "Bionic",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "PHP.PHP.8.4",
+      "name": "PHP",
+      "profiles": [
+        "web"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": [
+          "php"
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Composer.Composer",
+      "name": "Composer",
+      "profiles": [
+        "web"
+      ],
+      "windows": {
+        "provider": "custom",
+        "scoop": null,
+        "commands": [
+          "composer"
+        ]
+      },
+      "dependsOn": [
+        "PHP.PHP.8.4"
+      ]
+    },
+    {
+      "id": "Oracle.MySQL",
+      "name": "MySQL Server",
+      "profiles": [
+        "web"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Microsoft.OneDrive",
+      "name": "OneDrive Sync GUI (autostart)",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "guepardo.zapfast",
+      "name": "ZapFast",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "custom",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "OpenAI.ChatGPT",
+      "name": "ChatGPT",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Anthropic.Claude",
+      "name": "Claude Desktop",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "T3Tools.T3Code",
+      "name": "T3 Code",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "guepardo.sloth-note",
+      "name": "Sloth Note",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "custom",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Warp.Warp",
+      "name": "Warp Terminal",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Microsoft.VisualStudioCode",
+      "name": "Visual Studio Code",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "ZedIndustries.Zed",
+      "name": "Zed Editor",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Skillbrains.Lightshot",
+      "name": "Lightshot",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Brave.Brave",
+      "name": "Brave Browser",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Google.Chrome",
+      "name": "Google Chrome",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Obsidian.Obsidian",
+      "name": "Obsidian",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "OBSProject.OBSStudio",
+      "name": "OBS Studio",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "ElementLabs.LMStudio",
+      "name": "LM Studio",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "RARLab.WinRAR",
+      "name": "WinRAR",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Zen-Team.Zen-Browser",
+      "name": "Zen Browser",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "dynobo.NormCap",
+      "name": "NormCap",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "RedHat.Podman-Desktop",
+      "name": "Podman Desktop",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "VideoLAN.VLC",
+      "name": "VLC Media Player",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "CodecGuide.K-LiteCodecPack.Mega",
+      "name": "K-Lite Codec Pack Mega",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "RevoUninstaller.RevoUninstaller",
+      "name": "Revo Uninstaller",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "7zip.7zip",
+      "name": "7-Zip",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Microsoft.PowerToys",
+      "name": "PowerToys",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Telegram.TelegramDesktop",
+      "name": "Telegram Desktop",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Gyan.FFmpeg",
+      "name": "FFmpeg",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Canva.Affinity",
+      "name": "Affinity",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Valve.Steam",
+      "name": "Steam",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "EpicGames.EpicGamesLauncher",
+      "name": "Epic Games Launcher",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "GOG.Galaxy",
+      "name": "GOG Galaxy",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Discord.Discord",
+      "name": "Discord",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "qBittorrent.qBittorrent",
+      "name": "qBittorrent",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Stremio.Stremio",
+      "name": "Stremio",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "HeroicGamesLauncher.HeroicGamesLauncher",
+      "name": "Heroic Games Launcher",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Playnite.Playnite",
+      "name": "Playnite",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Guru3D.Afterburner",
+      "name": "MSI Afterburner (RTSS)",
+      "profiles": [
+        "games"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "Jellyfin.Server",
+      "name": "Jellyfin Server",
+      "profiles": [
+        "jellyfin"
+      ],
+      "windows": {
+        "provider": "winget",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "guepardo.dotagents",
+      "name": "dotagents (install + sync)",
+      "profiles": [
+        "dev",
+        "desktop"
+      ],
+      "windows": {
+        "provider": "custom",
+        "commands": []
+      },
+      "dependsOn": []
+    },
+    {
+      "id": "guepardo.node-lts",
+      "name": "Node.js LTS via NVM for Windows",
+      "profiles": [
+        "dev"
+      ],
+      "windows": {
+        "provider": "custom",
+        "commands": []
+      },
+      "dependsOn": [
+        "CoreyButler.NVMforWindows"
+      ]
+    },
+    {
+      "id": "guepardo.jellyfin-config",
+      "name": "Jellyfin theme and plugins",
+      "profiles": [
+        "jellyfin"
+      ],
+      "windows": {
+        "provider": "custom",
+        "commands": []
+      },
+      "dependsOn": [
+        "Jellyfin.Server"
+      ]
+    },
+    {
+      "id": "guepardo.wsl2",
+      "name": "WSL 2 + Ubuntu (UAC prompt)",
+      "profiles": [
+        "wsl2"
+      ],
+      "windows": {
+        "provider": "custom",
+        "commands": []
+      },
+      "dependsOn": []
+    }
+  ]
+}

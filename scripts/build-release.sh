@@ -15,5 +15,7 @@ revision="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 sed "s/GUEPARDO_REF:-master/GUEPARDO_REF:-installer-$revision/" "$ROOT_DIR/install.sh" > "$DIST_DIR/install.sh"
 chmod +x "$DIST_DIR/install.sh"
 bash "$ROOT_DIR/scripts/source-digest.sh" "$ROOT_DIR" > "$DIST_DIR/SOURCE_SHA256"
-(cd "$DIST_DIR" && sha256sum guepardo-linux-amd64 guepardo-linux-arm64 SOURCE_SHA256 install.sh > SHA256SUMS)
+# Archive the same immutable revision used by release provenance.
+git -C "$ROOT_DIR" archive --format=zip --prefix=guepardo/ --output="$DIST_DIR/guepardo-windows.zip" HEAD
+(cd "$DIST_DIR" && sha256sum guepardo-linux-amd64 guepardo-linux-arm64 guepardo-windows.zip SOURCE_SHA256 install.sh > SHA256SUMS)
 printf 'Release assets: %s\n' "$DIST_DIR"

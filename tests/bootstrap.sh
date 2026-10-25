@@ -5,7 +5,7 @@ sandbox="$(mktemp -d)"
 trap 'rm -rf "$sandbox"' EXIT
 fail() { printf 'ERROR %s\n' "$*" >&2; exit 1; }
 repo="$sandbox/repo"
-mkdir -p "$repo"/{scripts,cmd,install-common,install-ubuntu,install-fedora} "$sandbox/bin" "$sandbox/release"
+mkdir -p "$repo"/{scripts,cmd,catalog,install-common,install-ubuntu,install-fedora} "$sandbox/bin" "$sandbox/release"
 cp "$ROOT_DIR/install.sh" "$repo/install.sh"
 cp "$ROOT_DIR/scripts/source-digest.sh" "$repo/scripts/source-digest.sh"
 cp "$ROOT_DIR/scripts/install-media-agents.sh" "$repo/scripts/install-media-agents.sh"

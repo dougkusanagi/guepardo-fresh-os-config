@@ -1,0 +1,52 @@
+﻿$ErrorActionPreference='Stop'
+$sandbox=Join-Path ([IO.Path]::GetTempPath()) ('guepardo-integration-'+[guid]::NewGuid())
+New-Item -ItemType Directory $sandbox | Out-Null
+$installer=(Resolve-Path (Join-Path $PSScriptRoot '../install.ps1')).Path
+$shell=(Get-Process -Id $PID).Path
+try {
+    $driver=Join-Path $sandbox 'driver.ps1'
+    @'
+param($Installer,$Sandbox,$Scenario,[switch]$Resume,[switch]$RetryFailed)
+$PROFILE=Join-Path $Sandbox 'profile.ps1'
+function winget {
+    $id=$args[[array]::IndexOf($args,'--id')+1]
+    $marker=Join-Path $Sandbox ($id+'.installed')
+    if($args[0] -eq 'list') {
+        if(Test-Path $marker) { "$id 1.0"; $global:LASTEXITCODE=0 } else { $global:LASTEXITCODE=1 }
+        return
+    }
+    $id | Add-Content (Join-Path $Sandbox 'installs')
+    if($Scenario -eq 'fail' -or ($Scenario -eq 'dependency' -and $id -eq 'PHP.PHP.8.4')) { $global:LASTEXITCODE=1603; return }
+    if($Scenario -ne 'false-success') { Set-Content $marker installed }
+    $global:LASTEXITCODE=0
+}
+$apps=if($Scenario -eq 'dependency') { @('Composer.Composer') } else { @('GitHub.cli') }
+& $Installer -Apps $apps -Provider winget -NoPrefetch -NoColor -StateDirectory (Join-Path $Sandbox 'state') -CacheDirectory (Join-Path $Sandbox 'cache') -Resume:$Resume -RetryFailed:$RetryFailed
+exit $LASTEXITCODE
+'@ | Set-Content $driver -Encoding UTF8
+    function Invoke-Case($name,$scenario,$expected,[switch]$Resume,[switch]$RetryFailed) {
+        $directory=Join-Path $sandbox $name; New-Item -ItemType Directory $directory -Force | Out-Null
+        $parameters=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$driver,'-Installer',$installer,'-Sandbox',$directory,'-Scenario',$scenario)
+        if($Resume) { $parameters+='-Resume' }; if($RetryFailed) { $parameters+='-RetryFailed' }
+        $output=& $shell @parameters 2>&1 | Out-String
+        if($LASTEXITCODE -ne $expected) { throw "$name/$scenario exit=$LASTEXITCODE expected=$expected`n$output" }
+        return $directory
+    }
+    $case=Invoke-Case success success 0
+    $null=Invoke-Case success success 0 -Resume
+    if(@(Get-Content (Join-Path $case 'installs')).Count -ne 1) { throw 'Resume reinstalled a verified package' }
+    $null=Invoke-Case false false-success 1
+    $case=Invoke-Case retry fail 1
+    $null=Invoke-Case retry success 0 -RetryFailed
+    $state=Get-Content (Join-Path $case 'state/install-state.json') -Raw | ConvertFrom-Json
+    if($state.packages.'GitHub.cli'.status -ne 'installed') { throw 'Retry did not persist success' }
+    $case=Invoke-Case dependency dependency 1
+    $state=Get-Content (Join-Path $case 'state/install-state.json') -Raw | ConvertFrom-Json
+    if($state.packages.'Composer.Composer'.status -ne 'blocked') { throw 'Dependency failure did not block Composer' }
+    if(@(Get-Content (Join-Path $case 'installs')).Count -ne 1) { throw 'Dependent app installed after failed prerequisite' }
+    $legacy=Join-Path (Split-Path $installer) 'winstall-dougkusanagi-basic.ps1'
+    $legacyOutput=& $shell -NoProfile -ExecutionPolicy Bypass -File $legacy -Profiles cli -Plan 2>&1 | Out-String
+    if($LASTEXITCODE -ne 0 -or $legacyOutput -notlike '*ripgrep*') { throw "Legacy launcher bypassed the unified installer: $legacyOutput" }
+    Write-Host 'PASS: isolated installer verification, resume, retry failed steps and dependency failure propagation.'
+} finally { Remove-Item -LiteralPath $sandbox -Recurse -Force }
+exit 0

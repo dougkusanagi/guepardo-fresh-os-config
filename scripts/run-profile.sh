@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 DISTRO="${1:?missing distro}"
 PROFILE="${2:?missing profile}"
+export GUEPARDO_CURRENT_PROFILE="$PROFILE"
 ROOT_DIR="${GUEPARDO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 INSTALL_ROOT="$ROOT_DIR/install-$DISTRO"
 DRY_RUN="${GUEPARDO_DRY_RUN:-false}"
@@ -45,6 +46,7 @@ finish_runner() {
 trap finish_runner EXIT
 
 # Every profile must work on a clean machine without selecting CLI first.
+PROFILE_RECIPE="${GUEPARDO_PROFILE_RECIPE:-}"
 if [[ "$DISTRO" == "ubuntu" ]]; then
   apt_update
   apt_install curl ca-certificates tar unzip jq gpg xz-utils
@@ -52,18 +54,34 @@ else
   dnf_update
   dnf_install curl ca-certificates tar unzip jq gnupg2 xz
 fi
+if [[ -z "$PROFILE_RECIPE" ]] && command_exists jq; then
+  PROFILE_RECIPE="$(jq -er --arg id "$PROFILE" '.profiles[] | select(.id == $id) | .linuxRecipe // empty' "$ROOT_DIR/catalog/apps.json")"
+fi
+# Dry-run can precede jq installation; its compatibility mapping is validated in tests.
+if [[ -z "$PROFILE_RECIPE" ]]; then
+  case "$PROFILE" in
+    cli) PROFILE_RECIPE=terminal/00-cli.sh ;;
+    dev) PROFILE_RECIPE=terminal/05-dev-tools.sh ;;
+    web) PROFILE_RECIPE=terminal/10-web-stack.sh ;;
+    desktop) PROFILE_RECIPE=desktop/10-apps.sh ;;
+    games) PROFILE_RECIPE=games/10-apps.sh ;;
+    network) PROFILE_RECIPE=network.sh ;;
+    *) echo "Unknown profile: $PROFILE" >&2; exit 1 ;;
+  esac
+fi
+[[ "$PROFILE_RECIPE" != /* && "$PROFILE_RECIPE" != *..* && "$PROFILE_RECIPE" != *\\* && -f "$INSTALL_ROOT/$PROFILE_RECIPE" ]] || { echo 'Invalid catalog recipe' >&2; exit 1; }
 
 case "$PROFILE" in
   cli)
     configure_user_path
-    source "$INSTALL_ROOT/terminal/00-cli.sh"
+    source "$INSTALL_ROOT/$PROFILE_RECIPE"
     ;;
   dev)
     configure_user_path
-    source "$INSTALL_ROOT/terminal/05-dev-tools.sh"
+    source "$INSTALL_ROOT/$PROFILE_RECIPE"
     ;;
   web)
-    source "$INSTALL_ROOT/terminal/10-web-stack.sh"
+    source "$INSTALL_ROOT/$PROFILE_RECIPE"
     ;;
   desktop)
     detect_desktop
@@ -72,7 +90,7 @@ case "$PROFILE" in
     fi
     source "$INSTALL_ROOT/desktop/00-core.sh"
     run_app "Warp" source "$INSTALL_ROOT/desktop/05-warp.sh"
-    source "$INSTALL_ROOT/desktop/10-apps.sh"
+    source "$INSTALL_ROOT/$PROFILE_RECIPE"
     run_app "AI desktop apps" install_ai_desktop_apps
     if [[ "$DISTRO" == ubuntu ]]; then apt_install python3; else dnf_install python3; fi
     configure_flameshot_notifications
@@ -89,10 +107,10 @@ case "$PROFILE" in
     ;;
   games)
     source "$INSTALL_ROOT/games/00-core.sh"
-    source "$INSTALL_ROOT/games/10-apps.sh"
+    source "$INSTALL_ROOT/$PROFILE_RECIPE"
     ;;
   network)
-    source "$INSTALL_ROOT/network.sh"
+    source "$INSTALL_ROOT/$PROFILE_RECIPE"
     ;;
   *)
     echo "Unknown profile: $PROFILE" >&2

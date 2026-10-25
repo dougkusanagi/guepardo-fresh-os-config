@@ -3,6 +3,8 @@
 /logs/*
 !/logs/.gitkeep
 /dist/
+/guepardo.exe
+/guepardo.exe.backup-*
 
 # Local editor and OS noise
 .DS_Store

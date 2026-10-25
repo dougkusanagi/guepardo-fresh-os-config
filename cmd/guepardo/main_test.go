@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -37,6 +38,29 @@ func TestParseProfilesSeparatesScopes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInstallerLockExcludesConcurrentRuns(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux file lock; tested by Ubuntu CI")
+	}
+	dir := t.TempDir()
+	unlock, err := lockInstaller(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := lockInstaller(dir)
+	if err == nil {
+		second()
+		unlock()
+		t.Fatal("concurrent installer accepted")
+	}
+	unlock()
+	unlock, err = lockInstaller(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlock()
 }
 
 func TestProfilePickerKeyboardSelection(t *testing.T) {
@@ -72,6 +96,9 @@ func TestProfilePickerCancel(t *testing.T) {
 }
 
 func TestSudoSessionRefreshesWithoutPrompt(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux sudo backend; exercised by Ubuntu CI")
+	}
 	dir := t.TempDir()
 	calls := filepath.Join(dir, "calls")
 	stub := filepath.Join(dir, "sudo")
@@ -116,6 +143,9 @@ func TestParseProfilesRejectsUnknown(t *testing.T) {
 }
 
 func TestRunProfileReportsFailureAndKeepsDiagnostics(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux Bash backend; exercised by Ubuntu CI")
+	}
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, "scripts"), 0700); err != nil {
 		t.Fatal(err)
@@ -136,6 +166,9 @@ func TestRunProfileReportsFailureAndKeepsDiagnostics(t *testing.T) {
 }
 
 func TestRunProfileCancellationStopsChildInstallers(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux process groups; exercised by Ubuntu CI")
+	}
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, "scripts"), 0700); err != nil {
 		t.Fatal(err)

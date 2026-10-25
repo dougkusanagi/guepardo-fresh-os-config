@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $installer = Join-Path $PSScriptRoot '../install.ps1'
 $tokens = $null
 $errors = $null
@@ -27,22 +27,38 @@ try {
 param([string]$Installer, [string]$Sandbox, [int]$FakeExitCode)
 $PROFILE = Join-Path $Sandbox 'profile.ps1'
 $global:GuepardoFakeExitCode = $FakeExitCode
+$testCatalog=Get-Content (Join-Path (Split-Path $Installer) 'catalog/apps.json') -Raw | ConvertFrom-Json
+function Get-Command {
+    param([string]$Name,$ErrorAction)
+    foreach($app in $testCatalog.apps) {
+        if($Name -in $app.windows.commands -and (Test-Path (Join-Path $Sandbox ($app.id+'.installed')))) { return @{Name=$Name;Source=(Join-Path $Sandbox $Name)} }
+    }
+    Microsoft.PowerShell.Core\Get-Command $Name -ErrorAction SilentlyContinue
+}
 function winget {
     $args -join ' ' | Add-Content (Join-Path $Sandbox 'calls')
+    if ($args[0] -eq 'list') {
+        $id = $args[[array]::IndexOf($args,'--id')+1]
+        if (Test-Path (Join-Path $Sandbox ($id + '.installed'))) { Write-Output "$id 1.0"; $global:LASTEXITCODE=0 }
+        else { $global:LASTEXITCODE=1 }
+        return
+    }
     Write-Output 'Fake Winget diagnostic'
     $global:LASTEXITCODE = $global:GuepardoFakeExitCode
+    if ($global:GuepardoFakeExitCode -in @(0,-1978335189)) { Set-Content (Join-Path $Sandbox ($args[[array]::IndexOf($args,'--id')+1] + '.installed')) 'installed' }
 }
-& $Installer -Profiles cli
+& $Installer -Profiles cli -Provider winget -NoPrefetch -StateDirectory (Join-Path $Sandbox "state-$FakeExitCode")
 exit $LASTEXITCODE
 '@ | Set-Content $driver
     $pwsh = (Get-Process -Id $PID).Path
     foreach ($case in @(@{ Code = 0; Expected = 0 }, @{ Code = -1978335189; Expected = 0 }, @{ Code = -1978335186; Expected = 1 })) {
+        Get-ChildItem $sandbox -Filter *.installed | Remove-Item -Force
         $output = & $pwsh -NoLogo -NoProfile -File $driver -Installer $installer -Sandbox $sandbox -FakeExitCode $case.Code 2>&1 | Out-String
         if ($LASTEXITCODE -ne $case.Expected) { throw "Unexpected installer exit for $($case.Code): $LASTEXITCODE`n$output" }
         if ($case.Expected -eq 1 -and $output -notlike '*following apps failed*') { throw 'Failure summary missing' }
         if ($case.Expected -eq 1 -and $output -like '*All requested applications installed successfully*') { throw 'False success banner' }
     }
-    $calls = Get-Content (Join-Path $sandbox 'calls')
+    $calls = @(Get-Content (Join-Path $sandbox 'calls') | Where-Object { $_ -like 'install *' })
     if (@($calls | Where-Object { $_ -notlike '*--silent*--disable-interactivity*--no-upgrade*' }).Count) { throw 'Winget can prompt or unnecessarily upgrade apps' }
     if (@($calls | Where-Object { $_ -notlike '*--source winget*' }).Count) { throw 'Winget source is ambiguous' }
     if (@($calls | Where-Object { $_ -like '*--force*' }).Count) { throw 'Installed apps were forced to reinstall' }

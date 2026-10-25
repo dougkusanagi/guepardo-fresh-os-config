@@ -6,9 +6,9 @@ GNOME_LOCK_PREVIOUS=""
 GNOME_IDLE_PREVIOUS=""
 REQUIRES_REBOOT="false"
 DRY_RUN="${DRY_RUN:-false}"
-TARGET_USER="${USER}"
+TARGET_USER="${USER:-${USERNAME:-$(id -un)}}"
 TARGET_HOME="${HOME}"
-export PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.bun/bin:$PATH"
+export PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.bun/bin:$TARGET_HOME/.cargo/bin:$PATH"
 STATIC_NETWORK_INTERFACE="${STATIC_NETWORK_INTERFACE:-enp5s0}"
 STATIC_NETWORK_CONNECTION="${STATIC_NETWORK_CONNECTION:-static-${STATIC_NETWORK_INTERFACE}}"
 STATIC_NETWORK_ADDRESS="${STATIC_NETWORK_ADDRESS:-192.168.1.77/24}"
@@ -179,12 +179,31 @@ desktop_install_enabled() {
 
 # Run each independent app with errexit intact, outside a conditional context.
 # Waiting in the parent lets us record its failure and continue with other apps.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/steps.sh"
 run_app() {
   local label="$1" status=0 app_pid
   shift
+  local state_dir="${GUEPARDO_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/guepardo/steps}" state_file="" saved="" verify_status=0
+  if [[ "$DRY_RUN" != true ]]; then
+    mkdir -p "$state_dir" || return 1
+    state_file="$state_dir/$(guepardo_step_key "$label" "$@").status"
+    [[ ! -f "$state_file" ]] || saved="$(cat "$state_file")"
+    if [[ "$saved" == installed && ( "${GUEPARDO_RESUME:-false}" == true || "${GUEPARDO_RETRY_FAILED:-false}" == true ) ]]; then
+      if guepardo_verify_task "$@"; then log "$label already verified; skipping completed step"; return 0; fi
+    fi
+    guepardo_write_step "$state_file" running || return 1
+  fi
   ( set -Eeuo pipefail; "$@" ) <&0 &
   app_pid=$!
   wait "$app_pid" || status=$?
+  if [[ "$DRY_RUN" != true && "$status" == 0 ]]; then
+    guepardo_verify_task "$@" || verify_status=$?
+    if ((verify_status == 1)); then status=1; warn "$label returned success but verification failed."; fi
+  fi
+  if [[ -n "$state_file" ]]; then
+    if ((status == 0)); then guepardo_write_step "$state_file" installed
+    else guepardo_write_step "$state_file" failed; fi
+  fi
   if ((status != 0)); then
     if ((status == 130 || status == 143)); then return "$status"; fi
     warn "$label failed (exit $status); continuing with the remaining applications."
@@ -436,6 +455,8 @@ flatpak_install_app() {
   success "Flatpak installed: $app_id"
 }
 
+# Keep shell functions in the same process so recipes and mock tests share the downloader.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/download.sh"
 download_file() {
   local url="$1"
   local destination="$2"
@@ -445,16 +466,7 @@ download_file() {
     return
   fi
 
-  local temporary
-  mkdir -p "$(dirname "$destination")" || return 1
-  temporary="$(mktemp "${destination}.part.XXXXXX")" || return 1
-  if curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 600 "$url" -o "$temporary"; then
-    mv -f "$temporary" "$destination" || { rm -f "$temporary"; return 1; }
-  else
-    rm -f "$temporary"
-    error "Download failed: $url. Check your connection and run the installer again."
-    return 1
-  fi
+  guepardo_download "$url" "$destination" "${3:-}"
 }
 
 install_remote_script() (

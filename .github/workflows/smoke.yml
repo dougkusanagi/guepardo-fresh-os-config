@@ -1,0 +1,40 @@
+name: Real installer smoke test (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        type: choice
+        options: [windows, ubuntu]
+        default: windows
+permissions:
+  contents: read
+jobs:
+  windows:
+    if: inputs.platform == 'windows'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - shell: pwsh
+        run: ./install.ps1 -Apps junegunn.fzf,sharkdp.bat -Provider winget -NoPrefetch -NoColor
+      - shell: pwsh
+        run: ./install.ps1 -Apps junegunn.fzf,sharkdp.bat -Provider winget -NoPrefetch -NoColor -Resume
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-install-diagnostics
+          path: ~/AppData/Local/Guepardo/
+  ubuntu:
+    if: inputs.platform == 'ubuntu'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - run: ./install.sh --profiles=cli --yes
+      - run: ./install.sh --profiles=cli --yes --resume
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-install-diagnostics
+          path: ~/.local/state/guepardo/

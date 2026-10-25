@@ -1,4 +1,5 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '../modules/installer/releases.ps1')
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../install.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'Invalid installer syntax' }
@@ -13,6 +14,7 @@ New-Item -ItemType Directory $sandbox | Out-Null
 $script:dependencies = @()
 function Install-RequiredWingetPackage { param($Id, $ExtraArgs) $script:dependencies += $Id }
 function Write-Log { param($Message, $Level) }
+function Receive-GuepardoFile { param($Uri,$Destination,$Sha256,$CacheDirectory,$MaxAgeSeconds) Invoke-WebRequest -Uri $Uri -OutFile $Destination -TimeoutSec 60 }
 function git {
     $global:LASTEXITCODE = 0
     if ($args -contains 'get-url') { return $script:origin }
@@ -47,6 +49,8 @@ try {
         ) }
     }
     $script:badChecksum = $false
+    $script:lastMsi = Join-Path $sandbox 'fixture.msi'
+    Set-Content $script:lastMsi 'mock MSI'
     function Invoke-WebRequest {
         param($Uri, $OutFile, $TimeoutSec)
         if ($Uri -like '*.msi') { Set-Content $OutFile 'mock MSI'; $script:lastMsi = $OutFile }

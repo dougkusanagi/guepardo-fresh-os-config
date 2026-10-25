@@ -142,6 +142,9 @@ for arg in "$@"; do
     --plan) plan=true ;;
     --dry-run) dry_run=true ;;
     --doctor) doctor=true ;;
+    --resume) export GUEPARDO_RESUME=true ;;
+    --retry-failed) export GUEPARDO_RETRY_FAILED=true ;;
+    --state-dir=*) export GUEPARDO_STATE_DIR="${arg#*=}" ;;
     --yes) yes=true ;;
     --list-profiles) printf '%s\n' cli dev web desktop games network; exit 0 ;;
     --list-themes)
