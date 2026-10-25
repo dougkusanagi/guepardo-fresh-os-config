@@ -303,19 +303,24 @@ install_steam() {
   success "Steam installed"
 }
 
-# Newest proprietary NVIDIA branch Ubuntu offers (e.g. 615), skipping the
-# -open and -server variants; empty when none is listed.
-latest_nvidia_driver_branch() {
-  ubuntu-drivers list 2>/dev/null | grep -oE '^nvidia-driver-[0-9]+,' | grep -oE '[0-9]+' | sort -n | tail -n 1 || true
+# Newest NVIDIA driver Ubuntu offers for this GPU, as "<driver package>
+# <kernel modules package>" (e.g. "nvidia-driver-615-open linux-modules-...").
+# Server builds are skipped; for the same branch the -open build wins, since
+# Ubuntu lists it only for GPUs that support it. Empty when none is listed.
+latest_nvidia_driver() {
+  ubuntu-drivers list 2>/dev/null \
+    | sed -nE 's/^(nvidia-driver-([0-9]+)(-open)?), \(kernel modules provided by ([^)]+)\).*/\2 \3 \1 \4/p' \
+    | sort -k1,1n -k2,2 | tail -n 1 | awk '{print $(NF-1), $NF}' || true
 }
 
 install_gpu_drivers() {
   # Vulkan/Mesa userspace (including 32-bit for Proton) plus, on NVIDIA
-  # hardware, the newest proprietary driver branch Ubuntu offers.
+  # hardware, the newest driver branch Ubuntu offers. ubuntu-drivers itself
+  # does nothing once any NVIDIA driver is installed, so apt installs it.
   apt_install_optional pciutils mesa-vulkan-drivers libvulkan1 mesa-vulkan-drivers:i386 libvulkan1:i386
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would install the newest NVIDIA driver via ubuntu-drivers when an NVIDIA GPU is detected"
+    log "[DRY-RUN] Would install the newest NVIDIA driver when an NVIDIA GPU is detected"
     return
   fi
   if ! command_exists lspci || ! lspci 2>/dev/null | grep -Ei 'vga|3d|display' | grep -qi nvidia; then
@@ -324,19 +329,22 @@ install_gpu_drivers() {
   fi
 
   apt_install ubuntu-drivers-common
-  local latest current=""
-  latest="$(latest_nvidia_driver_branch)"
+  local latest driver modules branch current=""
+  latest="$(latest_nvidia_driver)"
+  read -r driver modules <<< "$latest" || true
+  branch="$(grep -oE '[0-9]+' <<< "${driver:-}" | head -n 1 || true)"
   if command_exists nvidia-smi && nvidia-smi >/dev/null 2>&1; then
     current="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n 1 | cut -d. -f1)"
-    if [[ -z "$latest" || ( -n "$current" && "$current" -ge "$latest" ) ]]; then
+    if [[ -z "$branch" || ( -n "$current" && "$current" -ge "$branch" ) ]]; then
       log "NVIDIA driver ${current:-?} is already working and up to date."
       return
     fi
   fi
 
-  if [[ -n "$latest" ]]; then
-    log "Installing NVIDIA driver $latest${current:+ (replacing $current)}."
-    run_quiet sudo ubuntu-drivers install "nvidia:$latest"
+  if [[ -n "$branch" ]]; then
+    log "Installing $driver${current:+ (replacing $current)}."
+    apt_install "$driver" "$modules"
+    apt_install_optional "libnvidia-gl-$branch:i386"
   else
     run_quiet sudo ubuntu-drivers install
   fi

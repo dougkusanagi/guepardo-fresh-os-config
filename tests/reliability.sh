@@ -149,25 +149,32 @@ if install_node_lts >/dev/null 2>&1; then fail 'Node checksum mismatch was accep
   install_gpu_drivers >/dev/null 2>&1
   grep -Fxq 'sudo ubuntu-drivers install' "$calls" && [[ "$REQUIRES_REBOOT" == true ]] || fail 'NVIDIA driver was not installed'
 
-  # The newest proprietary branch wins over older, -open and -server ones.
+  # The newest branch wins, -open over the closed build, never -server.
+  apt_install() { printf 'apt %s\n' "$*" >> "$calls"; }
+  apt_install_optional() { [[ "$*" == libnvidia-gl-* ]] && printf 'apt-opt %s\n' "$*" >> "$calls"; return 0; }
   ubuntu-drivers() {
-    printf '%s\n' 'nvidia-driver-595-open, (kernel modules provided by x)' 'nvidia-driver-615, (kernel modules provided by x)' \
-      'nvidia-driver-620-server, (kernel modules provided by x)' 'nvidia-driver-595, (kernel modules provided by x)'
+    printf '%s\n' 'nvidia-driver-595-open, (kernel modules provided by mods-595-open)' 'nvidia-driver-595, (kernel modules provided by mods-595)' \
+      'nvidia-driver-615, (kernel modules provided by mods-615)' 'nvidia-driver-615-open, (kernel modules provided by mods-615-open)' \
+      'nvidia-driver-620-server-open, (kernel modules provided by mods-620-server)'
   }
-  [[ "$(latest_nvidia_driver_branch)" == 615 ]] || fail 'Wrong newest NVIDIA branch'
+  [[ "$(latest_nvidia_driver)" == 'nvidia-driver-615-open mods-615-open' ]] || fail 'Wrong newest NVIDIA driver'
   : > "$calls"; REQUIRES_REBOOT=false
   install_gpu_drivers >/dev/null 2>&1
-  grep -Fxq 'sudo ubuntu-drivers install nvidia:615' "$calls" || fail 'Newest NVIDIA driver was not installed'
+  grep -Fxq 'apt nvidia-driver-615-open mods-615-open' "$calls" && grep -Fxq 'apt-opt libnvidia-gl-615:i386' "$calls" \
+    || fail 'Newest NVIDIA driver was not installed'
+  ubuntu-drivers() { printf '%s\n' 'nvidia-driver-580, (kernel modules provided by mods-580)'; }
+  [[ "$(latest_nvidia_driver)" == 'nvidia-driver-580 mods-580' ]] || fail 'Closed-only NVIDIA driver was not selected'
 
   # A working older driver is upgraded; a current one is kept.
+  ubuntu-drivers() { printf '%s\n' 'nvidia-driver-615-open, (kernel modules provided by mods-615-open)'; }
   command_exists() { [[ "$1" == lspci || "$1" == nvidia-smi ]]; }
   nvidia-smi() { [[ "$*" == *driver_version* ]] && printf '%s\n' "$driver_version"; return 0; }
   driver_version=595.99.02; : > "$calls"; REQUIRES_REBOOT=false
   install_gpu_drivers >/dev/null 2>&1
-  grep -Fxq 'sudo ubuntu-drivers install nvidia:615' "$calls" && [[ "$REQUIRES_REBOOT" == true ]] || fail 'Older NVIDIA driver was not upgraded'
+  grep -Fxq 'apt nvidia-driver-615-open mods-615-open' "$calls" && [[ "$REQUIRES_REBOOT" == true ]] || fail 'Older NVIDIA driver was not upgraded'
   driver_version=615.71.09; : > "$calls"; REQUIRES_REBOOT=false
   install_gpu_drivers >/dev/null 2>&1
-  [[ ! -s "$calls" && "$REQUIRES_REBOOT" == false ]] || fail 'Current NVIDIA driver was reinstalled'
+  ! grep -q 'nvidia' "$calls" && [[ "$REQUIRES_REBOOT" == false ]] || fail 'Current NVIDIA driver was reinstalled'
 )
 
 # Verified Node installation repairs an incomplete directory and is reused.

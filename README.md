@@ -26,7 +26,7 @@ Se um aplicativo falhar, a instalação registra a pendência e continua com os 
 | `dev` | Node 24 LTS, npm, Bun, uv, Vite+ (vp), Podman, Codex CLI, Claude Code CLI e dotagents | Não |
 | `web` | PHP, Composer e MySQL/MariaDB | Não |
 | `desktop` | Chrome, Brave, OBS, VLC, ChatGPT, Claude, T3 Code, Sloth Note, OneDrive com GUI/autostart, ZapFast, editores, Flatpak e ajustes GNOME | Sim |
-| `games` | Steam, Lutris, Heroic, Discord, gamescope e ferramentas de jogos; no Ubuntu, Vulkan/Mesa e driver NVIDIA mais novo (proprietário) quando há GPU NVIDIA, atualizando um driver antigo; no Windows, Playnite e MSI Afterburner | Sim |
+| `games` | Steam, Lutris, Heroic, Discord, gamescope e ferramentas de jogos; no Ubuntu, Vulkan/Mesa e driver NVIDIA mais novo quando há GPU NVIDIA, atualizando um driver antigo; no Windows, Playnite e MSI Afterburner | Sim |
 | `network` | IPv4 estático via NetworkManager | Não; use com cuidado em acesso remoto |
 
 No Windows existem ainda os perfis `jellyfin` (servidor, tema GlassFin e plugins) e `wsl2` (WSL 2 + Ubuntu).
