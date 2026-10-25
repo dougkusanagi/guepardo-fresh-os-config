@@ -127,7 +127,7 @@
         "provider": "winget",
         "scoop": "bottom",
         "commands": [
-          "bottom"
+          "btm"
         ]
       },
       "dependsOn": []
@@ -172,7 +172,7 @@
         "provider": "winget",
         "scoop": "ripgrep",
         "commands": [
-          "ripgrep"
+          "rg"
         ]
       },
       "dependsOn": []
@@ -202,7 +202,7 @@
         "provider": "winget",
         "scoop": "tealdeer",
         "commands": [
-          "tealdeer"
+          "tldr"
         ]
       },
       "dependsOn": []

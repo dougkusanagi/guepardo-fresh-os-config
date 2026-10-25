@@ -35,6 +35,18 @@ try {
     $script:calls=0
     $code=Invoke-GuepardoManagedInstall $plan[0] winget (Join-Path $sandbox 'log') -InteractiveFallback
     Assert ($script:calls -eq 2) 'Explicit interactive fallback missing'
+    # Package names need not match executable names (verified against publisher manifests).
+    function Get-Command {
+        param($Name,$ErrorAction)
+        if($Name -in @('rg','btm','tldr')) { return @{Name=$Name;Source=$Name} }
+        return $null
+    }
+    foreach($id in @('BurntSushi.ripgrep.MSVC','Clement.bottom','dbrgn.tealdeer')) {
+        $script:registeredId=$id
+        function winget { $global:LASTEXITCODE=0; "$script:registeredId 1.0" }
+        $package=@(Resolve-GuepardoPlan $catalog @() @($id) @())[0]
+        Assert (Test-GuepardoPackage $package winget) "Valid executable was not recognized for $id"
+    }
     $testCatalog=[pscustomobject]@{profiles=@([pscustomobject]@{id='cli';label='Terminal';platforms=@('windows')});apps=@([pscustomobject]@{id='one';name='App One';profiles=@('cli')})}
     $script:answers=New-Object 'System.Collections.Generic.Queue[string]'
     @('e 1','2','') | ForEach-Object { $script:answers.Enqueue($_) }

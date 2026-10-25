@@ -18,9 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - shell: pwsh
-        run: ./install.ps1 -Apps junegunn.fzf,sharkdp.bat -Provider winget -NoPrefetch -NoColor
+        run: ./install.ps1 -Apps junegunn.fzf,sharkdp.bat,BurntSushi.ripgrep.MSVC,Clement.bottom,dbrgn.tealdeer -Provider winget -NoPrefetch -NoColor
       - shell: pwsh
-        run: ./install.ps1 -Apps junegunn.fzf,sharkdp.bat -Provider winget -NoPrefetch -NoColor -Resume
+        run: ./install.ps1 -Apps junegunn.fzf,sharkdp.bat,BurntSushi.ripgrep.MSVC,Clement.bottom,dbrgn.tealdeer -Provider winget -NoPrefetch -NoColor -Resume
   linux-smoke:
     if: github.event_name == 'workflow_dispatch' && inputs.real_smoke
     runs-on: ubuntu-latest

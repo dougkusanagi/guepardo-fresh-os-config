@@ -23,6 +23,8 @@ O antigo `winstall-dougkusanagi-basic.ps1` encaminha para o mesmo instalador e a
 
 O estado fica em `%LOCALAPPDATA%\Guepardo\State\install-state.json`. Cada etapa registra provedor, impressão da definição, resultado e horário. As gravações são atômicas, com backup do estado anterior. Uma trava impede duas execuções no mesmo diretório de estado.
 
+As chamadas de instalação Winget/Scoop têm logs separados por aplicativo em `%LOCALAPPDATA%\Guepardo\Logs`. O registro da etapa inclui o código de saída e o caminho do diagnóstico. Os instaladores personalizados mantêm os detalhes no log geral.
+
 `-Resume` verifica os resultados existentes. `-RetryFailed` seleciona etapas com falha, bloqueadas, interrompidas ou aguardando reinicialização, incluindo suas dependências. Etapas de configuração (sincronização dotagents, Jellyfin e WSL) executam novamente; ter um binário instalado não prova que sua configuração está correta. O estado não substitui verificação de pacote e comandos esperados. Um código de sucesso sem verificação válida é registrado como falha. Uma dependência com falha ou reinício pendente bloqueia seus dependentes.
 
 Instalações permanecem sequenciais. `-Jobs 1..8` controla apenas os downloads diretos antecipados de Sloth Note, ZapFast e Composer quando aplicável. Não paraleliza MSI, Winget ou configurações. Winget e Scoop continuam controlando seus próprios downloads. A velocidade exibida é a média da transferência; reutilização de cache é identificada separadamente.

@@ -42,6 +42,7 @@ function Invoke-GuepardoManagedInstall {
     param($Package, [string]$Provider, [string]$LogFile, [ValidateRange(1,5)][int]$Attempts = 3, [switch]$InteractiveFallback)
     $code = 1
     for ($attempt=1; $attempt -le $Attempts; $attempt++) {
+        Add-Content -LiteralPath $LogFile -Value "[$([DateTime]::UtcNow.ToString('o'))] $($Package.Id) provider=$Provider attempt=$attempt"
         $savedErrorPreference = $ErrorActionPreference
         $output = @()
         try {

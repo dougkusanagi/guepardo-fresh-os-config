@@ -539,6 +539,7 @@ foreach ($pkg in $toInstall) {
         continue
     }
     Set-GuepardoPackageState $installState $stateFile $pkg 'running' $packageProvider
+    $packageLog = Join-Path $logDir ("package-$timestamp-$pid-$($pkg.Id).log")
     Write-Progress -Activity 'Instalando aplicativos' -Status "$packageIndex/$($toInstall.Count) $($pkg.Name)" -PercentComplete ([int](100*($packageIndex-1)/[Math]::Max(1,$toInstall.Count)))
     $exitCode = 1
     if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note', 'guepardo.zapfast', 'guepardo.vite-plus', 'guepardo.node-lts', 'guepardo.jellyfin-config', 'guepardo.wsl2')) {
@@ -577,7 +578,7 @@ foreach ($pkg in $toInstall) {
         }
     } else {
         try {
-            $exitCode = Invoke-GuepardoManagedInstall -Package $pkg -Provider $packageProvider -LogFile $logFile -InteractiveFallback:$InteractiveFallback
+            $exitCode = Invoke-GuepardoManagedInstall -Package $pkg -Provider $packageProvider -LogFile $packageLog -InteractiveFallback:$InteractiveFallback
             if ($pkg.Id -eq 'Microsoft.OneDrive' -and (Get-InstallResult $exitCode) -ne 'failed') { Enable-OneDriveAutostart }
         } catch {
             Write-Log -Message "Failed to run installer for $($pkg.Name): $_" -Level 'WARN'
@@ -596,7 +597,8 @@ foreach ($pkg in $toInstall) {
         }
     }
     $results[$pkg.Id] = $result
-    Set-GuepardoPackageState $installState $stateFile $pkg $result $packageProvider
+    $diagnosticLog = if (Test-Path -LiteralPath $packageLog) { $packageLog } else { $logFile }
+    Set-GuepardoPackageState $installState $stateFile $pkg $result $packageProvider "ExitCode=$exitCode; Log=$diagnosticLog"
     Write-GuepardoResult $pkg.Name $(if ($result -eq 'failed') { 'falhou' } elseif ($result -eq 'reboot-required') { 'reinício pendente' } else { 'concluído' }) $packageProvider -NoColor:$NoColor
     if ($result -ne 'failed') {
         Write-Log -Message "$($pkg.Name) installed/updated successfully (or already installed)." -Level "OK"
