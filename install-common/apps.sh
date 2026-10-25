@@ -198,8 +198,20 @@ install_onedrive_gui() {
   }
   install_release_appimage bpozdena/OneDriveGUI onedrive-gui '^OneDriveGUI-.*-x86_64\.AppImage$' || return 1
   python3 "$ROOT_DIR/scripts/configure-desktop.py" onedrive-gui "$TARGET_HOME" || return 1
-  install_user_autostart_entry OneDriveGUI "\"$TARGET_HOME/.local/bin/onedrive-gui\"" onedrive 'OneDrive synchronization GUI' || return 1
-  warn 'Open OneDriveGUI to sign in and choose folders. Enable auto-sync for each desired account in its profile settings.'
+  # OneDriveGUI creates profiles with auto_sync disabled and rewrites its own
+  # autostart entry, so a separate launcher enables sync on every login.
+  local launcher="$TARGET_HOME/.local/bin/onedrive-gui-autosync"
+  mkdir -p "${launcher%/*}" || return 1
+  cat > "$launcher" <<'SH' || return 1
+#!/bin/sh
+profiles="${XDG_CONFIG_HOME:-$HOME/.config}/onedrive-gui/profiles"
+[ -f "$profiles" ] && sed -i 's/^auto_sync *= *False$/auto_sync = True/' "$profiles"
+exec "$HOME/.local/bin/onedrive-gui" "$@"
+SH
+  chmod +x "$launcher" || return 1
+  rm -f "$TARGET_HOME/.config/autostart/OneDriveGUI.desktop"
+  install_user_autostart_entry GuepardoOneDrive "\"$launcher\"" onedrive 'OneDrive synchronization GUI' || return 1
+  warn 'Open OneDriveGUI to sign in and choose folders; sync starts automatically from the next login.'
 }
 
 install_zapfast() {

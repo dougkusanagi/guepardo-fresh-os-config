@@ -14,7 +14,7 @@ if mode == 'flameshot':
 elif mode == 'onedrive-gui':
     destination = home / '.config/onedrive-gui/gui_settings'
     section = 'SETTINGS'
-    values = {'autostart_enabled': 'True'}
+    values = {'autostart_enabled': 'False'}
 else:
     raise SystemExit(f'Unknown settings mode: {mode}')
 parser = configparser.ConfigParser(interpolation=None, strict=False)

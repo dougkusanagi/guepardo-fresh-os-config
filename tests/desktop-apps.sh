@@ -26,9 +26,15 @@ onedrive() { echo 'onedrive v2.5.12'; }
 install_release_appimage() { mkdir -p "$TARGET_HOME/.local/bin"; touch "$TARGET_HOME/.local/bin/$2"; }
 install_onedrive_gui >/dev/null
 install_onedrive_gui >/dev/null
-grep -Fq "Exec=\"$TARGET_HOME/.local/bin/onedrive-gui\"" "$TARGET_HOME/.config/autostart/OneDriveGUI.desktop"
+grep -Fq "Exec=\"$TARGET_HOME/.local/bin/onedrive-gui-autosync\"" "$TARGET_HOME/.config/autostart/GuepardoOneDrive.desktop"
 [[ "$(find "$TARGET_HOME/.config/autostart" -type f | wc -l)" == 1 ]]
-grep -Fq autostart_enabled=True "$TARGET_HOME/.config/onedrive-gui/gui_settings"
+grep -Fq autostart_enabled=False "$TARGET_HOME/.config/onedrive-gui/gui_settings"
+# Each login enables sync for every profile, including ones added later.
+printf '[a@x]\nauto_sync = False\n\n[b@x]\nauto_sync = True\n' > "$TARGET_HOME/.config/onedrive-gui/profiles"
+printf '#!/bin/sh\necho launched "$@"\n' > "$TARGET_HOME/.local/bin/onedrive-gui"
+chmod +x "$TARGET_HOME/.local/bin/onedrive-gui"
+[[ "$(HOME="$TARGET_HOME" XDG_CONFIG_HOME= "$TARGET_HOME/.local/bin/onedrive-gui-autosync" x)" == 'launched x' ]]
+[[ "$(grep -c '^auto_sync = True$' "$TARGET_HOME/.config/onedrive-gui/profiles")" == 2 ]]
 # Cargo is installed and verified before any source build may begin.
 (
   command_exists() { [[ "$1" == cargo || "$1" == rustc ]] && [[ -f "$sandbox/rust-installed" ]]; }
