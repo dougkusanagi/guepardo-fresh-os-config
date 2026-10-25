@@ -20,7 +20,9 @@ for distro in ubuntu fedora; do
   contains "$web" 'composer'
   contains "$web" 'xsel'
   excludes "$web" "BY '';"
-  contains "$desktop" 'install_vscode_desktop'
+  excludes "$desktop" 'install_vscode_desktop'
+  excludes "install-$distro/lib.sh" 'install_vscode_desktop'
+  contains "$desktop" 'https://zed.dev/install.sh'
   excludes "$desktop" 'install_steam'
   contains "$games" 'install_steam'
   contains "$games" 'install_lutris'

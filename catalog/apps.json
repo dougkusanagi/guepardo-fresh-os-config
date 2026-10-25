@@ -635,20 +635,6 @@
       "dependsOn": []
     },
     {
-      "id": "Microsoft.VisualStudioCode",
-      "name": "Visual Studio Code",
-      "profiles": [
-        "desktop"
-      ],
-      "windows": {
-        "provider": "winget",
-        "scoop": "vscode",
-        "commands": [],
-        "scoopBucket": "extras"
-      },
-      "dependsOn": []
-    },
-    {
       "id": "ZedIndustries.Zed",
       "name": "Zed Editor",
       "profiles": [
@@ -1091,5 +1077,8 @@
       },
       "dependsOn": []
     }
+  ],
+  "retiredAppIds": [
+    "Microsoft.VisualStudioCode"
   ]
 }

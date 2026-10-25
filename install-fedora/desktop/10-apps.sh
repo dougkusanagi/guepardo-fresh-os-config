@@ -2,7 +2,6 @@
 
 section "Desktop Apps"
 
-run_app "vscode desktop" install_vscode_desktop
 run_app "google chrome" install_google_chrome
 run_app "io.podman_desktop.PodmanDesktop" flatpak_install_app "io.podman_desktop.PodmanDesktop"
 run_app "it.mijorus.gearlever" flatpak_install_app "it.mijorus.gearlever"

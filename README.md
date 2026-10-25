@@ -4,7 +4,7 @@ Instalador de ambiente para Ubuntu, Fedora/Nobara e Windows. No Linux, o orquest
 
 O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 
-O instalador inclui seleção individual de apps no Windows, catálogo compartilhado, cache validado, downloads diretos antecipados e recuperação por etapa. Veja [instalação, recuperação e desempenho](docs/installer-reliability.md) para provedores Scoop/Winget, diagnóstico, limites e exemplos.
+O instalador inclui seleção individual de apps no Windows, catálogo compartilhado, cache validado, downloads diretos antecipados e recuperação por etapa. Zed é o editor instalado; VS Code foi retirado dos perfis Windows e Linux. Veja [instalação, recuperação e desempenho](docs/installer-reliability.md) para provedores Scoop/Winget, diagnóstico, limites e exemplos.
 
 No Windows, execute `.\install.cmd`: Scoop e aria2 são preparados automaticamente e usados por padrão nos apps compatíveis. Winget atende os demais aplicativos, e instalações existentes são reaproveitadas.
 

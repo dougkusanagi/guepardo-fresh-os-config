@@ -127,34 +127,6 @@ install_opencode_desktop() {
   success "OpenCode Desktop installed"
 }
 
-install_vscode_desktop() {
-  if dnf_package_installed code && command_exists code; then
-    log "Visual Studio Code is already installed."
-    return
-  fi
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would configure the official Visual Studio Code RPM repository and install code"
-    return
-  fi
-
-  run_quiet sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
-  sudo tee /etc/yum.repos.d/vscode.repo > /dev/null <<'EOF'
-[code]
-name=Visual Studio Code
-baseurl=https://packages.microsoft.com/yumrepos/vscode
-enabled=1
-autorefresh=1
-type=rpm-md
-gpgcheck=1
-gpgkey=https://packages.microsoft.com/keys/microsoft.asc
-EOF
-
-  dnf_update --force
-  dnf_install code
-  success "Visual Studio Code installed with the code CLI"
-}
-
 install_google_chrome() {
   if dnf_package_installed google-chrome-stable && command_exists google-chrome; then
     log "Google Chrome is already installed."

@@ -48,6 +48,8 @@ Assert-True ($dryRunOutput -like "*Dry-run completed successfully.*") "Dry-run f
 Write-Host "Running install.ps1 in Dry-Run mode (full)..." -ForegroundColor Gray
 $dryRunFullOutput = & $installScript -Mode full -DryRun -ErrorAction SilentlyContinue *>&1 | Out-String
 Assert-True ($dryRunFullOutput -like "*Google Chrome*") "Google Chrome is listed in dry-run mode for full mode"
+Assert-True ($dryRunFullOutput -notlike '*Microsoft.VisualStudioCode*' -and $dryRunFullOutput -notlike '*Visual Studio Code*') 'VS Code is excluded from installation'
+Assert-True ($dryRunFullOutput -like '*Zed Editor (ZedIndustries.Zed)*') 'Zed remains the desktop editor'
 
 
 # Test 3c: Verify new package IDs and custom installers in dry-run

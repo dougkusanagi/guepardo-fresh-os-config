@@ -112,7 +112,7 @@ for distro in ubuntu fedora; do
     apt_install_optional() { :; }
     dnf_install_optional() { :; }
     flatpak_install_app() { :; }
-    for installer in install_vscode_desktop install_google_chrome install_obsidian install_zapfast install_antigravity_desktop install_remote_script; do
+    for installer in install_google_chrome install_obsidian install_zapfast install_antigravity_desktop install_remote_script; do
       eval "$installer() { :; }"
     done
     install_lm_studio() { return 1; }

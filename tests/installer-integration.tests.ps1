@@ -90,6 +90,14 @@ exit $LASTEXITCODE
     if(@(Get-Content (Join-Path $case 'installs')).Count -ne 1) { throw 'Resume reinstalled a verified package' }
     $resumePlan=& $shell -NoProfile -ExecutionPolicy Bypass -File $installer -Resume -Plan -StateDirectory (Join-Path $case 'state') 2>&1 | Out-String
     if($LASTEXITCODE -ne 0 -or $resumePlan -notlike '*GitHub CLI (GitHub.cli)*' -or $resumePlan -like '*Rustlang.Rustup*' -or $resumePlan -like '*Valve.Steam*') { throw "Resume did not restore the previous selection: $resumePlan" }
+    $legacyState=Get-Content (Join-Path $case 'state/install-state.json') -Raw | ConvertFrom-Json
+    $legacyState.selection=@($legacyState.selection)+@('Microsoft.VisualStudioCode')
+    $legacyState.packages | Add-Member -MemberType NoteProperty -Name 'Microsoft.VisualStudioCode' -Value @{status='failed'}
+    $legacyState | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $case 'state/install-state.json') -Encoding UTF8
+    $retiredPlan=& $shell -NoProfile -ExecutionPolicy Bypass -File $installer -Resume -Plan -StateDirectory (Join-Path $case 'state') 2>&1 | Out-String
+    if($LASTEXITCODE -ne 0 -or $retiredPlan -like '*Microsoft.VisualStudioCode*' -or $retiredPlan -notlike '*GitHub CLI*') { throw 'A retired editor broke resuming the remaining apps' }
+    $null=Invoke-Case success success 0 -RetryFailed
+    if(@(Get-Content (Join-Path $case 'installs')).Count -ne 1) { throw 'Retry installed apps after the only failure was retired VS Code' }
     $null=Invoke-Case false false-success 1
     $falseState=Get-Content (Join-Path $sandbox 'false/state/install-state.json') -Raw | ConvertFrom-Json
     if($falseState.packages.'GitHub.cli'.message -notlike '*ExitCode=0; Log=*package-*GitHub.cli.log*') { throw 'Per-package diagnostics missing for false success' }

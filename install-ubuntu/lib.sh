@@ -211,40 +211,6 @@ install_opencode_desktop() {
   success "OpenCode Desktop installed"
 }
 
-install_vscode_desktop() {
-  if apt_package_installed code && command_exists code; then
-    log "Visual Studio Code is already installed."
-    return
-  fi
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY-RUN] Would configure the official Visual Studio Code APT repository and install code"
-    return
-  fi
-
-  local key_file sources_file tmp_key
-  key_file="/usr/share/keyrings/microsoft.gpg"
-  sources_file="/etc/apt/sources.list.d/vscode.sources"
-  tmp_key="$(mktemp)"
-
-  curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > "$tmp_key"
-  run_quiet sudo install -D -o root -g root -m 0644 "$tmp_key" "$key_file"
-  rm -f "$tmp_key"
-
-  sudo tee "$sources_file" > /dev/null <<EOF
-Types: deb
-URIs: https://packages.microsoft.com/repos/code
-Suites: stable
-Components: main
-Architectures: amd64,arm64,armhf
-Signed-By: $key_file
-EOF
-
-  apt_update --force
-  apt_install code
-  success "Visual Studio Code installed with the code CLI"
-}
-
 install_google_chrome() {
   if apt_package_installed google-chrome-stable && command_exists google-chrome; then
     log "Google Chrome is already installed."

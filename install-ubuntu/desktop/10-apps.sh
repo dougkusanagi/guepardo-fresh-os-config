@@ -4,7 +4,6 @@ section "Desktop Apps"
 
 apt_install_optional gnome-shell-extension-dash-to-dock gnome-shell-extension-ubuntu-dock
 
-run_app "vscode desktop" install_vscode_desktop
 run_app "google chrome" install_google_chrome
 run_app "obsidian" install_obsidian
 run_app "io.podman_desktop.PodmanDesktop" flatpak_install_app "io.podman_desktop.PodmanDesktop"

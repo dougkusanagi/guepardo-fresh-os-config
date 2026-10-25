@@ -170,6 +170,8 @@ if ($Resume -and -not $modeExplicitlySet -and -not $RetryFailed) {
     $Apps = @($resumeState.selection)
     if ($Apps.Count -eq 0) { $Apps = @($resumeState.packages.Keys) }
     if ($Apps.Count -eq 0) { throw 'No previous installation to resume. Select profiles or apps first.' }
+    $Apps=@($Apps | Where-Object { $_ -notin $catalog.retiredAppIds })
+    if ($Apps.Count -eq 0) { Write-Host 'A seleção anterior contém apenas apps retirados do catálogo. Nenhuma instalação pendente.'; exit 0 }
     $modeExplicitlySet = $true
 }
 if (-not $modeExplicitlySet -and -not $Plan -and -not $DryRun -and -not $RetryFailed -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
@@ -210,7 +212,7 @@ if ('desktop' -in $selectedProfiles) {
 
 if ($RetryFailed -and ($Plan -or $DryRun)) {
     $previewState = Read-GuepardoState (Join-Path $StateDirectory 'install-state.json')
-    $pendingIds = @(Get-GuepardoPendingIds $previewState)
+    $pendingIds = @(Get-GuepardoPendingIds $previewState | Where-Object { $_ -notin $catalog.retiredAppIds })
     if ($pendingIds.Count -eq 0) { Write-Host 'Nenhuma pendência na execução anterior.'; exit 0 }
     $toInstall = @(Resolve-GuepardoPlan -Catalog $catalog -Profiles @() -Apps $pendingIds -ExcludeApps $ExcludeApps)
 }
@@ -491,7 +493,7 @@ $stateFile = Join-Path $StateDirectory 'install-state.json'
 $installState = Read-GuepardoState $stateFile
 if ($RetryFailed) {
     if ($installState.packages.Count -eq 0) { throw 'No previous run to retry.' }
-    $retryIds = @(Get-GuepardoPendingIds $installState)
+    $retryIds = @(Get-GuepardoPendingIds $installState | Where-Object { $_ -notin $catalog.retiredAppIds })
     if ($retryIds.Count -eq 0) { Write-Host 'Nenhuma pendência na execução anterior.'; exit 0 }
     $toInstall = @(Resolve-GuepardoPlan -Catalog $catalog -Profiles @() -Apps $retryIds -ExcludeApps $ExcludeApps)
     $selectedProfiles = @($toInstall | ForEach-Object { $_.Definition.profiles } | Select-Object -Unique)
