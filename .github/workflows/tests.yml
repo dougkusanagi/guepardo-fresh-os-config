@@ -15,6 +15,7 @@ jobs:
           go-version: stable
       - run: ./test.sh --mode=static --distro=ubuntu
       - run: ./test.sh --mode=static --distro=fedora
+      - run: bash tests/rust-toolchain.sh
       - run: go test -race ./...
       - run: ./scripts/build-release.sh
       - run: cd dist && sha256sum -c SHA256SUMS

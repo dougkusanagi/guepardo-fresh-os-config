@@ -76,6 +76,8 @@ $wslOutput = & $installScript -Profiles 'wsl2' -Plan *>&1 | Out-String
 Assert-True ($wslOutput -like "*WSL 2 + Ubuntu*") "WSL2 profile is planned"
 $devOutput = & $installScript -Profiles 'dev' -Plan *>&1 | Out-String
 Assert-True ($devOutput -like "*Node.js LTS via NVM for Windows*") "Dev profile configures Node.js LTS"
+Assert-True ($devOutput -like '*Rust toolchain (rustup, cargo, rustc) (Rustlang.Rustup)*') 'Dev profile includes Rust independently of Sloth Note'
+Assert-True ($gamesOutput -notlike '*Rustlang.Rustup*') 'Games profile excludes the Rust development toolchain'
 $gamesOutput = & $installScript -Profiles 'games' -Plan *>&1 | Out-String
 Assert-True ($gamesOutput -like "*Playnite*" -and $gamesOutput -like "*Afterburner*") "Games profile includes Playnite and Afterburner"
 

@@ -542,6 +542,7 @@ run_local_static_checks() {
 
   log "Validating developer tool coverage..."
   run_quiet bash tests/dev-tools.sh
+  run_quiet bash tests/rust-toolchain.sh
   success "Developer tool coverage validated"
 
   log "Validating installation fix behaviour..."

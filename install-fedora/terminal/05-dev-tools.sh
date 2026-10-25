@@ -3,6 +3,7 @@
 section "Developer Tools"
 dnf_install xsel podman
 run_app "node lts" install_node_lts
+run_app "Rust toolchain" ensure_cargo
 run_app "npm global package" install_npm_global_package opencode opencode-ai
 run_app "npm global package" install_npm_global_package codex @openai/codex
 run_app "npm global package" install_npm_global_package claude @anthropic-ai/claude-code

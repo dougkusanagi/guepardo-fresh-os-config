@@ -145,6 +145,7 @@ DESKTOP
 }
 
 ensure_cargo() {
+  if [[ "$DRY_RUN" == true ]]; then log '[DRY-RUN] Would install/verify Rust, Cargo and rustc via rustup'; return; fi
   export PATH="$TARGET_HOME/.cargo/bin:$PATH"
   if ! command_exists cargo || ! command_exists rustc; then
     install_remote_script https://sh.rustup.rs sh -y --profile minimal || return 1

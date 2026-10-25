@@ -153,6 +153,7 @@ $cliPackages = @(
     @{ Id = "GnuPG.Gpg4win"; Name = "GnuPG" }
 )
 $devPackages = @(
+    @{ Id = "Rustlang.Rustup"; Name = "Rust toolchain (rustup, cargo, rustc)" }
     @{ Id = "guepardo.vite-plus"; Name = "Vite+ global CLI (vp)" }
     @{ Id = "OpenAI.Codex"; Name = "Codex CLI" }
     @{ Id = "Anthropic.ClaudeCode"; Name = "Claude Code CLI" }

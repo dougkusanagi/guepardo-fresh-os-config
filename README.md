@@ -23,7 +23,7 @@ Se um aplicativo falhar, a instalação registra a pendência e continua com os 
 | Perfil | Instala | Requer interface gráfica |
 | --- | --- | --- |
 | `cli` | Git, gh, ripgrep, fzf, eza, dust, lazygit, yazi e utilitários | Não |
-| `dev` | Node 24 LTS, npm, Bun, uv, Vite+ (vp), Podman, Codex CLI, Claude Code CLI e dotagents | Não |
+| `dev` | Rust (rustup, Cargo e rustc), Node 24 LTS, npm, Bun, uv, Vite+ (vp), Podman, Codex CLI, Claude Code CLI e dotagents | Não |
 | `web` | PHP, Composer e MySQL/MariaDB | Não |
 | `desktop` | Chrome, Brave, OBS, VLC, ChatGPT, Claude, T3 Code, Sloth Note, OneDrive com GUI/autostart, ZapFast, editores, Flatpak e ajustes GNOME | Sim |
 | `games` | Steam, Lutris, Heroic, Discord, gamescope e ferramentas de jogos; no Ubuntu, Vulkan/Mesa e driver NVIDIA mais novo quando há GPU NVIDIA, atualizando um driver antigo; no Windows, Playnite e MSI Afterburner | Sim |
@@ -91,6 +91,12 @@ GUEPARDO_REF=v0.2.2 bash <(curl -fsSL https://raw.githubusercontent.com/dougkusa
 Você também pode fornecer um binário já compilado com `GUEPARDO_BIN=/caminho/guepardo ./install.sh --profiles=cli`.
 
 ## Windows
+
+Este conteúdo também está disponível na pasta `windows-fresh-install`, originada deste repositório. Ambas as pastas incluem os instaladores Windows, Ubuntu e Fedora/Nobara e as integrações com Sloth Note (`dougkusanagi/sloth-noter`), dotagents e AI Quota Pulse. A extensão AI Quota Pulse continua específica do GNOME.
+
+Para instalar no Windows pelo checkout local, execute `.\install.cmd`. Para escolher perfis, use `.\install.cmd -Profiles 'dev,desktop'`; `-Plan` mostra as ações antes de instalar. O perfil `dev` inclui Rust mesmo sem instalar Sloth Note.
+
+O launcher independente `.\jellyfin.cmd` e o [guia detalhado do Jellyfin](docs/windows-jellyfin.md) também estão disponíveis. O antigo `winstall-dougkusanagi-basic.ps1` foi preservado como lista legada; o instalador com perfis está em `install.ps1`.
 
 Para executar a mesma release no Windows:
 
