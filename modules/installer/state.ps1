@@ -8,11 +8,12 @@
 
 function Read-GuepardoState {
     param([string]$Path)
-    $state = @{ schemaVersion = 1; packages = @{} }
+    $state = @{ schemaVersion = 1; packages = @{}; selection = @() }
     if (Test-Path -LiteralPath $Path) {
         try {
             $saved = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
             if ($saved.schemaVersion -ne 1) { throw 'Unsupported state version' }
+            $state.selection = @($saved.selection | Where-Object { $_ })
             foreach ($property in $saved.packages.PSObject.Properties) { $state.packages[$property.Name] = $property.Value }
         } catch { throw "Cannot read installer state $Path. Preserve it for diagnosis or choose another -StateDirectory. $_" }
     }
@@ -27,6 +28,16 @@ function Save-GuepardoState {
         if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary, $Path, "$Path.bak") }
         else { [IO.File]::Move($temporary, $Path) }
     } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
+}
+
+function Get-GuepardoPendingIds {
+    param($State)
+    $seen=@{}
+    foreach($id in @($State.selection)+@($State.packages.Keys)) {
+        if(-not $id -or $seen[$id]) { continue }
+        $seen[$id]=$true
+        if(-not $State.packages[$id] -or $State.packages[$id].status -notin @('installed','already-installed')) { $id }
+    }
 }
 
 function Set-GuepardoPackageState {

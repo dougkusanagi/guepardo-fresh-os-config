@@ -21,7 +21,8 @@ function Test-GuepardoPackage {
         return $true
     }
     if ($Provider -eq 'scoop') {
-        $prefix = (& scoop prefix $Package.Definition.windows.scoop 2>$null | Out-String).Trim()
+        try { $prefix = (& scoop prefix $Package.Definition.windows.scoop 2>$null | Out-String).Trim() }
+        catch { return $false }
         $registered = $LASTEXITCODE -eq 0 -and $prefix -and (Test-Path -LiteralPath $prefix)
         if (-not $registered -or $RegistrationOnly) { return $registered }
         foreach ($command in $Package.Definition.windows.commands) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { return $false } }
@@ -73,7 +74,11 @@ function Invoke-GuepardoManagedInstall {
 
 function Install-GuepardoScoop {
     param([string]$CacheDirectory)
-    if (Get-Command scoop -ErrorAction SilentlyContinue) { return }
+    if (Get-Command scoop -ErrorAction SilentlyContinue) {
+        & scoop install aria2
+        if ($LASTEXITCODE -ne 0) { throw 'aria2 installation failed.' }
+        return
+    }
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     if ((New-Object Security.Principal.WindowsPrincipal $identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw 'Install Scoop from a non-elevated terminal; elevation is handled by individual installers.'

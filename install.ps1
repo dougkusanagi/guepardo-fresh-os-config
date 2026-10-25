@@ -62,6 +62,9 @@ foreach ($moduleName in @('catalog','state','download','providers','ui','release
     . (Join-Path $moduleRoot "$moduleName.ps1")
 }
 $catalog = Get-GuepardoCatalog
+# powershell.exe -File (used by install.cmd) passes comma lists as one string.
+$Apps = @($Apps | ForEach-Object { $_.Split(',') } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$ExcludeApps = @($ExcludeApps | ForEach-Object { $_.Split(',') } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 if ($Doctor) {
     Write-GuepardoHeading 'guepardo / diagnóstico' -NoColor:$NoColor
     foreach ($tool in @('winget','scoop','curl.exe','git','node','cargo')) {
@@ -76,7 +79,7 @@ if ($Doctor) {
 
 
 if ($ListProfiles) {
-    Write-Host "cli, dev, web, desktop, games, jellyfin, wsl2"
+    Write-Host ((@($catalog.profiles | Where-Object { 'windows' -in $_.platforms } | ForEach-Object { $_.id })) -join ', ')
     exit 0
 }
 
@@ -156,17 +159,22 @@ function Write-Section {
 function Show-Intro {
     Write-GuepardoHeading 'guepardo / Windows' -NoColor:$NoColor
     Write-Host '  Fresh Config Installer (Windows)'
-    Write-Host "  Perfis: $(if ($Profiles) { $Profiles } else { $Mode }) | Provedor: $Provider | Downloads: $Jobs"
+    Write-Host "  $($toInstall.Count) aplicativos | Provedor: $Provider | Downloads: $Jobs"
     Write-Host "  Log: $logFile`n"
 }
 
 # Interactive profile/app selection uses the same catalog as noninteractive plans.
 $modeExplicitlySet = $PSBoundParameters.ContainsKey('Mode') -or $PSBoundParameters.ContainsKey('Profiles') -or $Apps.Count -gt 0
+if ($Resume -and -not $modeExplicitlySet -and -not $RetryFailed) {
+    $resumeState = Read-GuepardoState (Join-Path $StateDirectory 'install-state.json')
+    $Apps = @($resumeState.selection)
+    if ($Apps.Count -eq 0) { $Apps = @($resumeState.packages.Keys) }
+    if ($Apps.Count -eq 0) { throw 'No previous installation to resume. Select profiles or apps first.' }
+    $modeExplicitlySet = $true
+}
 if (-not $modeExplicitlySet -and -not $Plan -and -not $DryRun -and -not $RetryFailed -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
     $Apps = @(Select-GuepardoApps -Catalog $catalog -NoColor:$NoColor)
 }
-Show-Intro
-
 if ($Profiles -and $PSBoundParameters.ContainsKey('Mode')) {
     throw "Use -Profiles or -Mode, not both."
 }
@@ -182,7 +190,7 @@ if (-not $Profiles) {
     }
 }
 $selectedProfiles = @($Profiles.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
-$validProfiles = @('cli', 'dev', 'web', 'desktop', 'games', 'jellyfin', 'wsl2')
+$validProfiles = @($catalog.profiles | Where-Object { 'windows' -in $_.platforms } | ForEach-Object { $_.id })
 foreach ($profileName in $selectedProfiles) {
     if ($profileName -notin $validProfiles) { throw "Unknown profile: $profileName" }
 }
@@ -195,13 +203,14 @@ if ($Apps.Count -gt 0) {
     $selectedProfiles = @($catalog.apps | Where-Object { $_.id -in @($toInstall | ForEach-Object { $_.Id }) } | ForEach-Object { $_.profiles } | Select-Object -Unique)
 }
 
+Show-Intro
 if ('desktop' -in $selectedProfiles) {
     Write-Log 'AI Quota Pulse is a GNOME extension and is unavailable on native Windows.' -Level WARN
 }
 
 if ($RetryFailed -and ($Plan -or $DryRun)) {
     $previewState = Read-GuepardoState (Join-Path $StateDirectory 'install-state.json')
-    $pendingIds = @($previewState.packages.Keys | Where-Object { $previewState.packages[$_].status -in @('failed','blocked','running','reboot-required') })
+    $pendingIds = @(Get-GuepardoPendingIds $previewState)
     if ($pendingIds.Count -eq 0) { Write-Host 'Nenhuma pendência na execução anterior.'; exit 0 }
     $toInstall = @(Resolve-GuepardoPlan -Catalog $catalog -Profiles @() -Apps $pendingIds -ExcludeApps $ExcludeApps)
 }
@@ -485,10 +494,19 @@ $stateFile = Join-Path $StateDirectory 'install-state.json'
 $installState = Read-GuepardoState $stateFile
 if ($RetryFailed) {
     if ($installState.packages.Count -eq 0) { throw 'No previous run to retry.' }
-    $retryIds = @($installState.packages.Keys | Where-Object { $installState.packages[$_].status -in @('failed','blocked','running','reboot-required') })
+    $retryIds = @(Get-GuepardoPendingIds $installState)
     if ($retryIds.Count -eq 0) { Write-Host 'Nenhuma pendência na execução anterior.'; exit 0 }
     $toInstall = @(Resolve-GuepardoPlan -Catalog $catalog -Profiles @() -Apps $retryIds -ExcludeApps $ExcludeApps)
     $selectedProfiles = @($toInstall | ForEach-Object { $_.Definition.profiles } | Select-Object -Unique)
+}
+if (-not $PrefetchOnly) {
+    $installState.selection = @($toInstall | ForEach-Object { $_.Id })
+    foreach($pendingPackage in $toInstall) {
+        if(-not $installState.packages.ContainsKey($pendingPackage.Id)) {
+            $installState.packages[$pendingPackage.Id]=@{status='pending';fingerprint=Get-GuepardoFingerprint $pendingPackage.Definition}
+        }
+    }
+    Save-GuepardoState $installState $stateFile
 }
 if ($BootstrapScoop -and -not $PrefetchOnly) { Install-GuepardoScoop $CacheDirectory }
 if (-not $PrefetchOnly) { foreach ($candidate in $toInstall) { $null = Get-GuepardoProvider $candidate $Provider } }

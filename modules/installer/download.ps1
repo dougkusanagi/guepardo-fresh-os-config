@@ -43,6 +43,7 @@
                 if (-not $Sha256 -and (Test-Path -LiteralPath $partial)) { Remove-Item -LiteralPath $partial -Force }
                 if ($curl) {
                     $arguments = @('--fail','--location','--silent','--show-error','--connect-timeout','20','--max-time',"$TimeoutSeconds",'--speed-time','45','--speed-limit','1024','--output',$partial)
+                    if (([uri]$Uri).Scheme -eq 'https') { $arguments += @('--proto','=https','--proto-redir','=https') }
                     if ($Sha256 -and (Test-Path -LiteralPath $partial)) { $arguments += @('--continue-at','-') }
                     $savedErrors = $ErrorActionPreference
                     try {

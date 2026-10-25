@@ -16,11 +16,13 @@ function winget {
         return
     }
     $id | Add-Content (Join-Path $Sandbox 'installs')
+    if($Scenario -eq 'interrupted') { exit 130 }
     if($Scenario -eq 'fail' -or ($Scenario -eq 'dependency' -and $id -eq 'PHP.PHP.8.4')) { $global:LASTEXITCODE=1603; return }
     if($Scenario -ne 'false-success') { Set-Content $marker installed }
     $global:LASTEXITCODE=0
 }
 $apps=if($Scenario -eq 'dependency') { @('Composer.Composer') } else { @('GitHub.cli') }
+if($Scenario -eq 'interrupted') { $apps=@('GitHub.cli','Microsoft.PowerToys') }
 & $Installer -Apps $apps -Provider winget -NoPrefetch -NoColor -StateDirectory (Join-Path $Sandbox 'state') -CacheDirectory (Join-Path $Sandbox 'cache') -Resume:$Resume -RetryFailed:$RetryFailed
 exit $LASTEXITCODE
 '@ | Set-Content $driver -Encoding UTF8
@@ -35,6 +37,8 @@ exit $LASTEXITCODE
     $case=Invoke-Case success success 0
     $null=Invoke-Case success success 0 -Resume
     if(@(Get-Content (Join-Path $case 'installs')).Count -ne 1) { throw 'Resume reinstalled a verified package' }
+    $resumePlan=& $shell -NoProfile -ExecutionPolicy Bypass -File $installer -Resume -Plan -StateDirectory (Join-Path $case 'state') 2>&1 | Out-String
+    if($LASTEXITCODE -ne 0 -or $resumePlan -notlike '*GitHub CLI (GitHub.cli)*' -or $resumePlan -like '*Rustlang.Rustup*' -or $resumePlan -like '*Valve.Steam*') { throw "Resume did not restore the previous selection: $resumePlan" }
     $null=Invoke-Case false false-success 1
     $falseState=Get-Content (Join-Path $sandbox 'false/state/install-state.json') -Raw | ConvertFrom-Json
     if($falseState.packages.'GitHub.cli'.message -notlike '*ExitCode=0; Log=*package-*GitHub.cli.log*') { throw 'Per-package diagnostics missing for false success' }
@@ -42,6 +46,10 @@ exit $LASTEXITCODE
     $null=Invoke-Case retry success 0 -RetryFailed
     $state=Get-Content (Join-Path $case 'state/install-state.json') -Raw | ConvertFrom-Json
     if($state.packages.'GitHub.cli'.status -ne 'installed') { throw 'Retry did not persist success' }
+    $case=Invoke-Case interrupted interrupted 130
+    $null=Invoke-Case interrupted success 0 -RetryFailed
+    $state=Get-Content (Join-Path $case 'state/install-state.json') -Raw | ConvertFrom-Json
+    if($state.packages.'GitHub.cli'.status -ne 'installed' -or $state.packages.'Microsoft.PowerToys'.status -ne 'installed') { throw 'Interrupted run lost its not-yet-started apps' }
     $case=Invoke-Case dependency dependency 1
     $state=Get-Content (Join-Path $case 'state/install-state.json') -Raw | ConvertFrom-Json
     if($state.packages.'Composer.Composer'.status -ne 'blocked') { throw 'Dependency failure did not block Composer' }
@@ -49,6 +57,8 @@ exit $LASTEXITCODE
     $legacy=Join-Path (Split-Path $installer) 'winstall-dougkusanagi-basic.ps1'
     $legacyOutput=& $shell -NoProfile -ExecutionPolicy Bypass -File $legacy -Profiles cli -Plan 2>&1 | Out-String
     if($LASTEXITCODE -ne 0 -or $legacyOutput -notlike '*ripgrep*') { throw "Legacy launcher bypassed the unified installer: $legacyOutput" }
+    $commaPlan=& $shell -NoProfile -ExecutionPolicy Bypass -File $installer -Apps 'GitHub.cli,sharkdp.bat' -Plan 2>&1 | Out-String
+    if($LASTEXITCODE -ne 0 -or $commaPlan -notlike '*GitHub CLI*' -or $commaPlan -notlike '*bat (sharkdp.bat)*' -or $commaPlan -like '*Rustlang.Rustup*') { throw "Comma-separated native launcher arguments failed: $commaPlan" }
     Write-Host 'PASS: isolated installer verification, resume, retry failed steps and dependency failure propagation.'
 } finally { Remove-Item -LiteralPath $sandbox -Recurse -Force }
 exit 0

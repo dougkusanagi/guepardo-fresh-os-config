@@ -35,6 +35,10 @@ O cache fica em `%LOCALAPPDATA%\Guepardo\Cache`. Arquivos completos são verific
 
 ## Medir lentidão
 
+No Windows, `-Resume` sem novos perfis ou apps recupera automaticamente a seleção anterior. Use `-Resume -Plan` para conferi-la sem instalar.
+
+A seleção é salva antes do bootstrap e dos downloads. Etapas ainda não iniciadas ficam pendentes; uma interrupção não as remove da próxima tentativa com `-RetryFailed`.
+
 ```powershell
 .\scripts\benchmark-downloads.ps1 -Uri 'https://servidor-oficial/caminho/instalador.exe'
 ```

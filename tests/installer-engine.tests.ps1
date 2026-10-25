@@ -35,6 +35,28 @@ try {
     $script:calls=0
     $code=Invoke-GuepardoManagedInstall $plan[0] winget (Join-Path $sandbox 'log') -InteractiveFallback
     Assert ($script:calls -eq 2) 'Explicit interactive fallback missing'
+    $script:scoopPrefix=Join-Path $sandbox 'scoop-package'
+    $script:scoopInstalls=0
+    function scoop {
+        if($args[0] -eq 'prefix') {
+            if(Test-Path $script:scoopPrefix) { $global:LASTEXITCODE=0; $script:scoopPrefix }
+            else { $global:LASTEXITCODE=1 }
+            return
+        }
+        $script:scoopInstalls++; New-Item -ItemType Directory $script:scoopPrefix -Force | Out-Null; $global:LASTEXITCODE=0
+    }
+    function Get-Command {
+        param($Name,$ErrorAction)
+        if($Name -eq 'scoop' -or ($Name -eq 'gh' -and (Test-Path $script:scoopPrefix))) { return @{Name=$Name;Source=$Name} }
+        return $null
+    }
+    $scoopPackage=@(Resolve-GuepardoPlan $catalog @() @('GitHub.cli') @())[0]
+    Assert ((Get-GuepardoProvider $scoopPackage auto) -eq 'scoop') 'Auto did not select available Scoop'
+    Assert (-not (Test-GuepardoPackage $scoopPackage scoop)) 'Missing Scoop package accepted'
+    $code=Invoke-GuepardoManagedInstall $scoopPackage scoop (Join-Path $sandbox 'scoop.log')
+    Assert ($code -eq 0 -and (Test-GuepardoPackage $scoopPackage scoop)) 'Scoop install/verification failed'
+    Install-GuepardoScoop $sandbox
+    Assert ($script:scoopInstalls -eq 2) 'Existing Scoop did not prepare aria2'
     # Package names need not match executable names (verified against publisher manifests).
     function Get-Command {
         param($Name,$ErrorAction)
