@@ -30,6 +30,7 @@ $global:GuepardoFakeExitCode = $FakeExitCode
 $testCatalog=Get-Content (Join-Path (Split-Path $Installer) 'catalog/apps.json') -Raw | ConvertFrom-Json
 function Get-Command {
     param([string]$Name,$ErrorAction)
+    if($Name -eq 'scoop') { return $null } # Never call the host's real package manager.
     foreach($app in $testCatalog.apps) {
         if($Name -in $app.windows.commands -and (Test-Path (Join-Path $Sandbox ($app.id+'.installed')))) { return @{Name=$Name;Source=(Join-Path $Sandbox $Name)} }
     }

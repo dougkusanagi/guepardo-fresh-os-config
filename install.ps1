@@ -63,8 +63,8 @@ foreach ($moduleName in @('catalog','state','download','providers','ui','release
 }
 $catalog = Get-GuepardoCatalog
 # powershell.exe -File (used by install.cmd) passes comma lists as one string.
-$Apps = @($Apps | ForEach-Object { $_.Split(',') } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-$ExcludeApps = @($ExcludeApps | ForEach-Object { $_.Split(',') } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$Apps = @($Apps | ForEach-Object { ([string]$_).Split(',') } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$ExcludeApps = @($ExcludeApps | ForEach-Object { ([string]$_).Split(',') } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 if ($Doctor) {
     Write-GuepardoHeading 'guepardo / diagnóstico' -NoColor:$NoColor
     foreach ($tool in @('winget','scoop','curl.exe','git','node','cargo')) {

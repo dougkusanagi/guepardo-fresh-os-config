@@ -8,6 +8,11 @@ try {
     @'
 param($Installer,$Sandbox,$Scenario,[switch]$Resume,[switch]$RetryFailed)
 $PROFILE=Join-Path $Sandbox 'profile.ps1'
+function Get-Command {
+    param([string]$Name,$ErrorAction)
+    if($Name -eq 'scoop') { return $null }
+    Microsoft.PowerShell.Core\Get-Command $Name -ErrorAction SilentlyContinue
+}
 function winget {
     $id=$args[[array]::IndexOf($args,'--id')+1]
     $marker=Join-Path $Sandbox ($id+'.installed')
