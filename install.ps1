@@ -58,7 +58,7 @@ if (-not $PSScriptRoot -or -not (Test-Path (Join-Path $PSScriptRoot 'catalog/app
 }
 if ($env:NO_COLOR) { $NoColor = $true }
 $moduleRoot = Join-Path $PSScriptRoot 'modules/installer'
-foreach ($moduleName in @('catalog','state','environment','download','providers','ui','releases')) {
+foreach ($moduleName in @('catalog','state','environment','download','providers','ui','releases','msys')) {
     . (Join-Path $moduleRoot "$moduleName.ps1")
 }
 $catalog = Get-GuepardoCatalog
@@ -262,16 +262,25 @@ function Install-Dotagents {
     New-Item -ItemType Directory (Join-Path $env:USERPROFILE '.codex') -Force | Out-Null
     New-Item -ItemType Directory (Join-Path $env:USERPROFILE '.claude') -Force | Out-Null
     $previousMsys = $env:MSYS
+    $previousSource=$env:GUEPARDO_DOTAGENTS_SOURCE
+    $previousUserHome=$env:GUEPARDO_DOTAGENTS_USER_HOME
+    $script=Join-Path $PSScriptRoot 'scripts/install-dotagents-windows.sh'
     try {
         $env:MSYS = 'winsymlinks:nativestrict'
-        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; pacman -Syu --noconfirm'
+        $env:GUEPARDO_DOTAGENTS_SOURCE=$destination
+        $env:GUEPARDO_DOTAGENTS_USER_HOME=$env:USERPROFILE
+        $code=Invoke-GuepardoMsysStep -Bash $bash -Script $script -Mode runtime -LogFile $logFile
         # Relaunch after the runtime upgrade before installing dependencies.
-        if ($LASTEXITCODE -ne 0) { throw 'MSYS2 runtime upgrade failed; rerun the installer.' }
-        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; pacman -Syu --noconfirm && pacman -S --noconfirm --needed util-linux git'
-        if ($LASTEXITCODE -ne 0) { throw 'MSYS2 dotagents dependencies failed.' }
-        & $bash -c 'export PATH="/usr/bin:/bin:$PATH"; export HOME="$(cygpath -u "$2")"; cd "$(cygpath -u "$1")" && bash ./install.sh && bash ./bin/sync' -- $destination $env:USERPROFILE
-        if ($LASTEXITCODE -ne 0) { throw 'dotagents failed. Enable Windows Developer Mode or run elevated to allow symlinks.' }
-    } finally { $env:MSYS = $previousMsys }
+        if ($code -ne 0) { throw "MSYS2 runtime upgrade failed (exit $code); rerun the installer." }
+        $code=Invoke-GuepardoMsysStep -Bash $bash -Script $script -Mode dependencies -LogFile $logFile
+        if ($code -ne 0) { throw "MSYS2 dotagents dependencies failed (exit $code)." }
+        $code=Invoke-GuepardoMsysStep -Bash $bash -Script $script -Mode install -LogFile $logFile
+        if ($code -ne 0) { throw "dotagents installation/sync failed (exit $code). Inspect the Bash error above and the log: $logFile" }
+    } finally {
+        $env:MSYS=$previousMsys
+        $env:GUEPARDO_DOTAGENTS_SOURCE=$previousSource
+        $env:GUEPARDO_DOTAGENTS_USER_HOME=$previousUserHome
+    }
 }
 
 function Install-NodeLts {

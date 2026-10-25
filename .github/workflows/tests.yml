@@ -94,6 +94,10 @@ jobs:
       - shell: powershell
         run: ./tests/environment.tests.ps1
       - shell: pwsh
+        run: ./tests/msys-bridge.tests.ps1
+      - shell: powershell
+        run: ./tests/msys-bridge.tests.ps1
+      - shell: pwsh
         run: ./tests/keyboard-picker.tests.ps1
       - shell: powershell
         run: ./tests/keyboard-picker.tests.ps1

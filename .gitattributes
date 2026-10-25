@@ -1,0 +1,2 @@
+# MSYS2 executes these files on Windows too; CRLF breaks Bash parsing.
+*.sh text eol=lf

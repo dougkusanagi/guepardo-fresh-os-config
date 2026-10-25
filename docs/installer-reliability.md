@@ -19,6 +19,8 @@ Sem argumentos, o menu usa as setas para navegar e Espaço para marcar/desmarcar
 
 O antigo `winstall-dougkusanagi-basic.ps1` encaminha para o mesmo instalador e aceita os mesmos argumentos. Não mantém outra lista independente de pacotes.
 
+O dotagents executa um arquivo Bash próprio pelo MSYS2, sem comandos `bash -c` com aspas aninhadas. Caminhos do checkout e do perfil Windows são transmitidos por variáveis de ambiente e convertidos com `cygpath`. As etapas de atualização, dependências e instalação/sync têm códigos de saída separados; uma falha genérica não é atribuída automaticamente ao modo de desenvolvedor.
+
 O comando simples `.\install.cmd` prepara Scoop e aria2 automaticamente, antes dos aplicativos. Scoop é o padrão (`auto` permanece como alias de compatibilidade): prefere Scoop para todos os apps com mapeamento e mantém Winget para os demais pacotes. O bucket oficial Extras e Git são preparados quando necessários. aria2 fica habilitado, com fallback para o downloader do Scoop se uma transferência falhar. `-BootstrapScoop` permanece apenas por compatibilidade; não é necessário digitá-lo. `-Provider winget` permite escolher explicitamente uma execução sem a preparação automática de Scoop. `-Plan`, `-DryRun`, `-Doctor` e `-PrefetchOnly` não instalam gerenciadores.
 
 O bootstrap usa a opção oficial `-RunAsAdmin` quando o terminal já está elevado. Instalações existentes são detectadas antes de adotar outro provedor, evitando duplicação. Uma falha na preparação de Scoop/aria2 é informada e interrompe a execução, sem mudar silenciosamente para Winget. A seleção fica salva para retomar.
