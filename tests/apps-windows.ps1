@@ -1,5 +1,6 @@
 ﻿$ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../modules/installer/releases.ps1')
+. (Join-Path $PSScriptRoot '../modules/installer/environment.ps1')
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../install.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'Invalid installer syntax' }

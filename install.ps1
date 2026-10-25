@@ -58,7 +58,7 @@ if (-not $PSScriptRoot -or -not (Test-Path (Join-Path $PSScriptRoot 'catalog/app
 }
 if ($env:NO_COLOR) { $NoColor = $true }
 $moduleRoot = Join-Path $PSScriptRoot 'modules/installer'
-foreach ($moduleName in @('catalog','state','download','providers','ui','releases')) {
+foreach ($moduleName in @('catalog','state','environment','download','providers','ui','releases')) {
     . (Join-Path $moduleRoot "$moduleName.ps1")
 }
 $catalog = Get-GuepardoCatalog
@@ -227,20 +227,8 @@ if ($Plan -or $DryRun) {
 }
 
 function Update-ProcessEnvironment {
-    Write-Log -Message "Refreshing environment variables for the current session..." -Level "INFO"
-    $userEnv = [System.Environment]::GetEnvironmentVariables("User")
-    $machineEnv = [System.Environment]::GetEnvironmentVariables("Machine")
-
-    $userEnv.Keys | ForEach-Object {
-        [System.Environment]::SetEnvironmentVariable($_, $userEnv[$_], "Process")
-    }
-    $machineEnv.Keys | ForEach-Object {
-        [System.Environment]::SetEnvironmentVariable($_, $machineEnv[$_], "Process")
-    }
-    
-    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-    $env:Path = "$machinePath;$userPath"
+    Write-Log -Message "Refreshing tool paths without replacing session TEMP/TMP..." -Level INFO
+    Sync-GuepardoProcessEnvironment
 }
 
 function Install-RequiredWingetPackage {
@@ -355,11 +343,7 @@ function Install-JellyfinConfiguration {
 
 function Install-SlothNote {
     if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs/Sloth Note/sloth-note.exe')) { return }
-    $release = $null
-    try { $release = Get-GuepardoRelease 'dougkusanagi/sloth-noter' }
-    catch {
-        if ([int]$_.Exception.Response.StatusCode -ne 404) { throw }
-    }
+    $release = Get-GuepardoRelease 'dougkusanagi/sloth-noter' -AllowMissing
     $asset = $release.assets | Where-Object { $_.name -match 'x64.*setup\.exe$|x64.*-setup\.exe$' } | Select-Object -First 1
     if ($asset) {
         $temp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString() + '.exe')
@@ -367,7 +351,7 @@ function Install-SlothNote {
             Receive-GuepardoFile -Uri $asset.browser_download_url -Destination $temp -Sha256 (Get-GuepardoAssetChecksum $asset) -CacheDirectory $CacheDirectory
             $process = Start-Process $temp -ArgumentList '/S' -Wait -PassThru
             if ((Get-InstallResult $process.ExitCode) -eq 'failed') { throw "Sloth Note installer failed: $($process.ExitCode)" }
-        } finally { Remove-Item $temp -Force -ErrorAction SilentlyContinue }
+        } finally { [void](Remove-GuepardoTemporaryPath -Path $temp -Root ([IO.Path]::GetTempPath())) }
         return
     }
     Write-Log 'No public Sloth Note installer; building source with Bun/Rust/MSVC (may take several minutes).' -Level WARN
@@ -423,7 +407,7 @@ function Install-VitePlus {
         if ($LASTEXITCODE -ne 0) { throw 'vp verification failed.' }
     } finally {
         $env:VP_HOME = $savedHome; $env:VP_NODE_MANAGER = $savedNode; $env:VP_PM_MANAGER = $savedPm
-        Remove-Item $temporary -Force -ErrorAction SilentlyContinue
+        [void](Remove-GuepardoTemporaryPath -Path $temporary -Root ([IO.Path]::GetTempPath()))
     }
 }
 
@@ -465,7 +449,7 @@ function Install-ZapFast {
         $result = Get-InstallResult $process.ExitCode
         if ($result -eq 'failed') { throw "ZapFast installation failed: $($process.ExitCode)" }
         if ($result -eq 'reboot-required') { $script:rebootRequired = $true }
-    } finally { Remove-Item $temporary -Recurse -Force -ErrorAction SilentlyContinue }
+    } finally { [void](Remove-GuepardoTemporaryPath -Path $temporary -Root ([IO.Path]::GetTempPath())) }
 }
 
 Write-Section "Instalação de aplicativos"
@@ -488,7 +472,13 @@ $rebootRequired = $false
 $startedAt = Get-Date
 $packageIndex = 0
 $runLock = Enter-GuepardoLock $StateDirectory
+$previousTemp=$env:TEMP; $previousTmp=$env:TMP
+$runTempRoot=Join-Path $StateDirectory 'Temp'; $runTemp=$null
 try {
+$runTemp=New-GuepardoTempDirectory -Root $runTempRoot
+$env:TEMP=$runTemp; $env:TMP=$runTemp
+Update-ProcessEnvironment
+
 $stateFile = Join-Path $StateDirectory 'install-state.json'
 $installState = Read-GuepardoState $stateFile
 if ($RetryFailed) {
@@ -545,8 +535,10 @@ foreach ($pkg in $toInstall) {
     $detectedProvider = $packageProvider
     $installed = Test-GuepardoPackage $pkg $packageProvider
     if (-not $installed -and $packageProvider -eq 'scoop' -and (Get-Command winget -ErrorAction SilentlyContinue)) {
-        if (Test-GuepardoPackage $pkg 'winget' -RegistrationOnly) {
-            $packageProvider='winget'; $detectedProvider='winget'; $installed=Test-GuepardoPackage $pkg 'winget'
+        if (Test-GuepardoPackage $pkg 'winget') {
+            $packageProvider='winget'; $detectedProvider='winget'; $installed=$true
+        } elseif (Test-GuepardoPackage $pkg 'winget' -RegistrationOnly) {
+            Write-Log "Registered Winget package has no usable command; repairing via Scoop: $($pkg.Id)" -Level WARN
         }
     }
     if (-not $installed -and $packageProvider -eq 'winget' -and $pkg.Definition.windows.scoop -and (Get-Command scoop -ErrorAction SilentlyContinue)) {
@@ -598,7 +590,7 @@ foreach ($pkg in $toInstall) {
             Write-Log -Message "Failed to download or run Composer installer: $_" -Level "WARN"
             $exitCode = 1
         } finally {
-            if ($tempDir -and (Test-Path $tempDir)) { Remove-Item -Path $tempDir -Recurse -Force }
+            if ($tempDir) { [void](Remove-GuepardoTemporaryPath -Path $tempDir -Root ([IO.Path]::GetTempPath())) }
         }
     } else {
         try {
@@ -646,15 +638,17 @@ if ('cli' -in $selectedProfiles) {
 $profileContent = @'
 
 # region Guepardo Fresh OS Config Shortcuts
+# Guepardo Environment Refresh v2
 function refreshenv {
-    $userEnv = [System.Environment]::GetEnvironmentVariables("User")
-    $machineEnv = [System.Environment]::GetEnvironmentVariables("Machine")
-    $userEnv.Keys | ForEach-Object { [System.Environment]::SetEnvironmentVariable($_, $userEnv[$_], "Process") }
-    $machineEnv.Keys | ForEach-Object { [System.Environment]::SetEnvironmentVariable($_, $machineEnv[$_], "Process") }
-    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-    $env:Path = "$machinePath;$userPath"
-    Write-Host "Environment variables refreshed!" -ForegroundColor Green
+    $seen=@{}; $paths=New-Object System.Collections.Generic.List[string]
+    foreach($pathList in @($env:Path,[Environment]::GetEnvironmentVariable('Path','User'),[Environment]::GetEnvironmentVariable('Path','Machine'))) {
+        foreach($entry in ([string]$pathList).Split(';')) {
+            $entry=$entry.Trim()
+            if($entry -and -not $seen.ContainsKey($entry.TrimEnd('\'))) { $seen[$entry.TrimEnd('\')]=$true; $paths.Add($entry) }
+        }
+    }
+    $env:Path=$paths -join ';'
+    Write-Host 'PATH refreshed; session TEMP/TMP preserved.'
 }
 
 if (Get-Alias ls -ErrorAction SilentlyContinue) {
@@ -673,6 +667,27 @@ if ([string]::IsNullOrEmpty($existingContent) -or $existingContent -notlike "*# 
 } else {
     Write-Log -Message "Shortcuts already exist in PowerShell profile." -Level "OK"
 }
+}
+
+if ((Get-Content -Path $PROFILE -Raw) -like '*# region Guepardo Fresh OS Config Shortcuts*' -and
+    (Get-Content -Path $PROFILE -Raw) -notlike '*# Guepardo Environment Refresh v2*') {
+    Add-Content -Path $PROFILE -Value @'
+
+# region Guepardo Environment Refresh v2
+# Guepardo Environment Refresh v2
+function refreshenv {
+    $seen=@{}; $paths=New-Object System.Collections.Generic.List[string]
+    foreach($pathList in @($env:Path,[Environment]::GetEnvironmentVariable('Path','User'),[Environment]::GetEnvironmentVariable('Path','Machine'))) {
+        foreach($entry in ([string]$pathList).Split(';')) {
+            $entry=$entry.Trim()
+            if($entry -and -not $seen.ContainsKey($entry.TrimEnd('\'))) { $seen[$entry.TrimEnd('\')]=$true; $paths.Add($entry) }
+        }
+    }
+    $env:Path=$paths -join ';'
+    Write-Host 'PATH refreshed; session TEMP/TMP preserved.'
+}
+# endregion
+'@
 }
 
 if ('dev' -in $selectedProfiles -and (Get-Content -Path $PROFILE -Raw) -notlike '*# region Guepardo Dev Shortcuts*') {
@@ -698,6 +713,8 @@ if ($rebootRequired) { Write-Log -Message 'Restart Windows to finish installing 
 if ($failed.Count -gt 0) { exit 1 }
 exit 0
 } finally {
-    if ($runLock) { $runLock.Dispose() }
+    $env:TEMP=$previousTemp; $env:TMP=$previousTmp
+    try { if ($runTemp) { [void](Remove-GuepardoTemporaryPath -Path $runTemp -Root $runTempRoot) } }
+    finally { if ($runLock) { $runLock.Dispose() } }
     Write-Progress -Activity 'Instalando aplicativos' -Completed
 }

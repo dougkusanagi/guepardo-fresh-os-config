@@ -12,6 +12,19 @@ on:
 permissions:
   contents: read
 jobs:
+  vite-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.real_smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Vite+ using a private writable TEMP
+        shell: powershell
+        run: ./install.ps1 -Apps guepardo.vite-plus -Provider winget -NoPrefetch -NoColor
+      - name: Verify Vite+ executable
+        shell: pwsh
+        run: |
+          & "$env:USERPROFILE/.vite-plus/bin/vp.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw 'Vite+ CLI is not usable' }
   scoop-smoke:
     if: github.event_name == 'workflow_dispatch' && inputs.real_smoke
     runs-on: windows-latest
@@ -76,6 +89,10 @@ jobs:
         run: ./tests/installer-engine.tests.ps1
       - shell: powershell
         run: ./tests/installer-engine.tests.ps1
+      - shell: pwsh
+        run: ./tests/environment.tests.ps1
+      - shell: powershell
+        run: ./tests/environment.tests.ps1
       - shell: pwsh
         run: ./tests/keyboard-picker.tests.ps1
       - shell: powershell

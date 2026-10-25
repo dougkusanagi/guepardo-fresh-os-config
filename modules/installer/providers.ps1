@@ -6,6 +6,8 @@
     return 'winget'
 }
 
+. (Join-Path $PSScriptRoot 'environment.ps1')
+
 function Test-GuepardoPackage {
     param($Package, [string]$Provider, [switch]$RegistrationOnly)
     if ($Provider -eq 'winget') {
@@ -17,15 +19,14 @@ function Test-GuepardoPackage {
         } finally { $ErrorActionPreference = $savedErrorPreference }
         $registered = $code -eq 0 -and $output -match ('(?im)(?:^|\s)' + [regex]::Escape($Package.Id) + '(?:\s|$)')
         if (-not $registered -or $RegistrationOnly) { return $registered }
-        foreach ($command in $Package.Definition.windows.commands) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { return $false } }
+        foreach ($command in $Package.Definition.windows.commands) { if (-not (Get-GuepardoCommand $command)) { return $false } }
         return $true
     }
     if ($Provider -eq 'scoop') {
-        try { $prefix = (& scoop prefix $Package.Definition.windows.scoop 2>$null | Out-String).Trim() }
-        catch { return $false }
-        $registered = $LASTEXITCODE -eq 0 -and $prefix -and (Test-Path -LiteralPath $prefix)
+        $prefix=Join-Path (Get-GuepardoScoopRoot) ("apps/$($Package.Definition.windows.scoop)/current")
+        $registered = Test-Path -LiteralPath $prefix -PathType Container
         if (-not $registered -or $RegistrationOnly) { return $registered }
-        foreach ($command in $Package.Definition.windows.commands) { if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { return $false } }
+        foreach ($command in $Package.Definition.windows.commands) { if (-not (Get-GuepardoCommand $command)) { return $false } }
         return $true
     }
     switch ($Package.Id) {

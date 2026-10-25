@@ -35,7 +35,7 @@ try {
     $script:calls=0
     $code=Invoke-GuepardoManagedInstall $plan[0] winget (Join-Path $sandbox 'log') -InteractiveFallback
     Assert ($script:calls -eq 2) 'Explicit interactive fallback missing'
-    $script:scoopPrefix=Join-Path $sandbox 'scoop-package'
+    $script:scoopPrefix=Join-Path $sandbox 'scoop/apps/gh/current'
     $script:scoopInstalls=0
     $script:scoopConfigs=@()
     $script:ariaReady=$false; $script:bucketAdds=0

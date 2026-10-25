@@ -1,9 +1,13 @@
 ﻿$script:GuepardoReleases = @{}
 function Get-GuepardoRelease {
-    param([string]$Repository)
+    param([string]$Repository,[switch]$AllowMissing)
     if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Invalid release repository.' }
     if (-not $script:GuepardoReleases.ContainsKey($Repository)) {
-        $script:GuepardoReleases[$Repository] = Invoke-RestMethod "https://api.github.com/repos/$Repository/releases/latest" -TimeoutSec 60
+        try { $script:GuepardoReleases[$Repository] = Invoke-RestMethod "https://api.github.com/repos/$Repository/releases/latest" -TimeoutSec 60 }
+        catch {
+            if ($AllowMissing -and $_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) { $script:GuepardoReleases[$Repository]=$null }
+            else { throw }
+        }
     }
     return $script:GuepardoReleases[$Repository]
 }
@@ -29,7 +33,8 @@ function Get-GuepardoPrefetchPlan {
         try {
             switch ($pkg.Id) {
                 'guepardo.sloth-note' {
-                    $release = Get-GuepardoRelease 'dougkusanagi/sloth-noter'
+                    $release = Get-GuepardoRelease 'dougkusanagi/sloth-noter' -AllowMissing
+                    if (-not $release) { Write-Verbose 'Sloth Note has no published installer; its source-build step will run.' }
                     $asset = $release.assets | Where-Object { $_.name -match 'x64.*setup\.exe$|x64.*-setup\.exe$' } | Select-Object -First 1
                     if ($asset) { @{ Uri=$asset.browser_download_url; Sha256=Get-GuepardoAssetChecksum $asset; Destination=Join-Path $Directory 'sloth-note.exe' } }
                 }

@@ -37,6 +37,8 @@ O cache fica em `%LOCALAPPDATA%\Guepardo\Cache`. Arquivos completos são verific
 
 ## Medir lentidão
 
+O instalador preserva as variáveis da sessão ao atualizar PATH. Cada execução usa um TEMP/TMP próprio dentro do diretório de estado, herdado pelos instaladores filhos, e restaura os valores anteriores ao finalizar. Arquivos temporários bloqueados geram aviso com o caminho para limpeza posterior e não interrompem os demais apps nem alteram um resultado de instalação já confirmado.
+
 No Windows, `-Resume` sem novos perfis ou apps recupera automaticamente a seleção anterior. Use `-Resume -Plan` para conferi-la sem instalar.
 
 A seleção é salva antes do bootstrap e dos downloads. Etapas ainda não iniciadas ficam pendentes; uma interrupção não as remove da próxima tentativa com `-RetryFailed`.
