@@ -27,7 +27,8 @@ function Select-GuepardoAppsPlain {
             }
         }
         Write-Host "`n  Número: marcar/desmarcar | e N: expandir perfil | t: todos | q: sair"
-        $answer = Read-Host '  Enter para instalar'
+        $prompt=if (@($selected.Values | Where-Object { $_ }).Count -gt 0) { '  Enter para instalar a seleção' } else { '  Digite um número ou T para selecionar todos' }
+        $answer = Read-Host $prompt
         if ($answer -eq 'q') { throw [OperationCanceledException]::new('Instalação cancelada.') }
         if ($answer -eq '') {
             $ids = @($Catalog.apps | Where-Object { $selected[$_.id] } | ForEach-Object { $_.id })
@@ -53,10 +54,10 @@ function Select-GuepardoAppsPlain {
 }
 
 function Get-GuepardoPickerRows {
-    param($Catalog, $Selected, $Expanded)
+    param($Catalog, $Selected, $Expanded, $MembersByProfile)
     foreach ($profile in @($Catalog.profiles | Where-Object { 'windows' -in $_.platforms })) {
-        $members = @($Catalog.apps | Where-Object { $profile.id -in $_.profiles })
-        $count = @($members | Where-Object { $Selected[$_.id] }).Count
+        $members = if ($MembersByProfile) { @($MembersByProfile[$profile.id]) } else { @($Catalog.apps | Where-Object { $profile.id -in $_.profiles }) }
+        $count = 0; foreach ($member in $members) { if ($Selected[$member.id]) { $count++ } }
         $mark = if ($count -eq 0) { '[ ]' } elseif ($count -eq $members.Count) { '[x]' } else { '[-]' }
         $fold = if ($Expanded[$profile.id]) { '-' } else { '+' }
         @{Kind='profile'; Profile=$profile.id; Members=$members; Text="$mark $fold $($profile.label)  ($count/$($members.Count))"}
@@ -69,6 +70,12 @@ function Get-GuepardoPickerRows {
     }
 }
 
+function Format-GuepardoPickerText {
+    param([string]$Text,[switch]$Plain)
+    if ($Plain) { return $Text }
+    return $Text.Replace('[x]',[string][char]0x2611).Replace('[ ]',[string][char]0x2610).Replace('[-]',[string][char]0x25A3)
+}
+
 function Get-GuepardoPickerViewport {
     param([int]$Count, [int]$Active, [int]$Height)
     $capacity = [Math]::Max(1,$Height-11)
@@ -78,7 +85,10 @@ function Get-GuepardoPickerViewport {
 
 function Write-GuepardoPicker {
     param([object[]]$Rows, [int]$Active, [int]$Height, [int]$Width, [int]$Count, [string]$Message, [switch]$NoColor)
-    if (-not [Console]::IsOutputRedirected) { Clear-Host }
+    # Repaint in place: avoid clearing the entire terminal/scrollback on each key.
+    $rich=-not $NoColor -and -not $env:NO_COLOR -and $env:TERM -ne 'dumb' -and -not [Console]::IsOutputRedirected
+    if ($rich) { [Console]::Write(([string][char]27)+'[H'+([string][char]27)+'[J') }
+    elseif (-not [Console]::IsOutputRedirected) { Clear-Host }
     if ($Width -lt 60) {
         Write-GuepardoHeading 'guepardo / apps' -NoColor:$NoColor
         Write-Host '  Escolha os apps.'
@@ -90,10 +100,11 @@ function Write-GuepardoPicker {
     $view = Get-GuepardoPickerViewport $Rows.Count $Active $Height
     for ($i=$view.First; $i -le $view.Last; $i++) {
         $cursor = if ($i -eq $Active) { '>' } else { ' ' }
-        $line = "  $cursor $($Rows[$i].Text)"
+        $text=Format-GuepardoPickerText $Rows[$i].Text -Plain:(-not $rich)
+        $line = "  $cursor $text"
         $limit = [Math]::Max(10,$Width-1)
         if ($line.Length -gt $limit) { $line=$line.Substring(0,$limit-3)+'...' }
-        if ($i -eq $Active -and -not $NoColor -and -not $env:NO_COLOR) { Write-Host $line -ForegroundColor White -BackgroundColor DarkMagenta }
+        if ($i -eq $Active -and -not $NoColor -and -not $env:NO_COLOR) { Write-Host $line -ForegroundColor Black -BackgroundColor Green }
         else { Write-Host $line }
     }
     if ($Width -lt 75) {
@@ -102,6 +113,7 @@ function Write-GuepardoPicker {
         Write-Host '  Espaco: marcar'
         Write-Host '  <-/->: expandir'
         Write-Host '  Enter: OK | Q: sair'
+        Write-Host '  T: todos/nenhum'
     } else {
         Write-Host "`n  $Count aplicativos selecionados"
         Write-Host '  Setas: navegar | Espaco: marcar | Direita/esquerda: expandir/recolher'
@@ -117,13 +129,18 @@ function Select-GuepardoApps {
         return Select-GuepardoAppsPlain -Catalog $Catalog -NoColor:$NoColor
     }
     $selected=@{}; $expanded=@{}; $active=0; $message=''
+    # Catalog membership is immutable while picking: build once instead of filtering on every key.
+    $membersByProfile=@{}
+    foreach ($profile in $Catalog.profiles) { $membersByProfile[$profile.id]=@($Catalog.apps | Where-Object { $profile.id -in $_.profiles }) }
+    $alternate=-not $ReadKey -and -not $NoColor -and -not $env:NO_COLOR -and $env:TERM -ne 'dumb' -and -not [Console]::IsOutputRedirected
     $cursorVisible=$null
     try {
+        if ($alternate) { [Console]::Write(([string][char]27)+'[?1049h') }
         if (-not [Console]::IsOutputRedirected) {
             try { $cursorVisible=[Console]::CursorVisible; [Console]::CursorVisible=$false } catch {}
         }
         while ($true) {
-            $rows=@(Get-GuepardoPickerRows $Catalog $selected $expanded)
+            $rows=@(Get-GuepardoPickerRows $Catalog $selected $expanded $membersByProfile)
             if ($rows.Count -eq 0) { throw 'Nenhum aplicativo disponível neste catálogo.' }
             $active=[Math]::Max(0,[Math]::Min($active,$rows.Count-1))
             $height=30; $width=90
@@ -166,6 +183,7 @@ function Select-GuepardoApps {
             }
         }
     } finally {
+        if ($alternate) { [Console]::Write(([string][char]27)+'[?1049l') }
         if ($null -ne $cursorVisible) { try { [Console]::CursorVisible=$cursorVisible } catch {} }
     }
 }

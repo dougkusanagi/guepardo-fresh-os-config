@@ -148,7 +148,7 @@ done
 exit 1
 SH
 chmod +x "$sandbox/readme-bin/"*
-readme_command="$(sed -n '/^bash -c /{p;q;}' "$ROOT_DIR/README.md")"
+readme_command="$(sed -n '/^bash -c /{p;q;}' "$ROOT_DIR/README.md" | tr -d '\r')"
 [[ -n "$readme_command" ]] || fail 'README is missing its recommended command'
 [[ "$readme_command" == *'/releases/latest/download/install.sh'* && "$readme_command" != *GUEPARDO_REF=* ]] || fail 'README must follow the latest published installer'
 for environment in linux wsl interop; do

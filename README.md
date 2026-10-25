@@ -4,9 +4,19 @@ Instalador de ambiente para Ubuntu, Fedora/Nobara e Windows. No Linux, o orquest
 
 O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 
+Tema e plugins do Jellyfin são reaproveitados após uma configuração concluída, sem pedir login novamente. Falhas e reinstalações do servidor continuam exigindo configuração. Para reaplicar intencionalmente: `.\install.cmd -Profiles jellyfin -ReconfigureJellyfin`. Teste essa regra com `pwsh -NoProfile -File tests/jellyfin-state.tests.ps1`.
+
+O perfil Windows `wsl2` consulta a versão do Ubuntu antes de converter: distribuições que já usam WSL 2 são preservadas. Para repetir apenas essa etapa, execute `.\install.cmd -Apps guepardo.wsl2`. Teste essa lógica localmente com `pwsh -NoProfile -File tests/powershell-wsl.tests.ps1`.
+
 O instalador inclui seleção individual de apps no Windows, catálogo compartilhado, cache validado, downloads diretos antecipados e recuperação por etapa. Zed é o editor instalado; VS Code foi retirado dos perfis Windows e Linux. Veja [instalação, recuperação e desempenho](docs/installer-reliability.md) para provedores Scoop/Winget, diagnóstico, limites e exemplos.
 
 No Windows, execute `.\install.cmd`: Scoop e aria2 são preparados automaticamente e usados por padrão nos apps compatíveis. Winget atende os demais aplicativos, e instalações existentes são reaproveitadas.
+
+Antes do menu e das instalações, o Windows solicita UAC uma vez para abrir um auxiliar administrativo. WSL e a criação de links do dotagents reutilizam esse auxiliar, enquanto menu, Scoop e configurações pessoais permanecem na sessão normal. Cancelar o UAC inicial interrompe a execução antes de instalar aplicativos. O auxiliar é encerrado ao terminar ou cancelar o instalador. Instaladores de terceiros ainda podem solicitar seus próprios privilégios. Modos de consulta e `-PrefetchOnly` não abrem essa sessão. Para repetir só o dotagents: `.\install.cmd -Apps guepardo.dotagents`.
+
+Antes de instalar aplicativos, o launcher prepara o PowerShell 7 estável mais recente da fonte oficial, valida SHA256 e continua nele com os mesmos argumentos. O runtime é instalado por usuário em `%LOCALAPPDATA%\Guepardo\Runtime\PowerShell`, sem UAC; uma instalação existente da mesma versão pode ser reaproveitada. A versão estável é consultada a cada nova execução e o runtime verificado é reutilizado. Se não conseguir consultar ou preparar a versão, o instalador para antes de alterar aplicativos. `-Plan`, `-DryRun`, `-Help`, `-ListProfiles` e `-Doctor` não baixam o runtime. Isso se aplica apenas ao instalador Windows.
+
+No seletor de terminal, use setas para navegar, Espaço para marcar, direita/esquerda para expandir perfis, **T para todos/nenhum**, Enter para continuar e Esc para cancelar. Terminais compatíveis mostram checkboxes Unicode e destaque de foco; `-NoColor`, saída redirecionada e terminais simples preservam a saída textual. O PowerShell 7 também usa progresso compacto e UTF-8. Downloads continuam concorrentes (`-Jobs`), e as instalações permanecem sequenciais.
 
 ## Ubuntu ou WSL Ubuntu novo: um comando
 

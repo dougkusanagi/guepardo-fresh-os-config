@@ -10,7 +10,10 @@ fail() { printf 'ERROR %s\n' "$*" >&2; exit 1; }
 
 # Both menus detect the actual environment and must never switch it on W/Tab.
 picker_function="$(sed -n '/^select_profiles_interactive() {/,/^for arg in /p' "$ROOT_DIR/scripts/fallback.sh" | sed '$d')"
-picker_output="$(printf 'w\t4\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
+# Unsetting WSL variables alone does not simulate native Linux on a WSL kernel.
+printf '6.8.0-generic\n' > "$sandbox/native-kernel"
+native_picker_function="${picker_function//\/proc\/sys\/kernel\/osrelease/$sandbox/native-kernel}"
+picker_output="$(printf 'w\t4\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$native_picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
 [[ "$picker_output" == *'RESULT:desktop'* && "$picker_output" != *WSL* && "$picker_output" != *trocar* ]] || fail 'Native Linux still offers WSL'
 picker_output="$(printf 'w\t\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
 [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash picker did not detect WSL'
@@ -21,7 +24,7 @@ picker_output="$(printf '584a\n' | WSL_DISTRO_NAME=Ubuntu bash -c "$picker_funct
 [[ "$picker_output" == *'RESULT:cli,dev,web'* ]] || fail 'Bash WSL Todos selected unsupported modules'
 
 # Native Linux shortcuts now have six profiles and Todos on key 7.
-picker_output="$(printf '7\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
+picker_output="$(printf '7\n' | env -u WSL_DISTRO_NAME -u WSL_INTEROP NO_COLOR=1 bash -c "$native_picker_function"$'\nselect_profiles_interactive; printf "RESULT:%s\n" "$profiles"')"
 [[ "$picker_output" == *'RESULT:cli,dev,web,desktop,games,network'* && "$picker_output" != *Fontes* && "$picker_output" == *'1–7'* ]] || fail 'Native Bash menu still includes fonts or uses old shortcuts'
 
 # Failed transfers must preserve an existing download and remove partial data.

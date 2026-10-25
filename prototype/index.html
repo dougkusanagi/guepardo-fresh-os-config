@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Guepardo — Seu próximo começo</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="simple.css"></head>
+<body>
+<div class="window">
+  <div class="titlebar"><span class="mini-logo">g.</span> Guepardo <span class="titlebar-center">SEU WINDOWS, DO SEU JEITO</span><span class="window-label">PRÉVIA INTERATIVA</span></div>
+
+  <main>
+    <header><a class="simple-brand" href="#"><span>g.</span> guepardo</a><div class="header-right"><span class="demo-dot"></span> Prévia interativa <button id="theme" title="Alternar tema" aria-label="Alternar tema">☼</button></div></header>
+    <div class="content">
+      <div class="heading"><div><h1>Seus aplicativos<span>.</span></h1><p>Escolha o que instalar. A gente cuida do resto.</p></div><button class="outline" id="scan" aria-label="Verificar aplicativos">↻ <span>Verificar aplicativos</span></button></div><section class="library"><div class="library-heading"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="Buscar um aplicativo…" aria-label="Buscar aplicativos"><kbd>/</kbd></label><select id="category" aria-label="Filtrar categoria"><option value="all">Todas as categorias</option><option value="cli">Terminal</option><option value="dev">Desenvolvimento</option><option value="web">Web e banco de dados</option><option value="desktop">Dia a dia</option><option value="games">Jogos</option><option value="jellyfin">Media center</option><option value="wsl2">WSL e Ubuntu</option></select></div><div class="toolbar"><div class="tabs" role="group" aria-label="Filtrar por estado"><button class="active" data-filter="all">Todos</button><button data-filter="missing">Não instalados</button><button data-filter="installed">Instalados</button><button data-filter="attention">Com pendências <span id="tab-attention"></span></button></div></div><div class="bulk-actions"><label><input type="checkbox" id="select-visible"><span id="bulk-label">Selecionar todos desta lista</span></label><button id="select-catalog">Selecionar todos do catálogo</button><button id="retry-failed">Selecionar falhas</button></div><p id="selection-scope" class="selection-scope"></p><div class="list-heading"><span>APLICATIVO</span><span>STATUS</span></div><div id="cards" class="cards"></div><div id="empty" class="empty" hidden><span>⌕</span><h3>Nenhum aplicativo por aqui.</h3><p>Tente outro nome ou ajuste os filtros.</p><button id="clear-filters" class="outline">Limpar filtros</button></div><div class="library-footer"><span id="result-caption"></span><span>Catálogo Windows · versões estáveis</span></div></section>
+      <footer><span>Estados e instalações simulados. Nenhuma alteração no computador.</span><button id="reset" class="subtle">Restaurar prévia</button></footer>
+    </div>
+  </main>
+  <div id="selection" class="selection" hidden><div><span class="selection-check">✓</span><strong id="selected-count"></strong><span id="selection-note">Pronto para instalar.</span></div><button id="clear-selection">Limpar</button><button class="primary" id="install">Instalar selecionados <span>→</span></button></div>
+</div>
+<div id="overlay" class="overlay" hidden></div><section id="details" class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title" hidden></section>
+<section id="activity" class="activity" aria-label="Progresso da instalação simulada" hidden><div class="activity-title"><div><span class="demo-dot"></span><strong id="activity-title">Preparando seu ambiente</strong></div><button id="close-activity" aria-label="Fechar progresso">×</button></div><p>Simulação interativa · nenhuma alteração no computador</p><div class="meter"><i id="install-progress"></i></div><div id="activity-items"></div><button id="cancel-install" class="outline" hidden>Cancelar restantes</button><button id="finish" class="outline" hidden>Voltar à biblioteca</button></section>
+<div id="toast" role="status" class="toast" hidden></div>
+<script src="catalog.js"></script><script src="model.js"></script><script src="app.js"></script>
+</body></html>

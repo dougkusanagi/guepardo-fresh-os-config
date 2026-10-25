@@ -25,6 +25,9 @@ try {
     $driver = Join-Path $sandbox 'driver.ps1'
     @'
 param([string]$Installer, [string]$Sandbox, [int]$FakeExitCode)
+$env:GUEPARDO_RUNTIME_HOST=(Get-Process -Id $PID).Path
+function Start-GuepardoAdminSession { return $null }
+function Stop-GuepardoAdminSession {}
 $PROFILE = Join-Path $Sandbox 'profile.ps1'
 $global:GuepardoFakeExitCode = $FakeExitCode
 $testCatalog=Get-Content (Join-Path (Split-Path $Installer) 'catalog/apps.json') -Raw | ConvertFrom-Json
@@ -60,7 +63,7 @@ exit $LASTEXITCODE
         if ($case.Expected -eq 1 -and $output -like '*All requested applications installed successfully*') { throw 'False success banner' }
     }
     $calls = @(Get-Content (Join-Path $sandbox 'calls') | Where-Object { $_ -like 'install *' })
-    if (@($calls | Where-Object { $_ -notlike '*--silent*--disable-interactivity*--no-upgrade*' }).Count) { throw 'Winget can prompt or unnecessarily upgrade apps' }
+    if (@($calls | Where-Object { $_ -notlike '*--silent*--disable-interactivity*--no-upgrade*' }).Count) { throw ('Winget can prompt or unnecessarily upgrade apps: ' + ($calls -join [Environment]::NewLine)) }
     if (@($calls | Where-Object { $_ -notlike '*--source winget*' }).Count) { throw 'Winget source is ambiguous' }
     if (@($calls | Where-Object { $_ -like '*--force*' }).Count) { throw 'Installed apps were forced to reinstall' }
     Write-Host 'Windows reliability checks passed'

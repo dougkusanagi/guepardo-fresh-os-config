@@ -39,6 +39,9 @@ exit "${GUEPARDO_TEST_SYNC_CODE:-0}"
     foreach($bash in $bashCandidates | Select-Object -Unique) {
         if(-not (Test-Path -LiteralPath $bash)) { continue }
         $tested++
+        $probeCode=Invoke-GuepardoMsysStep -Bash $bash -Script $scriptFile -Mode probe
+        Assert ($probeCode -in @(0,77)) "Unexpected native symlink probe result: $probeCode"
+        Assert (@(Get-ChildItem -LiteralPath $userHome -Filter '.guepardo-symlink-*' -Force).Count -eq 0) 'Symlink probe left temporary files'
         $env:GUEPARDO_TEST_INSTALL_CODE='0'; $env:GUEPARDO_TEST_SYNC_CODE='0'
         Set-Content $env:GUEPARDO_TEST_OUTPUT ''
         $code=Invoke-GuepardoMsysStep -Bash $bash -Script $scriptFile -Mode install
@@ -69,16 +72,33 @@ exit "${GUEPARDO_TEST_SYNC_CODE:-0}"
         Assert ($env:GUEPARDO_DOTAGENTS_SOURCE -eq $repo -and $env:GUEPARDO_DOTAGENTS_USER_HOME -eq $env:USERPROFILE) 'Wrong upstream environment'
         if($Mode -eq $script:failingStage) { return 17 }; return 0
     }
-    foreach($stage in @('runtime','dependencies','install')) {
+    foreach($stage in @('runtime','dependencies','probe','install')) {
         $script:failingStage=$stage; $script:stages=@()
         $beforeMsys=$env:MSYS; $beforeSource=$env:GUEPARDO_DOTAGENTS_SOURCE; $beforeHome=$env:GUEPARDO_DOTAGENTS_USER_HOME
         $failure=$null
         try { Install-Dotagents } catch { $failure=$_ }
         Assert ($failure -and $failure.Exception.Message -like '*exit 17*' -and $failure.Exception.Message -notlike '*Developer Mode*') "Unrelated failure was mislabeled: $($failure.Exception.Message)"
         Assert ($env:MSYS -eq $beforeMsys -and $env:GUEPARDO_DOTAGENTS_SOURCE -eq $beforeSource -and $env:GUEPARDO_DOTAGENTS_USER_HOME -eq $beforeHome) 'Bridge environment was not restored'
-        $expected=if($stage -eq 'runtime'){1}elseif($stage -eq 'dependencies'){2}else{3}
+        $expected=if($stage -eq 'runtime'){1}elseif($stage -eq 'dependencies'){2}elseif($stage -eq 'probe'){3}else{4}
         Assert ($script:stages.Count -eq $expected) 'Orchestrator continued after a failed MSYS phase'
     }
+    function Invoke-GuepardoMsysStep {
+        param($Bash,$Script,$Mode,$LogFile)
+        if($Mode -eq 'probe') { return 77 }; return 0
+    }
+    $script:elevatedCalls=0
+    function Write-Log { param($Message,$Level) }
+    function Invoke-GuepardoElevatedDotagents {
+        param($Bash,$Script,$Source,$UserHome,$LogFile)
+        Assert ($Source -eq $repo -and $UserHome -eq $env:USERPROFILE) 'Elevation lost original user/source'
+        $script:elevatedCalls++; return $script:elevatedCode
+    }
+    $script:elevatedCode=0
+    Install-Dotagents
+    Assert ($script:elevatedCalls -eq 1) 'Symlink denial did not trigger scoped elevation'
+    $script:elevatedCode=19;$failure=$null
+    try { Install-Dotagents } catch { $failure=$_ }
+    Assert ($failure -and $failure.Exception.Message -like '*exit 19*') 'Elevated sync failure swallowed'
     Write-Host "PASS: $tested native Bash implementations; literal paths, install/sync ordering, failures and environment restoration."
 } finally {
     foreach($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name],'Process') }

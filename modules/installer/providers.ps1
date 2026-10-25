@@ -54,9 +54,13 @@ function Invoke-GuepardoManagedInstall {
         if ($Provider -eq 'scoop') {
             $scoopName = $Package.Definition.windows.scoop
             if ($Package.Definition.windows.scoopBucket) { $scoopName = "$($Package.Definition.windows.scoopBucket)/$scoopName" }
-            $output = @(& scoop install $scoopName 2>&1)
+            if ($Package.Definition.windows.alwaysUpdate -and (Test-GuepardoPackage $Package scoop -RegistrationOnly)) {
+                $output = @(& scoop update $scoopName 2>&1)
+            } else { $output = @(& scoop install $scoopName 2>&1) }
         } else {
-            $output = @(& winget install --id $Package.Id --exact --source winget --silent --disable-interactivity --no-upgrade --accept-package-agreements --accept-source-agreements --verbose-logs 2>&1)
+            [string[]]$upgradeArgs = @()
+            if (-not $Package.Definition.windows.alwaysUpdate) { $upgradeArgs = @('--no-upgrade') }
+            $output = @(& winget install --id $Package.Id --exact --source winget --silent --disable-interactivity @upgradeArgs --accept-package-agreements --accept-source-agreements --verbose-logs 2>&1)
         }
         $code = $LASTEXITCODE
         } finally { $ErrorActionPreference = $savedErrorPreference }

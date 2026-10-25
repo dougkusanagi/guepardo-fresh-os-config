@@ -6,6 +6,16 @@
     finally { $sha.Dispose() }
 }
 
+function Test-GuepardoCompletedJellyfinConfiguration {
+    param($Package,$Previous,$Results,[switch]$Reconfigure)
+    # A newly installed/repaired server must be configured again. A failed or
+    # interrupted configuration must remain retryable, even with -Resume.
+    return ($Package.Id -eq 'guepardo.jellyfin-config' -and -not $Reconfigure -and
+        $Previous -and $Previous.status -in @('installed','already-installed') -and
+        $Previous.fingerprint -eq (Get-GuepardoFingerprint $Package.Definition) -and
+        $Results['Jellyfin.Server'] -eq 'already-installed')
+}
+
 function Read-GuepardoState {
     param([string]$Path)
     $state = @{ schemaVersion = 1; packages = @{}; selection = @() }

@@ -3,6 +3,15 @@ set -Eeuo pipefail
 export PATH="/usr/bin:/bin:$PATH"
 
 case "${1:-}" in
+  probe)
+    : "${GUEPARDO_DOTAGENTS_USER_HOME:?Windows user profile is required}"
+    user_home="$(cygpath -u -- "$GUEPARDO_DOTAGENTS_USER_HOME")"
+    probe="$(mktemp -d "$user_home/.guepardo-symlink-XXXXXX")"
+    trap 'rm -f -- "$probe/link" "$probe/target"; rmdir -- "$probe"' EXIT
+    printf 'probe' > "$probe/target"
+    if ! ln -s "$probe/target" "$probe/link"; then exit 77; fi
+    [[ -L "$probe/link" ]] || exit 77
+    ;;
   runtime)
     pacman -Syu --noconfirm
     ;;
@@ -25,7 +34,7 @@ case "${1:-}" in
     bash ./bin/sync
     ;;
   *)
-    printf 'Usage: install-dotagents-windows.sh runtime|dependencies|install\n' >&2
+    printf 'Usage: install-dotagents-windows.sh runtime|dependencies|probe|install\n' >&2
     exit 64
     ;;
 esac

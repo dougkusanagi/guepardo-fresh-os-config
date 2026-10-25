@@ -30,6 +30,7 @@ param (
     [switch]$BootstrapScoop,
     [switch]$Resume,
     [switch]$RetryFailed,
+    [switch]$ReconfigureJellyfin,
     [switch]$InteractiveFallback,
     [switch]$Doctor,
     [switch]$NoColor,
@@ -57,8 +58,21 @@ if (-not $PSScriptRoot -or -not (Test-Path (Join-Path $PSScriptRoot 'catalog/app
     } finally { Remove-Item -LiteralPath $bootstrapDirectory -Recurse -Force }
 }
 if ($env:NO_COLOR) { $NoColor = $true }
+# Preview/diagnostic modes remain offline and never install a runtime.
+$runtimeReady=$PSVersionTable.PSVersion.Major -ge 7 -and $env:GUEPARDO_RUNTIME_HOST -eq (Get-Process -Id $PID).Path
+if (-not $runtimeReady -and -not ($Plan -or $DryRun -or $Help -or $ListProfiles -or $Doctor)) {
+    . (Join-Path $PSScriptRoot 'modules/installer/runtime.ps1')
+    exit (Invoke-GuepardoPowerShellRuntime -Installer $PSCommandPath -Parameters $PSBoundParameters)
+}
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+    $OutputEncoding = [Console]::OutputEncoding
+    $PSNativeCommandUseErrorActionPreference=$false
+    if (Get-Variable PSStyle -ErrorAction SilentlyContinue) { $PSStyle.Progress.View='Minimal' }
+}
 $moduleRoot = Join-Path $PSScriptRoot 'modules/installer'
-foreach ($moduleName in @('catalog','state','environment','download','providers','ui','releases','msys')) {
+foreach ($moduleName in @('catalog','state','environment','download','providers','ui','releases','msys','elevation')) {
+    if ($moduleName -eq 'elevation' -and (Get-Command Start-GuepardoAdminSession -CommandType Function -ErrorAction SilentlyContinue)) { continue }
     . (Join-Path $moduleRoot "$moduleName.ps1")
 }
 $catalog = Get-GuepardoCatalog
@@ -99,6 +113,7 @@ Options:
   -Provider scoop|winget|auto  Scoop is the default; auto is a compatibility alias.
   -BootstrapScoop Compatibility option; Scoop/aria2 preparation is automatic by default.
   -Resume / -RetryFailed Resume verified results / rerun only pending or failed steps.
+  -ReconfigureJellyfin Reapply Jellyfin theme/plugins even after previous success.
   -Jobs 1..8 Download concurrency (installations remain serial).
   -StateDirectory / -CacheDirectory Override persistent state/cache locations.
   -InteractiveFallback Allow a visible Winget installer after a silent failure.
@@ -164,6 +179,8 @@ function Show-Intro {
 }
 
 # Interactive profile/app selection uses the same catalog as noninteractive plans.
+try {
+if (-not ($Plan -or $DryRun -or $PrefetchOnly)) { $script:GuepardoAdminSession=Start-GuepardoAdminSession }
 $modeExplicitlySet = $PSBoundParameters.ContainsKey('Mode') -or $PSBoundParameters.ContainsKey('Profiles') -or $Apps.Count -gt 0
 if ($Resume -and -not $modeExplicitlySet -and -not $RetryFailed) {
     $resumeState = Read-GuepardoState (Join-Path $StateDirectory 'install-state.json')
@@ -274,7 +291,12 @@ function Install-Dotagents {
         if ($code -ne 0) { throw "MSYS2 runtime upgrade failed (exit $code); rerun the installer." }
         $code=Invoke-GuepardoMsysStep -Bash $bash -Script $script -Mode dependencies -LogFile $logFile
         if ($code -ne 0) { throw "MSYS2 dotagents dependencies failed (exit $code)." }
-        $code=Invoke-GuepardoMsysStep -Bash $bash -Script $script -Mode install -LogFile $logFile
+        $probe=Invoke-GuepardoMsysStep -Bash $bash -Script $script -Mode probe -LogFile $logFile
+        if ($probe -eq 77) {
+            Write-Log 'Windows restringiu links simbólicos. Usando a sessão administrativa para instalar/sincronizar o dotagents; consulte o log para acompanhar.' -Level WARN
+            $code=Invoke-GuepardoElevatedDotagents -Bash $bash -Script $script -Source $destination -UserHome $env:USERPROFILE -LogFile $logFile
+        } elseif ($probe -ne 0) { throw "dotagents symlink preflight failed (exit $probe)." }
+        else { $code=Invoke-GuepardoMsysStep -Bash $bash -Script $script -Mode install -LogFile $logFile }
         if ($code -ne 0) { throw "dotagents installation/sync failed (exit $code). Inspect the Bash error above and the log: $logFile" }
     } finally {
         $env:MSYS=$previousMsys
@@ -304,38 +326,67 @@ function Install-NodeLts {
 }
 
 function Install-Wsl {
+    param([string]$LogFile)
     # Returns an installer exit code: 0 configured, 3010 restart required.
     $wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
     if (-not (Test-Path -LiteralPath $wsl)) { throw 'wsl.exe not found. Use Windows 10 build 19041 or Windows 11.' }
     $adminScript = @'
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
+Start-Transcript -Path '__WSL_LOG__' -Append | Out-Null
+try {
 $wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+function Invoke-WslStep {
+    param([string[]]$Arguments, [switch]$WebFallback)
+    Write-Host ('wsl ' + ($Arguments -join ' '))
+    & $wsl @Arguments | Out-Host
+    $code = $LASTEXITCODE
+    if ($code -notin @(0,3010,1641) -and $WebFallback) {
+        Write-Host 'Retrying without Microsoft Store...'
+        & $wsl @Arguments --web-download | Out-Host
+        $code = $LASTEXITCODE
+    }
+    if ($code -in @(3010,1641)) { exit 3010 }
+    if ($code -ne 0) { throw "wsl $($Arguments -join ' ') failed (exit $code)." }
+}
 $restartNeeded = $false
 foreach ($featureName in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
+    if ((Get-WindowsOptionalFeature -Online -FeatureName $featureName).State -eq 'EnablePending') { $restartNeeded = $true; continue }
     if ((Enable-WindowsOptionalFeature -Online -FeatureName $featureName -All -NoRestart).RestartNeeded) { $restartNeeded = $true }
 }
 if ($restartNeeded) { exit 3010 }
+Invoke-WslStep -Arguments @('--update') -WebFallback
+Invoke-WslStep -Arguments @('--set-default-version','2')
 $distros = @(& $wsl --list --quiet 2>$null | ForEach-Object { ([string]$_).Replace([string][char]0, '').Trim() } | Where-Object { $_ })
 if ($LASTEXITCODE -ne 0) { $distros = @() }
 if ($distros -notcontains 'Ubuntu') {
-    & $wsl --install --distribution Ubuntu --no-launch
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Invoke-WslStep -Arguments @('--install','--distribution','Ubuntu','--no-launch') -WebFallback
 }
-& $wsl --update
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& $wsl --set-default-version 2
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& $wsl --set-version Ubuntu 2
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& $wsl --set-default Ubuntu
-exit $LASTEXITCODE
+$versions=@(& $wsl --list --verbose 2>$null | ForEach-Object { ([string]$_).Replace([string][char]0, '').Trim() })
+if ($LASTEXITCODE -ne 0) { throw 'Não foi possível consultar a versão WSL do Ubuntu.' }
+$ubuntuVersion=$null
+foreach ($line in $versions) {
+    if ($line -match '^\s*\*?\s*Ubuntu\s+.+\s+([12])\s*$') { $ubuntuVersion=[int]$Matches[1]; break }
+}
+if ($ubuntuVersion -eq 1) { Invoke-WslStep -Arguments @('--set-version','Ubuntu','2') }
+elseif ($ubuntuVersion -eq 2) { Write-Host 'Ubuntu já usa WSL 2; conversão desnecessária.' }
+else { throw 'A versão WSL do Ubuntu não foi identificada. Consulte wsl --list --verbose.' }
+Invoke-WslStep -Arguments @('--set-default','Ubuntu')
+} catch { Write-Host ($_ | Out-String); exit 1 }
+finally { Stop-Transcript | Out-Null }
+exit 0
 '@
+    if (-not $LogFile) { $LogFile = Join-Path ([IO.Path]::GetTempPath()) ('guepardo-wsl-' + [guid]::NewGuid() + '.log') }
+    $adminScript = $adminScript.Replace('__WSL_LOG__', $LogFile.Replace("'", "''"))
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($adminScript))
     $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ' + $encoded
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    $powershellExe = (Get-Process -Id $PID).Path
-    $process = if ($isAdmin) { Start-Process $powershellExe -ArgumentList $arguments -Wait -PassThru }
-               else { Start-Process $powershellExe -ArgumentList $arguments -Verb RunAs -Wait -PassThru }
+    # Windows servicing cmdlets are native to Windows PowerShell, even when launched from pwsh.
+    $powershellExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $process = if ($script:GuepardoAdminSession) { @{ExitCode=(Invoke-GuepardoAdminCommand -Executable $powershellExe -EncodedCommand $encoded)} }
+               elseif ($isAdmin) { Start-Process $powershellExe -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru }
+               else { Start-Process $powershellExe -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -Wait -PassThru }
+    if ($process.ExitCode -notin @(0,3010,1641)) { Write-Log "WSL failed. Diagnostic log: $LogFile" -Level WARN }
     if ($process.ExitCode -eq 0) { Write-Log 'WSL 2 and Ubuntu configured. Open `wsl -d Ubuntu` to create your Linux user.' -Level OK }
     return $process.ExitCode
 }
@@ -531,6 +582,12 @@ $results = @{}
 foreach ($pkg in $toInstall) {
     $packageIndex++
     Write-Log -Message "[$packageIndex/$($toInstall.Count)] Installing $($pkg.Name) ($($pkg.Id))..." -Level "INFO"
+    if ($runtimeReady -and $pkg.Id -eq 'Microsoft.PowerShell') {
+        $results[$pkg.Id]='installed'
+        Set-GuepardoPackageState $installState $stateFile $pkg 'installed' 'bootstrap' "PowerShell $($PSVersionTable.PSVersion)"
+        Write-GuepardoResult $pkg.Name 'já instalado' 'Preparado na inicialização' -NoColor:$NoColor
+        continue
+    }
     
     $packageProvider = Get-GuepardoProvider -Package $pkg -Preferred $Provider
     $blocked = @($pkg.DependsOn | Where-Object { $results[$_] -in @('failed','blocked','reboot-required') })
@@ -557,7 +614,8 @@ foreach ($pkg in $toInstall) {
     }
     $previous = $installState.packages[$pkg.Id]
     $sameDefinition = $previous -and $previous.fingerprint -eq (Get-GuepardoFingerprint $pkg.Definition)
-    if ($installed -and (-not $Resume -or ($sameDefinition -and $previous.status -in @('installed','already-installed')))) {
+    if (Test-GuepardoCompletedJellyfinConfiguration -Package $pkg -Previous $previous -Results $results -Reconfigure:$ReconfigureJellyfin) { $installed=$true }
+    if ($installed -and -not $pkg.Definition.windows.alwaysUpdate -and (-not $Resume -or ($sameDefinition -and $previous.status -in @('installed','already-installed')))) {
         $results[$pkg.Id] = 'already-installed'
         Set-GuepardoPackageState $installState $stateFile $pkg 'already-installed' $detectedProvider
         Write-GuepardoResult $pkg.Name 'já instalado' $detectedProvider -NoColor:$NoColor
@@ -577,7 +635,7 @@ foreach ($pkg in $toInstall) {
                 'guepardo.vite-plus' { Install-VitePlus }
                 'guepardo.node-lts' { Install-NodeLts }
                 'guepardo.jellyfin-config' { Install-JellyfinConfiguration }
-                'guepardo.wsl2' { $exitCode = [int](Install-Wsl | Select-Object -Last 1) }
+                'guepardo.wsl2' { $exitCode = [int](Install-Wsl -LogFile $packageLog | Select-Object -Last 1) }
             }
         } catch { Write-Log "Failed to install $($pkg.Name): $_" -Level WARN; $exitCode = 1 }
     } elseif ($pkg.Id -eq "Composer.Composer") {
@@ -727,3 +785,4 @@ exit 0
     finally { if ($runLock) { $runLock.Dispose() } }
     Write-Progress -Activity 'Instalando aplicativos' -Completed
 }
+} finally { Stop-GuepardoAdminSession }

@@ -73,6 +73,18 @@
   ],
   "apps": [
     {
+      "id": "Microsoft.PowerShell",
+      "name": "PowerShell (latest stable)",
+      "profiles": ["cli"],
+      "windows": {
+        "provider": "winget",
+        "scoop": "pwsh",
+        "commands": ["pwsh"],
+        "alwaysUpdate": true
+      },
+      "dependsOn": []
+    },
+    {
       "id": "GitHub.cli",
       "name": "GitHub CLI",
       "profiles": [

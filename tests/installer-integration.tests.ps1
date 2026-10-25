@@ -7,6 +7,9 @@ try {
     $driver=Join-Path $sandbox 'driver.ps1'
     @'
 param($Installer,$Sandbox,$Scenario,[switch]$Resume,[switch]$RetryFailed)
+$env:GUEPARDO_RUNTIME_HOST=(Get-Process -Id $PID).Path
+function Start-GuepardoAdminSession { return $null }
+function Stop-GuepardoAdminSession {}
 $PROFILE=Join-Path $Sandbox 'profile.ps1'
 $env:SCOOP=Join-Path $Sandbox 'scoop'
 $env:GUEPARDO_TEST_TRACE=Join-Path $Sandbox 'vite-environment.json'
