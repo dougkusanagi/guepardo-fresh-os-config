@@ -4,6 +4,28 @@ Instalador de ambiente para Ubuntu, Fedora/Nobara e Windows. No Linux, o orquest
 
 O branch `master` é a versão de produção; `dev` fica para desenvolvimento.
 
+Quando o Sloth Note precisa ser compilado, o instalador prepara MSVC com `VsDevCmd.bat` em um processo separado e importa o ambiente sem alterar TEMP/TMP. Para testar essa preparação: `pwsh -NoProfile -File tests/msvc.tests.ps1`.
+
+## Gerenciar aplicativos depois da instalação
+
+Execute `.\manage.ps1` no Windows ou `bash ./manage.sh` no Ubuntu/Fedora/Nobara. O menu permite ver todos os aplicativos, escolher faltantes, instalar todos os faltantes e atualizar a consulta. Os temas Claro, Escuro e Sistema ficam visíveis no menu e a escolha é salva por usuário; Sistema usa as cores do terminal.
+
+| Ação | Windows | Linux |
+| --- | --- | --- |
+| Consultar sem instalar | `.\manage.ps1 -List` | `bash manage.sh --list` |
+| Ver só os instalados | `.\manage.ps1 -Installed` | `bash manage.sh --installed` |
+| Ver só os ausentes | `.\manage.ps1 -Missing` | `bash manage.sh --missing` |
+| Prévia dos faltantes | `.\manage.ps1 -Plan` | `bash manage.sh --plan` |
+| Escolher por ID | `.\manage.ps1 -Apps Git.Git,GitHub.cli` | `bash manage.sh --apps git,gh` |
+| Todos os faltantes de um perfil | `.\manage.ps1 -Profiles cli -InstallMissing` | `bash manage.sh --profiles cli --install-missing` |
+| JSON para consulta | `.\manage.ps1 -Json` | `bash manage.sh --json` |
+
+Consulta e prévia não instalam dependências nem solicitam administrador. Instalação no Windows reutiliza `install.ps1`, que resolve dependências e pede UAC; `-Apps` ou `-InstallMissing` autorizam iniciar a seleção sem outra confirmação. No Linux, confirme a seleção ou use `--yes`; é necessário Python 3. O `sudo` só é solicitado na instalação. Aplicativos já instalados são preservados; o plano inclui dependências ausentes.
+
+O catálogo Windows é `catalog/apps.json`. As receitas individuais disponíveis no gerenciador Linux estão em `catalog/linux-apps.json` e reutilizam as funções Bash existentes; isso não reaplica perfis inteiros, configurações de rede ou temas do desktop. Aplicativos gráficos ausentes ficam indisponíveis no WSL. Etapas Windows como dotagents, Jellyfin e WSL aparecem como configurações, sem serem confundidas com programas ausentes. Se o gerenciador não conseguir verificar um programa, informa “Não identificado” e não o inclui automaticamente na instalação. O inventário cobre os catálogos do Guepardo, não todos os programas do sistema.
+
+Testes locais: `pwsh -NoProfile -File tests/manage.tests.ps1` e, no Linux, `python3 -m unittest discover -s tests -p manage_linux_test.py` (também pode usar `uv run python -m unittest discover -s tests -p manage_linux_test.py`). O teste Linux executa o runner real em sandbox, sem instalar programas.
+
 Tema e plugins do Jellyfin são reaproveitados após uma configuração concluída, sem pedir login novamente. Falhas e reinstalações do servidor continuam exigindo configuração. Para reaplicar intencionalmente: `.\install.cmd -Profiles jellyfin -ReconfigureJellyfin`. Teste essa regra com `pwsh -NoProfile -File tests/jellyfin-state.tests.ps1`.
 
 O perfil Windows `wsl2` consulta a versão do Ubuntu antes de converter: distribuições que já usam WSL 2 são preservadas. Para repetir apenas essa etapa, execute `.\install.cmd -Apps guepardo.wsl2`. Teste essa lógica localmente com `pwsh -NoProfile -File tests/powershell-wsl.tests.ps1`.

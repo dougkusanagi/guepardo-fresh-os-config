@@ -2,6 +2,9 @@
 
 ```mermaid
 flowchart TD
+    ManageWin[manage.ps1: inventário e seleção] --> Launcher
+    ManageLinux[manage.sh / Python: inventário e seleção] --> Individual[Receitas individuais do catálogo Linux]
+    Individual --> Bash
     Launcher[install.cmd / install.ps1] --> Runtime[PowerShell estável por usuário]
     Runtime --> Menu[Console e catálogo Windows]
     Menu --> Engine[Estado, dependências e recuperação]

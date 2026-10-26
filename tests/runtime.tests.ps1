@@ -32,6 +32,17 @@ exit 23
     Assert ($code -eq 23 -and $result.Resume -and $result.HostVersion -ge 7) 'Relaunch exit/switch/runtime lost'
     Assert (($result.Apps -join '|') -eq 'one|two with space') 'Relaunch array arguments corrupted'
     Assert ($result.Marker -eq $script:runtimeTestExe -and $env:GUEPARDO_RUNTIME_HOST -eq $savedMarker) 'Runtime marker not restored'
+    @'
+param([string]$StateDirectory)
+$child=Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList '-NoLogo -NoProfile -Command Start-Sleep -Seconds 30' -WindowStyle Hidden -PassThru
+Set-Content -LiteralPath $StateDirectory -Value $child.Id
+exit 0
+'@ | Set-Content -LiteralPath $installer
+    $timer=[Diagnostics.Stopwatch]::StartNew()
+    $code=Invoke-GuepardoPowerShellRuntime $installer @{StateDirectory=$output}
+    $childId=[int](Get-Content -LiteralPath $output)
+    try { Assert ($code -eq 0 -and $timer.Elapsed.TotalSeconds -lt 15) 'Bootstrap waited for background descendants after installer exit' }
+    finally { Stop-Process -Id $childId -ErrorAction SilentlyContinue }
 } finally {
     $target=[IO.Path]::GetFullPath($sandbox)
     Assert ($target.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()))) 'Unsafe cleanup'

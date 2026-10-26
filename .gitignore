@@ -14,3 +14,7 @@ Thumbs.db
 
 # Fontes pessoais são gerenciadas fora do repositório
 /fonts/
+
+# Local Python inventory/test bytecode
+__pycache__/
+*.pyc

@@ -79,7 +79,11 @@ function Invoke-GuepardoPowerShellRuntime {
         # redirect its stdout. The picker then loses its console and its menu is captured
         # as part of the return value. Inherit the console handles directly instead.
         $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-        $process=Start-Process -FilePath $exe -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -OutputFormat Text -EncodedCommand $encoded" -NoNewWindow -Wait -PassThru
+        $process=Start-Process -FilePath $exe -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -OutputFormat Text -EncodedCommand $encoded" -NoNewWindow -PassThru
+        # Wait for the installer itself. Start-Process -Wait tracks its complete
+        # process tree and can hang after build tools have already completed.
+        $null=$process.Handle # Cache the handle so Windows PowerShell 5 retains ExitCode.
+        $process.WaitForExit()
         return $process.ExitCode
     } finally { $env:GUEPARDO_RUNTIME_HOST=$oldMarker; Remove-Item -LiteralPath $payload -Force -ErrorAction SilentlyContinue }
 }

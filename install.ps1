@@ -415,20 +415,21 @@ function Install-SlothNote {
         return
     }
     Write-Log 'No public Sloth Note installer; building source with Bun/Rust/MSVC (may take several minutes).' -Level WARN
-    Install-RequiredWingetPackage 'Oven-sh.Bun'
-    Install-RequiredWingetPackage 'OpenJS.NodeJS.LTS'
-    Install-RequiredWingetPackage 'Rustlang.Rustup'
-    Install-RequiredWingetPackage 'Microsoft.VisualStudio.2022.BuildTools' @('--override', '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended')
-    $destination = Get-GuepardoCheckout 'dougkusanagi/sloth-noter' 'sloth-noter'
+    if(-not(Get-Command bun -ErrorAction SilentlyContinue)){Install-RequiredWingetPackage 'Oven-sh.Bun'}
+    if(-not(Get-Command node -ErrorAction SilentlyContinue) -or -not(Get-Command npm.cmd -ErrorAction SilentlyContinue)){Install-RequiredWingetPackage 'OpenJS.NodeJS.LTS'}
+    if(-not(Get-Command rustup -ErrorAction SilentlyContinue)){Install-RequiredWingetPackage 'Rustlang.Rustup'}
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-    $vsPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-    if (-not $vsPath) { throw 'MSVC C++ build tools unavailable; restart Windows and rerun.' }
-    $devCmd = Join-Path $vsPath 'Common7/Tools/VsDevCmd.bat'
-    $devEnvironment = & cmd.exe /s /c "`"`"$devCmd`" -arch=x64 >nul && set`""
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to initialize MSVC environment.' }
-    foreach ($line in $devEnvironment) {
-        if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') }
+    $vsPath=$null
+    if(Test-Path -LiteralPath $vswhere){$vsPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath}
+    if(-not $vsPath){
+        Install-RequiredWingetPackage 'Microsoft.VisualStudio.2022.BuildTools' @('--override', '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended')
+        $vsPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
     }
+    if (-not $vsPath) { throw 'MSVC C++ build tools unavailable; restart Windows and rerun.' }
+    $destination = Get-GuepardoCheckout 'dougkusanagi/sloth-noter' 'sloth-noter'
+    $devCmd = Join-Path $vsPath 'Common7/Tools/VsDevCmd.bat'
+    . (Join-Path $PSScriptRoot 'modules/installer/msvc.ps1')
+    Import-GuepardoMsvcEnvironment -DevCmd $devCmd
     $env:Path = (Join-Path $env:USERPROFILE '.cargo/bin') + ';' + $env:Path
     & rustup default stable
     if ($LASTEXITCODE -ne 0) { throw 'Rust toolchain setup failed.' }
