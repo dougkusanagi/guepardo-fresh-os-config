@@ -49,3 +49,5 @@ contains 'scripts/run-profile.sh' 'exec "$sudo_binary" -n "\$@"'
 contains 'cmd/guepardo/main.go' 'sudoSession('
 contains 'cmd/guepardo/main.go' 'time.NewTicker(sudoRefreshInterval)'
 printf 'Developer tool checks passed\n'
+# Apps run in a subshell, so the parent PATH must already include vp for verification.
+contains install-common/lib.sh '$TARGET_HOME/.vite-plus/bin:'
