@@ -349,3 +349,15 @@ func TestFontsProfileRemoved(t *testing.T) {
 		t.Fatal(p.profiles())
 	}
 }
+
+func TestCheckRunUser(t *testing.T) {
+	if checkRunUser(0, false) == nil {
+		t.Fatal("root fora do WSL deve ser recusado")
+	}
+	if err := checkRunUser(0, true); err != nil {
+		t.Fatalf("root no WSL deve ser aceito: %v", err)
+	}
+	if err := checkRunUser(1000, false); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -159,6 +159,14 @@ func color(code, value string, enabled bool) string {
 	return "\x1b[" + code + "m" + value + "\x1b[0m"
 }
 
+// checkRunUser recusa root, exceto no WSL, onde o usuário padrão costuma ser root.
+func checkRunUser(euid int, wsl bool) error {
+	if euid == 0 && !wsl {
+		return errors.New("execute como usuário normal, sem sudo")
+	}
+	return nil
+}
+
 func isWSLEnvironment() bool {
 	if os.Getenv("WSL_DISTRO_NAME") != "" || os.Getenv("WSL_INTEROP") != "" {
 		return true
@@ -535,8 +543,8 @@ func run() error {
 		}
 		return nil
 	}
-	if os.Geteuid() == 0 {
-		return errors.New("execute como usuário normal, sem sudo")
+	if err := checkRunUser(os.Geteuid(), isWSLEnvironment()); err != nil {
+		return err
 	}
 	if !interactive && !opts.yes && !opts.dryRun {
 		return errors.New("em modo não interativo use --yes para autorizar a instalação")
