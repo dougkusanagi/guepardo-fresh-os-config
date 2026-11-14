@@ -177,6 +177,8 @@ Só `AGENTS.md` é copiado; um arquivo existente diferente é preservado.
 
 `.\compress-videos.cmd` (`scripts/compress-videos.py`) reduz o tamanho de uma pasta de vídeos mantendo a compatibilidade com praticamente qualquer player (por exemplo, os vídeos de prévia do ES-DE): MP4 com H.264 (`yuv420p`) e AAC, mesma resolução, fps, nomes e subpastas. O resultado vai para uma pasta separada; os originais não são alterados. Precisa de FFmpeg (perfil `desktop` ou `winget install Gyan.FFmpeg`) e de uv ou Python 3.11+.
 
+O perfil `desktop` do instalador Windows instala o FFmpeg e deixa o comando `compress-videos` disponível em qualquer terminal novo: cria `%USERPROFILE%\.local\bin\compress-videos.cmd`, que chama o `compress-videos.cmd` do checkout, e põe essa pasta no PATH do usuário. Funciona só a partir de um checkout (`.\install.cmd`); pelo comando remoto de uma linha, o passo é pulado com um aviso, porque a cópia baixada é temporária. Se o checkout mudar de pasta, rode o instalador de novo.
+
 ```powershell
 .\compress-videos.cmd scan "<pasta de vídeos>"                 # quantidade, tamanho e distribuição (--codecs lista codecs)
 .\compress-videos.cmd estimate "<pasta de vídeos>"             # converte 20 amostras e estima a economia

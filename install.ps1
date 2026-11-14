@@ -486,6 +486,20 @@ function Enable-OneDriveAutostart {
     Write-Log 'OneDrive GUI enabled at sign-in. Open OneDrive to authenticate and choose folders.'
 }
 
+function Install-CompressVideos {
+    # The shim points at this checkout, so a temporary bootstrap download cannot be used.
+    $launcher = if ($PSScriptRoot) { Join-Path $PSScriptRoot 'compress-videos.cmd' } else { $null }
+    if (-not $launcher -or -not (Test-Path -LiteralPath $launcher)) {
+        throw 'compress-videos.cmd not found; run install.ps1 from a repository checkout.'
+    }
+    if ((Split-Path -Leaf (Split-Path -Parent $PSScriptRoot)) -like 'guepardo-source-*') {
+        Write-Log 'compress-videos was not added to PATH: the remote installer uses a temporary copy. Run .\install.cmd from a checkout to add it.' -Level WARN
+        return
+    }
+    $shim = Install-GuepardoUserCommand -Name 'compress-videos' -Target $launcher
+    Write-Log "compress-videos available in new terminals via $shim" -Level OK
+}
+
 function Install-ZapFast {
     if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs/ZapFast/ZapFast.exe')) { return }
     $release = Get-GuepardoRelease 'crmne/zapfast'
@@ -626,13 +640,14 @@ foreach ($pkg in $toInstall) {
     $packageLog = Join-Path $logDir ("package-$timestamp-$pid-$($pkg.Id).log")
     Write-Progress -Activity 'Instalando aplicativos' -Status "$packageIndex/$($toInstall.Count) $($pkg.Name)" -PercentComplete ([int](100*($packageIndex-1)/[Math]::Max(1,$toInstall.Count)))
     $exitCode = 1
-    if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note', 'guepardo.zapfast', 'guepardo.vite-plus', 'guepardo.node-lts', 'guepardo.jellyfin-config', 'guepardo.wsl2')) {
+    if ($pkg.Id -in @('guepardo.dotagents', 'guepardo.sloth-note', 'guepardo.zapfast', 'guepardo.vite-plus', 'guepardo.node-lts', 'guepardo.jellyfin-config', 'guepardo.wsl2', 'guepardo.compress-videos')) {
         try {
             $exitCode = 0
             switch ($pkg.Id) {
                 'guepardo.dotagents' { Install-Dotagents }
                 'guepardo.sloth-note' { Install-SlothNote }
                 'guepardo.zapfast' { Install-ZapFast }
+                'guepardo.compress-videos' { Install-CompressVideos }
                 'guepardo.vite-plus' { Install-VitePlus }
                 'guepardo.node-lts' { Install-NodeLts }
                 'guepardo.jellyfin-config' { Install-JellyfinConfiguration }
@@ -674,7 +689,7 @@ foreach ($pkg in $toInstall) {
     if ($result -eq 'reboot-required') { $rebootRequired = $true }
     if ($result -in @('installed','already-installed')) {
         Update-ProcessEnvironment
-        $configurationOnly = $pkg.Id -in @('guepardo.dotagents','guepardo.jellyfin-config','guepardo.wsl2')
+        $configurationOnly = $pkg.Id -in @('guepardo.dotagents','guepardo.jellyfin-config','guepardo.wsl2','guepardo.compress-videos')
         if (-not $configurationOnly -and -not (Test-GuepardoPackage $pkg $packageProvider)) {
             $result = 'failed'
             Write-Log "Installer returned success but package verification failed: $($pkg.Id)" -Level WARN

@@ -582,6 +582,21 @@
       "dependsOn": []
     },
     {
+      "id": "guepardo.compress-videos",
+      "name": "compress-videos (CLI)",
+      "profiles": [
+        "desktop"
+      ],
+      "windows": {
+        "provider": "custom",
+        "scoop": null,
+        "commands": []
+      },
+      "dependsOn": [
+        "Gyan.FFmpeg"
+      ]
+    },
+    {
       "id": "OpenAI.ChatGPT",
       "name": "ChatGPT",
       "profiles": [
