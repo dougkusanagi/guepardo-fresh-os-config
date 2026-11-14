@@ -173,6 +173,19 @@ O Winget usa a fonte `winget`, modo silencioso e reaproveita aplicativos existen
 
 Só `AGENTS.md` é copiado; um arquivo existente diferente é preservado.
 
+### Compactar vídeos
+
+`.\compress-videos.cmd` (`scripts/compress-videos.py`) reduz o tamanho de uma pasta de vídeos mantendo a compatibilidade com praticamente qualquer player (por exemplo, os vídeos de prévia do ES-DE): MP4 com H.264 (`yuv420p`) e AAC, mesma resolução, fps, nomes e subpastas. O resultado vai para uma pasta separada; os originais não são alterados. Precisa de FFmpeg (perfil `desktop` ou `winget install Gyan.FFmpeg`) e de uv ou Python 3.11+.
+
+```powershell
+.\compress-videos.cmd scan "<pasta de vídeos>"                 # quantidade, tamanho e distribuição (--codecs lista codecs)
+.\compress-videos.cmd estimate "<pasta de vídeos>"             # converte 20 amostras e estima a economia
+.\compress-videos.cmd compress "<pasta de vídeos>" "<destino>" # compacta para outra pasta
+.\compress-videos.cmd verify "<pasta de vídeos>" "<destino>"   # confere se tudo existe e abre
+```
+
+`compress` confere cada vídeo novo (legível e com a mesma duração) e copia o original quando a conversão falha, quando o arquivo tem menos de 1 MB (`--tamanho-minimo`) ou quando a economia fica abaixo de 5% (`--economia-minima`). Ctrl+C interrompe; rodar o mesmo comando continua de onde parou. Outras opções: `--codec h265` (menor, mais pesado de tocar), `--crf`, `--preset`, `--audio-bitrate`, `--max-height`, `-j` e `--dry-run`. Depois de testar os vídeos no app que vai usá-los, troque as pastas manualmente e guarde a original como backup.
+
 ## Desenvolvimento e testes
 
 ```bash
@@ -183,6 +196,7 @@ go test ./...
 pwsh -NoProfile -File tests/test-windows.ps1
 pwsh -NoProfile -File tests/windows-reliability.ps1
 pwsh -NoProfile -File tests/jellyfin-suite.ps1
+uv run --no-project python -m unittest tests/compress_videos_test.py
 ./test.sh --mode=container --distro=ubuntu --profiles=dev --run-installer
 ```
 
